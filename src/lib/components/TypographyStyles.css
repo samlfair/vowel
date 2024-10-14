@@ -1,0 +1,254 @@
+html {
+	font-family:
+		-apple-system,
+		BlinkMacSystemFont,
+		avenir next,
+		avenir,
+		segoe ui,
+		helvetica neue,
+		helvetica,
+		Cantarell,
+		Ubuntu,
+		roboto,
+		noto,
+		arial,
+		sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	margin-top: 0.5rem;
+	margin-bottom: 1rem;
+	text-rendering: optimizeLegibility;
+	font-weight: 600;
+	line-height: 1.1;
+}
+
+h1 {
+	font-size: 3rem;
+	line-height: 1.2;
+	font-weight: 800;
+}
+
+h2 {
+	font-size: 2.6rem;
+	margin-top: 3rem;
+}
+
+h3 {
+	font-size: 2rem;
+	margin-top: 3rem;
+}
+
+h4 {
+	font-size: 1.44rem;
+}
+
+h5 {
+	font-size: 1.15rem;
+}
+
+h6 {
+	font-size: 0.96rem;
+}
+
+article h1 {
+	font-weight: 600;
+	font-size: 2rem;
+}
+
+@media only screen and (max-width: 720px) {
+	h1 {
+		font-size: 2.5rem;
+	}
+
+	h2 {
+		font-size: 2.1rem;
+	}
+
+	h3 {
+		font-size: 1.75rem;
+	}
+
+	h4 {
+		font-size: 1.25rem;
+	}
+}
+
+p {
+	margin-top: 0;
+}
+
+ol,
+ul {
+	/* padding-left: 0; */
+	margin-top: 0;
+}
+
+ul ul,
+ul ol,
+ol ol,
+ol ul {
+	font-size: 100%;
+	/* margin: 1rem 0 1rem 3rem; */
+}
+
+li {
+	margin-bottom: 0.5rem;
+}
+
+/* Extra selector for specificity, see below */
+li>p:not(:last-child) {
+	margin: 0;
+	padding: 0;
+}
+
+pre,
+code {
+	font-family:
+		Menlo,
+		Consolas,
+		Monaco,
+		Liberation Mono,
+		Lucida Console,
+		monospace;
+}
+
+code {
+	font-size: 0.9em;
+	margin-inline: 0px;
+	padding: 3px 4px;
+	border-radius: 5px;
+}
+
+pre {
+	padding: 1rem 1.5rem;
+	border-radius: 5px;
+	overflow-x: auto;
+}
+
+blockquote {
+	margin: 1.5em 0;
+	padding: 0 1.6em 0 1.6em;
+}
+
+a {
+	text-decoration: none;
+}
+
+li.checked,
+li.unchecked {
+	padding-left: 0.8rem;
+}
+
+figcaption {
+	margin-top: 0.5rem;
+	font-style: italic;
+}
+
+article+article {
+	margin-top: 1rem;
+}
+
+article a {
+	color: unset;
+}
+
+article a:hover {
+	color: unset;
+}
+
+article h2 {
+	margin-top: 2rem;
+}
+
+th,
+td {
+	padding: 12px 15px;
+	text-align: left;
+}
+
+th:first-child,
+td:first-child {
+	padding-left: 0;
+}
+
+th:last-child,
+td:last-child {
+	padding-right: 0;
+}
+
+:where(pre,
+	blockquote,
+	dl,
+	figure,
+	table,
+	p,
+	ul,
+	ol,
+	form,
+	article,
+	section,
+	aside,
+	time,
+	dl):not(:last-child) {
+	margin-bottom: 2.5rem;
+}
+
+hr {
+	margin-top: 3rem;
+	margin-bottom: 3.5rem;
+	border-width: 0px;
+}
+
+dt {
+	font-weight: 500;
+}
+
+time {
+	display: block;
+}
+
+time a {
+	color: unset;
+}
+
+.breadcrumbs a {
+	font-size: 0.9em;
+	color: unset;
+}
+
+.breadcrumbs .separator:after {
+	margin-inline: 0.2em;
+	content: '/';
+}
+
+nav>a {
+	text-wrap: nowrap;
+}
+
+header a.site-title {
+	color: unset;
+	font-weight: 900;
+	font-size: 2.8em;
+}
+
+header .slogan {
+	font-weight: 500;
+}
+
+nav a:where([aria-current='page'], [aria-current='true']),
+nav a:where([aria-current='page'], [aria-current='true']):hover {
+	text-decoration: none;
+	color: unset;
+	cursor: default;
+}
+
+aside h2 {
+	margin: 0 0 0.5em 0;
+	font-size: 1.1em;
+}

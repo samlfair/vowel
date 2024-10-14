@@ -1,0 +1,333 @@
+/*
+			Inspiration for this stylesheet comes from Normalize.css, Josh Comeau,
+			Barebones, Basic.css, Pico, Typeplate, Simple.css, and more
+		*/
+
+:root {
+	--text-color: hsl(0, 0%, 13%);
+	--accent-color: hsl(215, 100%, 35%);
+	--accent-color-hover: hsl(215, 76%, 49%);
+	--border-color: hsl(0, 0%, 73%);
+	--main-background: hsl(0, 0%, 100%);
+	--code-background: hsl(0, 0%, 95%);
+	/* --soft-background: hsl(0, 0%, 95%); */
+	--soft-background: #00000005;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--text-color: hsl(0, 0%, 80%);
+		--accent-color: hsl(194, 76%, 49%);
+		--accent-color-hover: hsl(194, 86%, 57%);
+		--border-color: hsl(0, 0%, 27%);
+		--main-background: hsl(0, 0%, 12%);
+		--code-background: hsl(0, 0%, 5%);
+		/* --soft-background: hsl(0, 0%, 14%); */
+		--soft-background: #ffffff07;
+	}
+}
+
+/* Layout */
+
+.page {
+	font-family: var(--font-sans);
+	max-width: 60ch;
+	margin: auto;
+	display: flex;
+	flex-direction: column;
+	padding: 1rem;
+}
+
+main,
+article.thumbnail {
+	margin-bottom: auto;
+	padding-bottom: 4rem;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-items: baseline;
+	column-gap: 0.5rem;
+}
+
+:is(main, article.thumbnail)>* {
+	flex-basis: 100%;
+}
+
+:is(main, article.thumbnail) :is(time, dl:not(.link)) {
+	flex-basis: 0;
+	display: inline !important;
+	font-size: 0.9em;
+	opacity: 0.8;
+}
+
+dt {
+	display: none;
+}
+
+dd {
+	display: inline;
+}
+
+.page>main> :first-child {
+	margin-top: 2.5rem;
+}
+
+/* Colors */
+
+body {
+	color: var(--text-color);
+	background: var(--main-background);
+}
+
+a {
+	color: var(--accent-color);
+}
+
+a:hover {
+	color: var(--accent-color-hover);
+}
+
+code,
+pre {
+	background: var(--code-background);
+}
+
+blockquote {
+	border-left: 5px solid var(--border-color);
+}
+
+article {
+	border: 1px solid var(--border-color);
+	background: var(--soft-background);
+	padding: 1.8rem 2rem 1.5rem;
+	border-radius: 0.5rem;
+	display: flex;
+	flex-direction: column;
+}
+
+th,
+td {
+	border-bottom: 1px solid var(--border-color-softer);
+}
+
+hr {
+	border-top: 1px solid var(--text-color);
+}
+
+/* Frontmatter */
+
+main>img {
+	margin-bottom: 2.5rem;
+}
+
+dt {
+	font-size: 1.1em;
+}
+
+dl.link dt {
+	display: none;
+}
+
+dl.link {
+	order: calc(Infinity);
+	margin-top: 2.5rem;
+	margin-bottom: 0;
+}
+
+dl.tags,
+time {
+	font-size: 1.1em;
+}
+
+dl.tags dt {
+	display: none;
+}
+
+dl.tags :is(dd, ul, li) {
+	padding-inline: 0;
+	display: inline;
+}
+
+dl.tags li {
+	margin-inline: 0.2em;
+}
+
+dl.tags li:before {
+	content: '#';
+}
+
+dl.contents ul {
+	list-style: none;
+	padding: 0;
+}
+
+dl.contents .depth-2 {
+	font-weight: 500;
+}
+
+dl.contents .depth-3 {
+	font-size: 0.95em;
+	padding-left: 0.5em;
+}
+
+/* Header */
+
+header {
+	margin-top: 4rem;
+}
+
+nav.top-bar {
+	border: 1px solid var(--border-color);
+	padding: 6px 10px;
+	margin-inline: -3px;
+	border-radius: 5px;
+	display: flex;
+	column-gap: 2rem;
+	row-gap: 0.5rem;
+	flex-wrap: wrap;
+	justify-content: flex-start;
+	background: var(--soft-background);
+}
+
+nav.top-bar:has(+ nav.top-bar) {
+	border-bottom: none;
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+nav.top-bar:has(+ nav.top-bar):after {
+	display: block;
+	content: '';
+	border-bottom: 1px solid var(--border-color);
+	flex-basis: 100%;
+	margin-top: 0.7rem;
+}
+
+nav.top-bar+nav.top-bar {
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
+	border-top: none;
+	margin-top: 0;
+}
+
+header .breadcrumbs>a:only-child {
+	display: none;
+}
+
+header .breadcrumbs {
+	margin-block: 4rem 1rem;
+}
+
+/* Sidebar */
+
+.sidebar {
+	margin-inline: auto;
+}
+
+/* Footer */
+
+footer {
+	text-align: center;
+	margin-block: 6rem 8rem;
+}
+
+/* Pages */
+
+.page.home>main>h1 {
+	display: none;
+}
+
+.page.home>.content>p:first-child {
+	font-size: 1.2em;
+}
+
+section[class*='$'] {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	grid-auto-rows: auto;
+	grid-gap: 2rem;
+
+	& article {
+		margin: 0;
+	}
+}
+
+article.item {
+	display: grid;
+	flex-direction: column;
+	grid-template-areas:
+		'title icon'
+		'description description';
+	align-content: start;
+}
+
+article.item h1 {
+	grid-area: title;
+	font-size: 1.6rem;
+}
+
+article.item dl.icon {
+	grid-area: icon;
+	font-size: 1.5em;
+}
+
+article.item dl.icon dd {
+	text-align: right;
+}
+
+article.item .description {
+	grid-area: description;
+}
+
+article.item dt {
+	display: none;
+}
+
+article.item dl.icon {
+	order: -1;
+}
+
+aside.alert.note {
+	--icon: 'ℹ️';
+	--rgb: 71, 139, 230;
+}
+
+aside.alert.tip {
+	--icon: '💡';
+	--rgb: 87, 171, 90;
+}
+
+aside.alert.important {
+	--icon: '💬';
+	--rgb: 152, 110, 226;
+}
+
+aside.alert.warning {
+	--icon: '⚠️';
+	--rgb: 198, 144, 38;
+}
+
+aside.alert.caution {
+	--icon: '⛔️';
+	--rgb: 229, 83, 75;
+}
+
+aside.alert {
+	border-left: 3px solid rgb(var(--rgb));
+	padding: 1.5rem 2rem;
+	background: rgba(var(--rgb), 0.04);
+}
+
+aside.alert h2 {
+	color: rgb(var(--rgb));
+}
+
+aside.alert h2:before {
+	font-size: 0.8em;
+	margin-right: 0.7rem;
+	opacity: 0.9;
+}
+
+aside.alert h2:before {
+	content: var(--icon);
+}
