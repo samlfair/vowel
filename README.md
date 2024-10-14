@@ -10,7 +10,7 @@ Vowel is the easiest way to code your own website.
 Turn a folder of Markdown files into a website by running one command:
 
 ```
-npx -y -p svelte@next -p vowel@latest npx vowel
+npx vowel
 ```
 
 No installs. No config.
