@@ -13,8 +13,6 @@ Turn a folder of Markdown files into a website by running one command:
 npx vowel
 ```
 
-No installs. No config.
-
 Create a blog, a documentation site, a landing page, a wiki (whatever you want), using just Markdown and CSS.
 
 No HTML.
