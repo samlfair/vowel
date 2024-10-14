@@ -1,6 +1,15 @@
 {
 	"name": "vowel",
 	"version": "0.1.32",
+	"homepage": "https://vowel.cc",
+	"author": "Sam Littlefair (https://littlefair.ca)",
+	"repository": {
+		"type": "git",
+		"url": "ssh://git@github.com/samlfair/vowel.git"
+	},
+	"engines": {
+		"node": "^20.0.0"
+	},
 	"bin": "./bin.js",
 	"scripts": {
 		"dev": "vite dev",
