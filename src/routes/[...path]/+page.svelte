@@ -106,6 +106,19 @@
 			});
 		}
 	});
+
+	function createWebmentionURL() {
+		try {
+			if(website._.domain) {
+				const domain = new URL(website._.domain)
+				return `https://webmention.io/${domain.host}/webmention`
+			}
+			return undefined
+		} catch(error) {
+			console.warn(error)
+			return undefined
+		}
+	}
 </script>
 
 <svelte:component this={themes[theme || 'default']} />
@@ -125,6 +138,12 @@
 	{/if}
 	{#if !data.dev && data.files.css.exists}
 		<link rel="stylesheet" href="/styles.css" />
+	{/if}
+	{#if website._.github}
+		<link href={`https://github.com/${website._.github}`} rel="me">
+	{/if}
+	{#if website._.webmentions && website._.domain}
+		<link rel="webmention" href={createWebmentionURL()} />
 	{/if}
 	{#if page.hasOwnProperty('image') || page.imputedProperties?.hasOwnProperty('image')}
 		<meta property="og:image" content={page.image || page.imputedProperties.image} />
