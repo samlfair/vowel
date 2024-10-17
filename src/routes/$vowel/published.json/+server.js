@@ -11,7 +11,6 @@ export const prerender = true;
 
 async function getPublishedData(domain) {
 	try {
-		console.log({domain})
 		const publishedURL = new URL("/$vowel/published.json", domain)
 		const publishedDataResponse = await fetch(publishedURL.href)
 		const publushedDataJSON = await publishedDataResponse.json()
@@ -31,11 +30,12 @@ export async function GET() {
 	const settingsExists = await checkFileExists(settingsPath);
 	if(settingsExists) {
 		settings = await readMarkdownFile(settingsPath)
-		console.log({settings})
 	}
 
 	// Get published articles from live site
 	const publishedData = await getPublishedData(settings.frontmatter.domain)
+
+	console.log({publish: $publish[0]})
 
 	if($publish[0]) {
 		const initialCache = await loadCache($home[0]);
