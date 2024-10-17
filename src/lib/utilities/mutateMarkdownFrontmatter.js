@@ -96,13 +96,13 @@ export default async function mutateMarkdownFrontmatter(frontmatter, cache, webm
 							og_image: url['og:image']
 						};
 
-						if(webmentions && !webmentions.find(webmention => webmention.target === url)) {
+						if(webmentions && !webmentions.find(webmention => webmention.target === input)) {
 							webmentions.push({
 								target: input,
 								status: "new"
 							})
 						} else if (webmentions) {
-							const webmention = webmentions.find(webmention => webmention.target === url)
+							const webmention = webmentions.find(webmention => webmention.target === input)
 							if(webmention.status === "new") {
 								webmention.status = await sendWebmention(metadata.responseBody)
 							}
