@@ -2,7 +2,6 @@ import fs from 'fs/promises';
 import { resolveHomeDirPath } from '.';
 
 export default async function writeCache(data, homeDir) {
-	console.log({ data });
 	const cachePath = resolveHomeDirPath('.cache.json', homeDir);
 
 	try {

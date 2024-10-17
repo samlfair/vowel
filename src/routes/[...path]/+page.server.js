@@ -21,7 +21,5 @@ export async function entries() {
 
 	pages.push({ path: '404' });
 
-	console.log({ pages });
-
 	return pages;
 }
