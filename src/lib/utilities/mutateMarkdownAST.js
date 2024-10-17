@@ -1,24 +1,51 @@
 import urlMetadata from 'url-metadata';
+import { sendWebmention } from './';
 
-export default async function mutateMarkdownAST(ast, cache) {
+function isURL(string) {
+	try {
+		new URL(string)
+		return true
+	} catch (e) {
+		return false
+	}
+}
+
+export default async function mutateMarkdownAST(ast, cache, webmentions) {
+
 	const promises = ast.map(async (node) => {
 		// TODO: Improve this URL regex
 		if (node.type === 'paragraph') {
+
 			// URLs
 			if (
 				node.children?.length === 1 &&
-				node.children[0]?.value?.match(/^https?:\/\/\S+$/) &&
-				!node.children[0]?.children
+				node.children?.[0]?.type === "link" &&
+				node.children?.[0]?.children?.length === 1
 			) {
 				node.type = 'url';
-				const url = node.children[0].value;
-				if (!cache[node.value]) {
+				const { url } = node.children[0];
+				node.url = url
+				if (!cache[node.url]) {
 					try {
 						const urlObject = new URL(url);
 						const response = await urlMetadata(urlObject.href, {
-							includeResponseBody: false,
+							includeResponseBody: true,
 							ensureSecureImageRequest: true
 						});
+
+						console.log("UR:")
+
+						
+						if(webmentions && !webmentions.find(webmention => webmention.target === url)) {
+							console.log("Sending webmention)")
+							const webmentionStatus = await sendWebmention(response.responseBody)
+							console.log({webmentionStatus})
+
+							webmentions.push({
+								target: url,
+								status: webmentionStatus
+							})
+						}
 
 						const metadata = {
 							image: response['og:image'],
@@ -30,6 +57,8 @@ export default async function mutateMarkdownAST(ast, cache) {
 							description: response.description
 						};
 
+
+
 						cache[url] = metadata;
 						node.metadata = metadata;
 						node.value = url;
@@ -37,11 +66,11 @@ export default async function mutateMarkdownAST(ast, cache) {
 						delete node.children;
 					} catch (error) {
 						node.value = url;
-						// console.log(`Error on URL in content: ${url}`);
 					}
 				} else {
 					node.metadata = cache[node.value];
 				}
+
 			} else if (node.children[0].type === 'image') {
 				node.type = 'figure';
 				if (node?.children[1]?.type === 'text') {

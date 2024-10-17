@@ -85,7 +85,8 @@
 		{:else if node.type === 'image'}
 			<Image {node} />
 		{:else if node.type === 'url'}
-			<LinkPreview url={node.value} metadata={node.metadata} {format} />
+			<!-- {@const dummy = console.log(node)} -->
+			<LinkPreview url={node.url} metadata={node.metadata} {format} />
 		{:else if node.type === 'listItem'}
 			{@const isChecklistItem = node.checked !== null}
 			{#if isChecklistItem}

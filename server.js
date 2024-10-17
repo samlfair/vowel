@@ -6,7 +6,7 @@ import { dirname, join } from 'path';
 import mri from 'mri';
 
 const args = mri(process.argv);
-const { build: isBuild, directory } = args;
+const { build: isBuild, directory, publish } = args;
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -18,7 +18,8 @@ const $home = isBuild ? process.cwd() : directory;
 
 const define = {
 	$home: [directory],
-	$build: [isBuild]
+	$build: [isBuild],
+	$publish: [publish]
 };
 
 const config = {

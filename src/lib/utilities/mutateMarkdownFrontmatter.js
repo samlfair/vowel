@@ -1,5 +1,5 @@
 import urlMetadata from 'url-metadata';
-import { regexPatterns, isObject, parseDate } from '.';
+import { regexPatterns, isObject, parseDate, sendWebmention } from '.';
 
 /**
  * Description
@@ -24,7 +24,7 @@ function imputeType(value) {
 	return 'other';
 }
 
-export default async function mutateMarkdownFrontmatter(frontmatter, cache) {
+export default async function mutateMarkdownFrontmatter(frontmatter, cache, webmentions) {
 	const keys = Object.keys(frontmatter);
 
 	const promises = keys.map(async (key) => {
@@ -74,6 +74,7 @@ export default async function mutateMarkdownFrontmatter(frontmatter, cache) {
 				break;
 			}
 			case 'url': {
+
 				if (!cache[input]) {
 					try {
 						const url = new URL(input);
@@ -94,6 +95,15 @@ export default async function mutateMarkdownFrontmatter(frontmatter, cache) {
 							og_site_name: url['og:side_name'],
 							og_image: url['og:image']
 						};
+
+						if(webmentions && !webmentions.find(webmention => webmention.target === url)) {
+							const webmentionStatus = await sendWebmention(response.responseBody)
+							
+							webmentions.push({
+								target: input,
+								status: webmentionStatus
+							})
+						}
 
 						cache[input] = selectedMetadata;
 

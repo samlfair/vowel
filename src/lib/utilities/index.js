@@ -18,3 +18,4 @@ export { default as resolveHomeDirPath } from './resolveHomeDirPath';
 export { default as createPageClass } from './createPageClass';
 export { default as createFolderClass } from './createFolderClass';
 export { default as isActiveLink } from './isActiveLink';
+export { default as sendWebmention } from "./sendWebmention"

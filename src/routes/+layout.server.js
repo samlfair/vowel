@@ -1,11 +1,9 @@
-import { loadCache, writeCache, processMarkdownFiles } from '$lib/utilities';
+import { loadCache, writeCache, processMarkdownFiles, readMarkdownFile } from '$lib/utilities';
 import { access } from 'fs/promises';
 import { constants } from 'fs';
 import { normalize, join, basename } from 'path';
 import { dev } from '$app/environment';
 import mri from 'mri';
-import { getPage } from '../../lib/utilities';
-import { error } from '@sveltejs/kit';
 
 const args = mri(process.argv);
 const isBuild = args._.includes('build');
@@ -24,6 +22,8 @@ async function checkFileExists(filePath, homeDir) {
 		return false;
 	}
 }
+
+
 
 /** @type {import('./$types').PageLoad} */
 export async function load() {
@@ -51,6 +51,9 @@ export async function load() {
 		}
 	};
 
+
+
+
 	let data = {};
 
 	if (contentCache) {
@@ -68,8 +71,6 @@ export async function load() {
 	if (JSON.stringify(initialURLCache) !== JSON.stringify(hotURLCache)) {
 		writeCache(hotURLCache, $home[0]);
 	}
-
-	// console.log(`Load time: ${(performance.now() - startLoad).toFixed(2)} ms`);
 
 	const folderName = basename($home[0]);
 
