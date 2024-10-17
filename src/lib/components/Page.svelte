@@ -13,6 +13,8 @@
 	// TODO: Add conditional logic for format = 'xml'
 
 	const headings = ast.filter((child) => child.type === 'heading');
+
+	console.log(webmentions)
 </script>
 
 <!-- Image -->
@@ -80,7 +82,7 @@
 	</section>
 {/if}
 
-{#if level < 2 && content && website._.webmentions && webmentions.children.length}
+{#if level < 2 && content && website._?.webmentions && webmentions?.children?.length}
 	<section class="webmentions">
 		<h2>Webmentions</h2>
 		{#each webmentions.children as webmention}
