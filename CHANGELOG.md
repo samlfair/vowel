@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.40](https://github.com/samlfair/vowel/compare/v0.1.39...v0.1.40) (2024-10-17)
+
+
+### Features
+
+* add h-entry microformat markup ([875b509](https://github.com/samlfair/vowel/commit/875b5092e5cf050149114ba31e1972a9c0f1dfa7))
+
+
+### Bug Fixes
+
+* link preview bug ([293f88f](https://github.com/samlfair/vowel/commit/293f88fcb089d70c4d1e9e4c08668f03a6244b63))
+
 ## [0.1.39](https://github.com/samlfair/vowel/compare/v0.1.38...v0.1.39) (2024-10-17)
 
 ## [0.1.38](https://github.com/samlfair/vowel/compare/v0.1.37...v0.1.38) (2024-10-17)
