@@ -33,18 +33,17 @@ export default async function mutateMarkdownAST(ast, cache, webmentions) {
 							ensureSecureImageRequest: true
 						});
 
-						console.log("UR:")
-
 						
 						if(webmentions && !webmentions.find(webmention => webmention.target === url)) {
-							console.log("Sending webmention)")
-							const webmentionStatus = await sendWebmention(response.responseBody)
-							console.log({webmentionStatus})
-
 							webmentions.push({
 								target: url,
-								status: webmentionStatus
+								status: "new"
 							})
+						} else if (webmentions) {
+							const webmention = webmentions.find(webmention => webmention.target === url)
+							if(webmention.status === "new") {
+								webmention.status = await sendWebmention(response.responseBody)
+							}
 						}
 
 						const metadata = {

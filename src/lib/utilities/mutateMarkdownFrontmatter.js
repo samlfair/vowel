@@ -79,7 +79,7 @@ export default async function mutateMarkdownFrontmatter(frontmatter, cache, webm
 					try {
 						const url = new URL(input);
 						const metadata = await urlMetadata(url.href, {
-							includeResponseBody: false,
+							includeResponseBody: true,
 							ensureSecureImageRequest: true
 						});
 
@@ -97,13 +97,17 @@ export default async function mutateMarkdownFrontmatter(frontmatter, cache, webm
 						};
 
 						if(webmentions && !webmentions.find(webmention => webmention.target === url)) {
-							const webmentionStatus = await sendWebmention(response.responseBody)
-							
 							webmentions.push({
 								target: input,
-								status: webmentionStatus
+								status: "new"
 							})
+						} else if (webmentions) {
+							const webmention = webmentions.find(webmention => webmention.target === url)
+							if(webmention.status === "new") {
+								webmention.status = await sendWebmention(metadata.responseBody)
+							}
 						}
+
 
 						cache[input] = selectedMetadata;
 
