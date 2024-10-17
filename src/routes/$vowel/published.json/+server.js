@@ -48,6 +48,8 @@ export async function GET() {
 		'Content-Type': 'text/plain'
 	};
 
+	console.log({ publishedData })
+
 	const response = new Response(JSON.stringify(publishedData), {
 		headers
 	});
