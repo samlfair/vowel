@@ -173,8 +173,8 @@
 			<Breadcrumbs level={0} />
 		</nav>
 	</header>
-	<main>
-		<Page level={0} {page} {website} path={data.path} />
+	<main class="h-entry">
+		<Page level={0} {page} {website} path={data.path} webmentions={data.webmentions} />
 	</main>
 	<nav class="sidebar">
 		<Sitemap section={website} segments={data.path.split('/')} root />

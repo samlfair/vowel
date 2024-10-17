@@ -3,11 +3,18 @@ import { getPagesByFolder, processMarkdownFiles, loadCache } from '../../lib/uti
 export const prerender = true;
 
 /** @type {import('./$types').PageLoad} */
-export async function load({ params }) {
+export async function load({ params, parent }) {
+	const { website } = await parent()
+	const url = new URL(params.path, website._.domain)
+	
+	const webmentionTarget = params.path === "" ? url.origin : url.href
+
+	const webmentions = await (await fetch(`https://webmention.io/api/mentions.jf2?target=${webmentionTarget}`)).json()
+
 	const { path } = params;
 	const segments = path ? params.path.split('/') : [];
 
-	return { path, segments };
+	return { path, segments, webmentions };
 }
 
 export async function entries() {

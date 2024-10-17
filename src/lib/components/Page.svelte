@@ -4,7 +4,7 @@
 	import { kebabCase } from 'change-case';
 	import Image from './Markdown/Image.svelte';
 
-	let { page, content = true, link, level = 0, website = {}, format = 'html' } = $props();
+	let { page, content = true, link, level = 0, website = {}, format = 'html', webmentions } = $props();
 	let { ast, title, date, image, imputedProperties } = $derived(page || {});
 
 	let headerImage = $derived(image?.output || !content && imputedProperties.image)
@@ -29,7 +29,7 @@
 <!-- Title -->
 {#if title}
 	{#if link && page.url}
-		<h1>
+		<h1 class="p-name">
 			<a href={page.url}>
 				{page.imputedProperties.title || title || page.imputedProperties?.fileName}
 			</a>
@@ -42,7 +42,7 @@
 <!-- Date -->
 {#if link}
 	{#if dateObject}
-		<time datetime={dateObject.toISOString()}>
+		<time class="dt-published" datetime={dateObject.toISOString()}>
 			<a href={page.url}>
 				{dateObject.toLocaleDateString()}
 			</a>
@@ -55,7 +55,7 @@
 <Frontmatter props={{ properties: page, website, format }} />
 
 {#if page?.description || (!content && page?.imputedProperties?.description)}
-	<p class="description">{page?.description || page?.imputedProperties.description}</p>
+	<p class="description p-summary">{page?.description || page?.imputedProperties.description}</p>
 {/if}
 
 {#if format === 'html' && page.toc && headings.length > 1}
@@ -75,7 +75,16 @@
 {/if}
 
 {#if level < 2 && content}
-	<div class="content">
+	<section class="content e-content">
 		<Markdown props={{ ast, level, website, format }} />
-	</div>
+	</section>
+{/if}
+
+{#if level < 2 && content && website._.webmentions && webmentions.children.length}
+	<section class="webmentions">
+		<h2>Webmentions</h2>
+		{#each webmentions.children as webmention}
+			<a href={webmention.url} target="_blank">{webmention.url}</a>
+		{/each}
+	</section>
 {/if}
