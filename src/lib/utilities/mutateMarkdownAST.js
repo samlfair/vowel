@@ -33,6 +33,10 @@ export default async function mutateMarkdownAST(ast, cache, webmentions) {
 							ensureSecureImageRequest: true
 						});
 
+						console.log(!!webmentions)
+						console.log({webmentions})
+						console.log(webmentions.find(webmention => webmention.target === url))
+
 						
 						if(webmentions && !webmentions.find(webmention => webmention.target === url)) {
 							webmentions.push({
@@ -67,7 +71,7 @@ export default async function mutateMarkdownAST(ast, cache, webmentions) {
 						node.value = url;
 					}
 				} else {
-					node.metadata = cache[node.value];
+					node.metadata = cache[url];
 				}
 
 			} else if (node.children[0].type === 'image') {
