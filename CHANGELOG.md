@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.42](https://github.com/samlfair/vowel/compare/v0.1.41...v0.1.42) (2024-10-18)
+
+
+### Bug Fixes
+
+* un-hardcode webmention urls ([3421a69](https://github.com/samlfair/vowel/commit/3421a6998aa4ba20613b84c707e62fe273ddf327))
+
 ## [0.1.41](https://github.com/samlfair/vowel/compare/v0.1.40...v0.1.41) (2024-10-17)
 
 
