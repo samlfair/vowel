@@ -13,8 +13,6 @@
 	// TODO: Add conditional logic for format = 'xml'
 
 	const headings = ast.filter((child) => child.type === 'heading');
-
-	console.log(webmentions)
 </script>
 
 <!-- Image -->

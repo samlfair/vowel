@@ -1,5 +1,5 @@
 import urlMetadata from 'url-metadata';
-import { regexPatterns, isObject, parseDate, sendWebmention } from '.';
+import { regexPatterns, isObject, parseDate, sendWebmention, getMetadata } from '.';
 
 /**
  * Description
@@ -74,62 +74,32 @@ export default async function mutateMarkdownFrontmatter(frontmatter, cache, webm
 				break;
 			}
 			case 'url': {
+				const { metadata } = await getMetadata({
+					cache,
+					url: input
+				})
 
-				if (!cache[input]) {
-					try {
-						const url = new URL(input);
-						const metadata = await urlMetadata(url.href, {
-							includeResponseBody: true,
-							ensureSecureImageRequest: true
-						});
+				frontmatter[key] = {
+					type: 'url',
+					output: metadata || input,
+					input
+				};
 
-						const selectedMetadata = {
-							url: metadata.url,
-							canonical: metadata.canonical,
-							title: metadata.title,
-							image: metadata.image,
-							favicons: url.favicons,
-							og_url: url['og:url'],
-							og_title: url['og:title'],
-							og_description: url['og:description'],
-							og_site_name: url['og:side_name'],
-							og_image: url['og:image']
-						};
-
-						if (webmentions && !webmentions.find(webmention => webmention.target === input)) {
-							webmentions.push({
-								target: input,
-								status: "new"
-							})
-						} else if (webmentions) {
-							const webmention = webmentions.find(webmention => webmention.target === input)
-							if (webmention.status === "new") {
-								webmention.status = await sendWebmention({ body: metadata.responseBody, target: webmention.target, source: pageURL })
-							}
+				try {
+					if (webmentions && !webmentions.find(webmention => webmention.target === input)) {
+						webmentions.push({
+							target: input,
+							status: "new"
+						})
+					} else if (webmentions) {
+						const webmention = webmentions.find(webmention => webmention.target === input)
+						if (webmention.status === "new") {
+							webmention.status = await sendWebmention({ endpoint: metadata.webmentionEndpoint, target: webmention.target, source: pageURL })
 						}
-
-
-						cache[input] = selectedMetadata;
-
-						frontmatter[key] = {
-							type: 'url',
-							output: selectedMetadata,
-							input
-						};
-					} catch (e) {
-						console.error(`Error on URL in frontmatter: ${frontmatter[key]}`);
-						frontmatter[key] = {
-							type: 'string',
-							output: input,
-							input
-						};
 					}
-				} else {
-					frontmatter[key] = {
-						type: 'url',
-						output: cache[input],
-						input
-					};
+
+				} catch (error) {
+					console.log({ webmentionsError: error })
 				}
 				break;
 			}

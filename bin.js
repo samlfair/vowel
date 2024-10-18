@@ -28,7 +28,7 @@ if (args._.includes('publish')) {
 };
 
 if (!args.verbose) {
-	filterConsole(['jsconfig', 'vite', 'Vite', 'tsconfig', `--host`]);
+	// filterConsole(['jsconfig', 'vite', 'Vite', 'tsconfig', `--host`]);
 	console.log(`\n\n`);
 }
 
@@ -54,7 +54,7 @@ child.stdout.on('data', (data) => {
 		console.log(`\n\n`);
 		processedFiles = 0;
 		foundFiles = 0;
-	} else if(false) { // Toggle to true to reveal all console output
+	} else if(true) { // Toggle to true to reveal all console output
 		console.log(message)
 	} else if (message.match('http://localhost:')) {
 		const url = message.match(/http:\/\/localhost:\S+/);

@@ -1,28 +1,12 @@
-import { XMLParser } from "fast-xml-parser"
-
-
-export default async function sendWebmention({ body, source, target }) {
+export default async function sendWebmention({ endpoint, source, target }) {
     try {
-        const parser = new XMLParser({
-            unpairedTags: ["!doctype", "meta", "link", "hr", "br", "img"],
-            ignoreAttributes: false,
-            stopNodes: ["*.pre", "*.script"],
-            processEntities: true,
-            htmlEntities: true
-        })
-
-        let parsedData = parser.parse(body)
-        const webmentionEndpoint = parsedData?.html?.head?.link?.find(link => {
-            return link["@_rel"] === "webmention"
-        })?.["@_href"]
-
-        if (webmentionEndpoint) {
+        if (endpoint) {
             const params = new URLSearchParams()
             params.append('source', source)
             params.append('target', target)
 
 
-            const response = await fetch(webmentionEndpoint, {
+            const response = await fetch(endpoint, {
                 method: "POST",
                 body: params,
                 headers: {
@@ -30,16 +14,21 @@ export default async function sendWebmention({ body, source, target }) {
                 }
             })
 
+            console.log({
+                webmentionResponse: await response.json()
+            })
+
             if(response.status === 429) {
                 return "429"
             } else if (response.status >= 200 && response.status < 300) {
                 return "success"
             } else {
+                console.log({ failure: await response.json() })
                 return "failure"
             }
         }
-    } catch (e) {
-        console.log(e)
+    } catch (error) {
+        console.log({ error })
         return "error"
     }
 }
