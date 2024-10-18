@@ -18,7 +18,7 @@ export default async function getMetadata({ cache, url }) {
 				htmlEntities: true
 			})
 	
-			let parsedData = parser.parse(allMetadata.body)
+			let parsedData = parser.parse(allMetadata.responseBody)
 			const webmentionEndpoint = parsedData?.html?.head?.link?.find(link => {
 				return link["@_rel"] === "webmention"
 			})?.["@_href"]
