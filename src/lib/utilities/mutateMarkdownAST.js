@@ -10,7 +10,7 @@ function isURL(string) {
 	}
 }
 
-export default async function mutateMarkdownAST(ast, cache, webmentions) {
+export default async function mutateMarkdownAST(ast, cache, webmentions, pageURL) {
 
 	const promises = ast.map(async (node) => {
 		// TODO: Improve this URL regex
@@ -34,19 +34,19 @@ export default async function mutateMarkdownAST(ast, cache, webmentions) {
 						});
 
 						console.log(!!webmentions)
-						console.log({webmentions})
+						console.log({ webmentions })
 						console.log(webmentions.find(webmention => webmention.target === url))
 
-						
-						if(webmentions && !webmentions.find(webmention => webmention.target === url)) {
+
+						if (webmentions && !webmentions.find(webmention => webmention.target === url)) {
 							webmentions.push({
 								target: url,
 								status: "new"
 							})
 						} else if (webmentions) {
 							const webmention = webmentions.find(webmention => webmention.target === url)
-							if(webmention.status === "new") {
-								webmention.status = await sendWebmention(response.responseBody)
+							if (webmention.status === "new") {
+								webmention.status = await sendWebmention({ body: response.responseBody, target: webmention.target, source: pageURL })
 							}
 						}
 

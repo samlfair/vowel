@@ -1,7 +1,7 @@
 import { XMLParser } from "fast-xml-parser"
 
 
-export default async function sendWebmention(body) {
+export default async function sendWebmention({ body, source, target }) {
     try {
         const parser = new XMLParser({
             unpairedTags: ["!doctype", "meta", "link", "hr", "br", "img"],
@@ -18,8 +18,8 @@ export default async function sendWebmention(body) {
 
         if (webmentionEndpoint) {
             const params = new URLSearchParams()
-            params.append('source', "https://www.littlefair.ca")
-            params.append('target', 'https://www.vowel.cc')
+            params.append('source', source)
+            params.append('target', target)
 
 
             const response = await fetch(webmentionEndpoint, {

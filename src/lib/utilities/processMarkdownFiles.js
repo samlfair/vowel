@@ -147,7 +147,7 @@ async function readFile(file, parents, cache, folderPath, hidden, publishedData)
 			filePublishedData = publishedData.at(-1)
 		}
 		
-		const { ast, frontmatter, imputedProperties } = await readMarkdownFile(filePath, cache, filePublishedData);
+		const { ast, frontmatter, imputedProperties } = await readMarkdownFile(filePath, cache, filePublishedData, url);
 
 		const loadTime = (performance.now() - startLoad).toFixed(2);
 		// console.log(`📄 ${shortPath} (${loadTime}ms)`);

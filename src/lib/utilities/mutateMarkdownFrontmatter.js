@@ -24,7 +24,7 @@ function imputeType(value) {
 	return 'other';
 }
 
-export default async function mutateMarkdownFrontmatter(frontmatter, cache, webmentions) {
+export default async function mutateMarkdownFrontmatter(frontmatter, cache, webmentions, pageURL) {
 	const keys = Object.keys(frontmatter);
 
 	const promises = keys.map(async (key) => {
@@ -96,15 +96,15 @@ export default async function mutateMarkdownFrontmatter(frontmatter, cache, webm
 							og_image: url['og:image']
 						};
 
-						if(webmentions && !webmentions.find(webmention => webmention.target === input)) {
+						if (webmentions && !webmentions.find(webmention => webmention.target === input)) {
 							webmentions.push({
 								target: input,
 								status: "new"
 							})
 						} else if (webmentions) {
 							const webmention = webmentions.find(webmention => webmention.target === input)
-							if(webmention.status === "new") {
-								webmention.status = await sendWebmention(metadata.responseBody)
+							if (webmention.status === "new") {
+								webmention.status = await sendWebmention({ body: metadata.responseBody, target: webmention.target, source: pageURL })
 							}
 						}
 

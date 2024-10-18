@@ -110,7 +110,7 @@ function imputeTitleFromAST(ast) {
  * @returns {Promise<ParsedMarkdown>}
  * @throws {Error} Will throw an error if the file cannot be read or parsed.
  */
-export default async function readMarkdownFile(filePath, cache, publishedData) {
+export default async function readMarkdownFile(filePath, cache, publishedData, url) {
 	const fileName = path.basename(filePath.slice(0, -3));
 
 	const fileContent = await fs.readFile(filePath, 'utf8');
@@ -170,7 +170,7 @@ export default async function readMarkdownFile(filePath, cache, publishedData) {
 
 	const webmentions = publishedData?.webmentions
 
-	const promises = [mutateMarkdownAST(ast.children, cache, webmentions)];
+	const promises = [mutateMarkdownAST(ast.children, cache, webmentions, url)];
 
 	// Don't mutate frontmatter on the settings pages
 	if (!filePath.endsWith('settings.md'))
