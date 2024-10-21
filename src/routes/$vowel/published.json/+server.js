@@ -35,8 +35,7 @@ export async function GET() {
 	// Get published articles from live site
 	const publishedData = await getPublishedData(settings.frontmatter.domain)
 
-	// if($publish[0]) {
-	if (true) {
+	if($publish[0]) {
 		const initialCache = await loadCache($home[0]);
 
 
