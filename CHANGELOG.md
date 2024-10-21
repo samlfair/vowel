@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.44](https://github.com/samlfair/vowel/compare/v0.1.43...v0.1.44) (2024-10-21)
+
+
+### Bug Fixes
+
+* metadata retrieval bug ([566f7cf](https://github.com/samlfair/vowel/commit/566f7cf64be2749e30cddcb474f6385638c408a9))
+* webmentions bug ([2215ff5](https://github.com/samlfair/vowel/commit/2215ff5f5668d140535f6df3d30754fd685f22ae))
+
 ## [0.1.43](https://github.com/samlfair/vowel/compare/v0.1.42...v0.1.43) (2024-10-18)
 
 ## [0.1.42](https://github.com/samlfair/vowel/compare/v0.1.41...v0.1.42) (2024-10-18)
