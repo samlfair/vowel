@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.45](https://github.com/samlfair/vowel/compare/v0.1.44...v0.1.45) (2024-10-21)
+
+
+### Features
+
+* add h-name to h1 ([ae5cc82](https://github.com/samlfair/vowel/commit/ae5cc82bf260605b49d7f0bd29762358b89f0aa4))
+
 ## [0.1.44](https://github.com/samlfair/vowel/compare/v0.1.43...v0.1.44) (2024-10-21)
 
 
