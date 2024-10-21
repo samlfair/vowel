@@ -29,13 +29,13 @@
 <!-- Title -->
 {#if title}
 	{#if link && page.url}
-		<h1 class="p-name">
+		<h1>
 			<a href={page.url}>
 				{page.imputedProperties.title || title || page.imputedProperties?.fileName}
 			</a>
 		</h1>
 	{:else}
-		<h1>{page.imputedProperties.title || title || page.imputedProperties?.fileName}</h1>
+		<h1 class="p-name">{page.imputedProperties.title || title || page.imputedProperties?.fileName}</h1>
 	{/if}
 {/if}
 
