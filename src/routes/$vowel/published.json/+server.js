@@ -25,30 +25,28 @@ export async function GET() {
 	// everything.request.url
 
 	let settings
-	
+
 	const settingsPath = join($home[0], "/settings.md")
 	const settingsExists = await checkFileExists(settingsPath);
-	if(settingsExists) {
+	if (settingsExists) {
 		settings = await readMarkdownFile(settingsPath)
 	}
 
 	// Get published articles from live site
 	const publishedData = await getPublishedData(settings.frontmatter.domain)
 
-	console.log({publish: $publish[0]})
-
-	if($publish[0]) {
+	// if($publish[0]) {
+	if (true) {
 		const initialCache = await loadCache($home[0]);
-		
-		const { folder: website } = await processMarkdownFiles(initialCache, publishedData);
+
+
+		const { folder: website } = await processMarkdownFiles(initialCache, publishedData, settings.frontmatter.domain);
 	}
 
 	const headers = {
 		'Cache-Control': 'max-age=0, s-maxage=1',
 		'Content-Type': 'text/plain'
 	};
-
-	console.log({ publishedData })
 
 	const response = new Response(JSON.stringify(publishedData), {
 		headers

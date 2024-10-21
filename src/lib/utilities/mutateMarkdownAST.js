@@ -26,13 +26,7 @@ export default async function mutateMarkdownAST(ast, cache, webmentions, pageURL
 				const { url } = node.children[0];
 				node.url = url
 
-				console.log("It's a URL")
-
 				const { metadata } = await getMetadata({ cache, url })
-
-				console.log({metadata})
-				console.log("Hey there!")
-				console.log({webmentions})
 
 				node.metadata = metadata;
 				node.value = url;

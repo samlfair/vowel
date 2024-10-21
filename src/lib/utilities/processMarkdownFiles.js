@@ -90,7 +90,7 @@ function DefaultDirectory(path) {
  * @param {import('./loadCache').Cache} cache
  * @returns {Promise<Directory>}
  */
-async function readFolder(folderPath, parents, cache, hidden, publishedData) {
+async function readFolder(folderPath, parents, cache, hidden, publishedData, domain) {
 	function filterFiles(file) {
 		if (file.name.startsWith('.')) return false;
 		if (file.name.startsWith('README')) return false;
@@ -106,7 +106,7 @@ async function readFolder(folderPath, parents, cache, hidden, publishedData) {
 	console.log(`filesfound:${files.length}`);
 
 	const promises = files.map(
-		async (file) => await readFile(file, parents, cache, folderPath, hidden, publishedData)
+		async (file) => await readFile(file, parents, cache, folderPath, hidden, publishedData, domain)
 	);
 
 	const folder = (await Promise.all(promises)).reduce((acc, obj) => ({ ...acc, ...obj }), {});
@@ -125,16 +125,28 @@ async function readFolder(folderPath, parents, cache, hidden, publishedData) {
 	return folder;
 }
 
-async function readFile(file, parents, cache, folderPath, hidden, publishedData) {
+function buildHREF(url, domain) {
+	try {
+		const urlObj = new URL(domain)
+		urlObj.pathname = url
+		return urlObj.href
+	} catch (e) {
+		return undefined
+	
+	}
+}
+
+async function readFile(file, parents, cache, folderPath, hidden, publishedData, domain) {
 	const route = path.parse(file.name).name;
 	const url = buildURL(parents, route);
 	const filePath = path.join(folderPath, file.name);
-
+	
 	const extension = path.extname(file.name);
-
+	
 	const hide = (file.name.startsWith('$') && file.name.length > 1) || hidden;
-
+	
 	if (file.isFile() && extension === '.md') {
+		const href = buildHREF(url, domain)
 		const startLoad = performance.now();
 		const shortPath = parents + '/' + file.name;
 
@@ -147,7 +159,7 @@ async function readFile(file, parents, cache, folderPath, hidden, publishedData)
 			filePublishedData = publishedData.at(-1)
 		}
 		
-		const { ast, frontmatter, imputedProperties } = await readMarkdownFile(filePath, cache, filePublishedData, url);
+		const { ast, frontmatter, imputedProperties } = await readMarkdownFile(filePath, cache, filePublishedData, href);
 
 		const loadTime = (performance.now() - startLoad).toFixed(2);
 		// console.log(`📄 ${shortPath} (${loadTime}ms)`);
@@ -189,7 +201,7 @@ async function readFile(file, parents, cache, folderPath, hidden, publishedData)
 		const shortPath = parents + '/' + file.name;
 
 		const startLoad = performance.now();
-		const folder = await readFolder(path.join(folderPath, file.name), url, cache, hide, publishedData);
+		const folder = await readFolder(path.join(folderPath, file.name), url, cache, hide, publishedData, domain);
 
 		const loadTime = (performance.now() - startLoad).toFixed(2);
 		// console.log(`📁 ${shortPath} (${loadTime}ms)`);
@@ -221,11 +233,11 @@ async function readFile(file, parents, cache, folderPath, hidden, publishedData)
  * @param {import('./loadCache').Cache} cache
  * @returns {Promise<ProcessedFiles>}
  */
-export default async function processMarkdownFiles(cache, publishedData) {
+export default async function processMarkdownFiles(cache, publishedData, domain) {
 	/** @type {Array<string>} */
 	// @ts-ignore
 	const [homeDir] = $home;
-	const folder = await readFolder(homeDir, '', cache, null, publishedData);
+	const folder = await readFolder(homeDir, '', cache, null, publishedData, domain);
 
 	return { folder, finalCache: cache };
 }

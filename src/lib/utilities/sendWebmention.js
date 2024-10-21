@@ -5,7 +5,6 @@ export default async function sendWebmention({ endpoint, source, target }) {
             params.append('source', source)
             params.append('target', target)
 
-
             const response = await fetch(endpoint, {
                 method: "POST",
                 body: params,
@@ -15,6 +14,7 @@ export default async function sendWebmention({ endpoint, source, target }) {
             })
 
             console.log({
+                source, target,
                 webmentionResponse: await response.json()
             })
 
