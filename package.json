@@ -8,7 +8,7 @@
 		"url": "ssh://git@github.com/samlfair/vowel.git"
 	},
 	"engines": {
-		"node": "^20.0.0"
+		"node": ">20.0.0"
 	},
 	"bin": "./bin.js",
 	"scripts": {

@@ -146,7 +146,7 @@
 		<link rel="webmention" href={createWebmentionURL()} />
 	{/if}
 	{#if page.hasOwnProperty('image') || page.imputedProperties?.hasOwnProperty('image')}
-		<meta property="og:image" content={page.image || page.imputedProperties.image} />
+		<meta property="og:image" content={page.image.output || page.imputedProperties.image} />
 	{/if}
 </svelte:head>
 

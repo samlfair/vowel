@@ -2,10 +2,20 @@ import { getPagesByFolder, processMarkdownFiles, loadCache } from '../../lib/uti
 
 export const prerender = true;
 
+function createURL(domain, path) {
+	try {
+		return new URL(path, domain)
+	} catch(e) {
+		console.error(e)
+		return ""
+	}
+}
+
 /** @type {import('./$types').PageLoad} */
 export async function load({ params, parent }) {
 	const { website } = await parent()
-	const url = new URL(params.path, website._.domain)
+	const url =createURL(website._.domain, params.path)
+	// const url = new URL(params.path, website._.domain)
 	
 	const webmentionTarget = params.path === "" ? url.origin : url.href
 
