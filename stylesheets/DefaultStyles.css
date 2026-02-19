@@ -176,7 +176,7 @@ header {
 	margin-top: 4rem;
 }
 
-nav.top-bar {
+nav.primary {
 	border: 1px solid var(--border-color);
 	padding: 6px 10px;
 	margin-inline: -3px;
@@ -189,13 +189,13 @@ nav.top-bar {
 	background: var(--soft-background);
 }
 
-nav.top-bar:has(+ nav.top-bar) {
+nav.primary:has(+ nav.primary) {
 	border-bottom: none;
 	border-bottom-left-radius: 0;
 	border-bottom-right-radius: 0;
 }
 
-nav.top-bar:has(+ nav.top-bar):after {
+nav.primary:has(+ nav.primary):after {
 	display: block;
 	content: '';
 	border-bottom: 1px solid var(--border-color);
@@ -203,7 +203,7 @@ nav.top-bar:has(+ nav.top-bar):after {
 	margin-top: 0.7rem;
 }
 
-nav.top-bar+nav.top-bar {
+nav.primary+nav.primary {
 	border-top-left-radius: 0;
 	border-top-right-radius: 0;
 	border-top: none;
@@ -220,7 +220,7 @@ header .breadcrumbs {
 
 /* Sidebar */
 
-.sidebar {
+.secondary {
 	margin-inline: auto;
 }
 

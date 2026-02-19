@@ -1,29 +1,91 @@
 # Vowel
 
-[![npm version][npm-version-src]][npm-version-href]
-[![npm downloads][npm-downloads-src]][npm-downloads-href]
+*Markdown websites in milliseconds*
 
-Vowel is the easiest way to code your own website.
+## Roadmap
 
-[Try it on StackBlitz](https://stackblitz.com/~/github.com/samlfair/vowel-site?file=home.md).
+### High priority
 
-Turn a folder of Markdown files into a website by running one command:
+- [ ] robots.txt
+- [ ] sitemap.xml
+- [ ] 404.html
+- [ ] TUI
+  - [ ] Create settings.md
+    - [ ] Site title
+    - [ ] Domain
+    - [ ] Webmentions
+    - [ ] Logo
+    - [ ] Wordmark
+    - [ ] Identity (rel=me)
+    - [ ] Filename breadcrumbs
+    - [ ] RSS
+    - [ ] Sitemap
+  - [ ] Create home.md
+  - [ ] Create folder settings files
+    - [ ] Title
+    - [ ] Breadcrumb
+- [ ] Custom CSS
+- [ ] Tags
+- [ ] Customize index fallback
+- [ ] Date format settings
+- [ ] ::mark::
+- [ ] Infer images
+- [ ] Favicon
+- [ ] Webmentions
+- [ ] HTML boilerplate
+- [ ] Page lists
+- [ ] View transitions
+- [ ] Logo
+- [ ] Wordmark
+- [ ] Sort nav items
+- [ ] Canonical URL
+- [ ] Handle external links
+- [ ] Admonitions
+- [ ] Use hgroup for site title, page title, etc
+- [ ] Images as `<figure>`
+- [ ] Hidden routes
+- [ ] Frontmatter settings
+  - [ ] HTML
+  - [ ] RSS
+  - [ ] Sitemap
+- [ ] Heading anchors
+- [ ] Taxonomy pages and smart frontmatter
+- [ ] CSS cache busting
+- [ ] Slogan in homepage title
 
-```
-npx vowel
-```
+### Medium priority
 
-Create a blog, a documentation site, a landing page, a wiki (whatever you want), using just Markdown and CSS.
+- [ ] Tests
+- [ ] Break code into multiple files
+- [ ] Image optimization (unpic)
+- [ ] [SVG by mask](https://pqina.nl/blog/set-svg-background-image-fill-color/) and [CSS icons](https://antfu.me/posts/icons-in-pure-css)
+- [ ] WYSIWYG editor
+- [ ] Better signals
+  - [ ] File-written callback
+- [ ] Themes
+- [ ] Deploy
+  - [ ] Cloudflare pages
+  - [ ] GitHub pages
+- [ ] Post-publish work (ping webmentions)
+- [ ] [Desktop app](https://blackboard.sh/electrobun/docs/)
+- [ ] Mermaid
+- [ ] Codeblock syntax highlighting
+- [ ] Extraction utilities (regex in archive)
+- [ ] Smarter frontmatter
+  - [ ] Object dl
+  - [ ] Array ul
+  - [ ] Image
+  - [ ] URL
+  - [ ] Date
+- [ ] TOC
+- [ ] Versioning/publishing script
+- [ ] Verify all element types form Obsidian
 
-No HTML.
+### Low priority
 
-No JavaScript.
-
-[Read the docs](https://vowel.cc/docs).
-
-For comments, questions, bugs, and contributions, please reach out to me on Twitter: [@samlfair](https://twitter.com/samlfair).
-
-[npm-version-src]: https://img.shields.io/npm/v/vowel/latest.svg
-[npm-version-href]: https://npmjs.com/package/vowel
-[npm-downloads-src]: https://img.shields.io/npm/dm/vowel.svg
-[npm-downloads-href]: https://npmjs.com/package/vowel
+- [ ] Footnotes
+- [ ] Frontmatter taxonomies
+- [ ] Recursive frontmatter
+- [ ] Browser search
+- [ ] Pagination
+- [ ] ATProto
