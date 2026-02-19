@@ -2,6 +2,9 @@
 
 *Markdown websites in milliseconds*
 
+- Bundled with [Votive](https://github.com/samlfair/votive)
+- Served with [Voot](https://github.com/samlfair/voot)
+
 ## Roadmap
 
 ### High priority

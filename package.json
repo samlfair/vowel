@@ -1,7 +1,7 @@
 {
   "name": "vowel",
   "type": "module",
-  "version": "0.2.1-beta.1",
+  "version": "0.2.3",
   "bin": "bin.js",
   "main": "index.js",
   "scripts": {
