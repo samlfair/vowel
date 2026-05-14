@@ -35,7 +35,7 @@ export default async function getMetadata(url) {
 
 		return { metadata }
 	} catch (error) {
-		console.log({ fetchingMetadataError: error })
+		console.error({ fetchingMetadataError: error })
 		return
 	}
 }

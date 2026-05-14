@@ -1,7 +1,7 @@
 {
   "name": "vowel",
   "type": "module",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "bin": "bin.js",
   "main": "index.js",
   "scripts": {
@@ -16,6 +16,8 @@
   "license": "MIT",
   "description": "Markdown websites",
   "dependencies": {
+    "autoprefixer": "^10.4.27",
+    "cssnano": "^7.1.4",
     "fast-xml-parser": "^5.3.6",
     "faye-websocket": "^0.11.4",
     "hast-util-from-html": "^2.0.3",
@@ -36,7 +38,11 @@
     "micromark-extension-gfm-footnote": "^2.1.0",
     "micromark-extension-gfm-table": "^2.1.1",
     "micromark-extension-gfm-task-list-item": "^2.1.0",
+    "postcss": "^8.5.9",
     "rehype": "^13.0.2",
+    "rehype-document": "^7.0.3",
+    "rehype-parse": "^9.0.1",
+    "rehype-preset-minify": "^7.0.1",
     "rehype-stringify": "^10.0.1",
     "remark": "^15.0.1",
     "remark-frontmatter": "^5.0.0",
@@ -52,7 +58,7 @@
     "unist-util-visit": "^5.0.0",
     "unist-util-visit-parents": "^6.0.0",
     "url-metadata": "^5.4.1",
-    "voot": "^0.0.2",
+    "voot": "^0.0.5",
     "votive": "^0.0.6",
     "xast-util-sitemap": "^2.0.0",
     "xast-util-to-xml": "^4.0.0",
