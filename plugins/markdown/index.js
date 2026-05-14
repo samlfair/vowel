@@ -273,7 +273,7 @@ function readFolder(folder, database, config, isRoot) {
       },
       path: aliasPath,
       abstract: {},
-      syntax: "mdast"
+      syntax: "html"
     })
   }
 
@@ -383,6 +383,7 @@ function readFolder(folder, database, config, isRoot) {
   const breadcrumb = indexFile?.metadata?.breadcrumb
     || aliasFile?.metadata?.breadcrumb
     || folder.split(path.sep).at(-2)
+    || folder.split(path.sep).at(-1)
     || "Home"
 
 
@@ -408,11 +409,10 @@ function writeHTML(destination, database, config) {
     if (!filePath) return []
 
     const pathInfo = path.parse(filePath)
-    const dir = pathInfo.dir && pathInfo.dir + path.sep
-
-    return [pathInfo.base, ...listFolders(
+    const dir = pathInfo.dir && pathInfo.dir
+    return [...listFolders(
       dir
-    )]
+    ), filePath]
   }
 
   const parsedPath = path.parse("" + destination.path)
@@ -434,7 +434,7 @@ function writeHTML(destination, database, config) {
       dependent: destination.path,
       query: {}
     })
-  })
+  }).filter(({ path }) => path)
 
   const treeStyleSheets = []
 
@@ -561,7 +561,6 @@ function writeHTML(destination, database, config) {
   // TODO: Filter ephemeral content
   //
 
-
   const groupedNavs = Object.groupBy(family, ({ dir }) => dir)
 
   const treeNav = Object.values(groupedNavs).map(treeNavFolder)
@@ -572,8 +571,7 @@ function writeHTML(destination, database, config) {
 
   const breadcrumbs = Object.entries(settings.breadcrumbs)
     .sort(([a], [b]) => a.length - b.length)
-    .map(([path, [label]]) => [path, label])
-
+    .map(([path, [label]]) => ["/" + path, label])
 
   treeBreadcrumbs.push(
     ...breadcrumbs.map(([path, label]) => {
@@ -583,12 +581,14 @@ function writeHTML(destination, database, config) {
     })
   )
 
-  treeBreadcrumbs.push(
-    h('a', {
-      href: destination.metadata.prettyURL,
-      'aria-current': 'page'
-    }, metadata.breadcrumb)
-  )
+  if (!isRoot) {
+    treeBreadcrumbs.push(
+      h('a', {
+        href: destination.metadata.prettyURL,
+        'aria-current': 'page'
+      }, metadata.breadcrumb)
+    )
+  }
 
   const headerElements = []
 
@@ -606,15 +606,37 @@ function writeHTML(destination, database, config) {
     ...treeNav,
   ])
 
-  function testPaths(n, i, p) {
-    if (n.type !== 'paragraph') return
-    if (n.type !== 'text') return
-    const matched = Boolean(n.value.match(/^\/\S*$/))
-    return matched
+  const treeContent = toHast(abstract)
+
+  function testPaths(node, i, p) {
+    if (node.type !== 'element') return
+    if (node.tagName !== 'p') return
+    if (node.children.length !== 1) return
+    return Boolean(node.children[0].value.match(/^\/\S*$/))
   }
 
-  visit(abstract, testPaths, (n, i, p) => {
-    console.log(n)
+  visit(treeContent, testPaths, ({ children: [child] }, i, p) => {
+    const folder = path.relative("/", child.value)
+    const targets = database.target.getManyWithTrackers({
+      folder,
+      query: {},
+      dependent: destination.path
+    })
+
+    const list = h("section",
+      targets.map(target => h(
+        "article",
+        [
+          h("a",
+            { href: target.metadata.prettyURL },
+            target.metadata.title
+          )
+        ]
+      ))
+    )
+
+    p.children.splice(i, 1, list)
+
   })
 
   // TODO: Add page ID as a class
@@ -624,7 +646,7 @@ function writeHTML(destination, database, config) {
       h('nav.breadcrumbs', {
         'aria-label': 'Breadcrumb'
       }, treeBreadcrumbs),
-      ...toHast(abstract).children
+      treeContent
     ])
 
   visit(treeMain, (node, index, parent) => {
@@ -815,3 +837,5 @@ const vowelMarkdownPlugin = {
   processors: [markdownReader, htmlWriter],
   router
 }
+
+export default vowelMarkdownPlugin
