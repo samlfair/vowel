@@ -6,18 +6,21 @@ import fs from "fs/promises"
 async function writeImage(destination, database, config) {
   const buffer = await fs.readFile(destination.path)
   return {
-    buffer
+    data: buffer,
   }
 }
 
-/** @type {Votive.ReadPath} */
-async function readImagePath(string, database) {
-  // TODO: Resize and optimize images
+/** @type {Votive.ProcessorRead} */
+function readImagePath(string) {
 
-  return {
+  const data = {
     metadata: {},
-    abstract: { path: string }
+    abstract: {
+      path: string
+    }
   }
+
+  return data
 }
 
 /** @type {Votive.VotiveProcessor} */

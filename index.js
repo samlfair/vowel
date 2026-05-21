@@ -2,6 +2,9 @@ import voot from "voot"
 import vowelImagesPlugin from "./plugins/images/index.js"
 import vowelStylesPlugin from "./plugins/styles/index.js"
 import vowelMarkdownPlugin from "./plugins/markdown/index.js"
+import vowelRobotsPlugin from "./plugins/robots/index.js"
+import vowelXMLPlugin from "./plugins/xml/index.js"
+import vowelVectorPlugin from "./plugins/vectors/index.js"
 import fs from "fs/promises"
 import { styleText } from "node:util"
 
@@ -34,7 +37,10 @@ const config = {
   plugins: [
     vowelMarkdownPlugin,
     vowelImagesPlugin,
-    vowelStylesPlugin
+    vowelStylesPlugin,
+    vowelRobotsPlugin,
+    vowelXMLPlugin,
+    vowelVectorPlugin
   ]
 }
 

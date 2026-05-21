@@ -1,17 +1,25 @@
-import postcss from "postcss"
-import cssnano from "cssnano"
-import autoprefixer from "autoprefixer"
 import path from "node:path"
+import { transform } from "lightningcss"
 
 /** @import * as Votive from "votive" */
 
 /** @type {Votive.ProcessorWrite} */
 function writeCSS(destination, database, config) {
-  // const processedCSS = postcss([cssnano, autoprefixer])
-  //   .process(destination.abstract.css)
+  const { code, map } = transform({
+    filename: destination.path,
+    code: Buffer.from(destination.abstract.css),
+    minify: true,
+    targets: {
+      chrome: 146 << 16,
+      firefox: 149 << 16,
+      safari: 26 << 16
+    }
+  })
+
+  const processedCSS = code.toString()
 
   return {
-    data: destination.abstract.css,
+    data: processedCSS,
     encoding: "utf-8"
   }
 }

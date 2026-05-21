@@ -7,10 +7,67 @@
 
 ## Roadmap
 
+### Launch checklist
+
+- [ ] CLI
+- [ ] Docs
+- [ ] Classes
+- [ ] Route patterns
+- [ ] Post list metadata
+- [ ] Transaction management
+
+- [.] Fixes
+  - [x] Global nav sublinks
+  - [x] Hot reload
+  - [.] Explicit asset handling
+  - [.] Change "job" to "resources"
+    - [.] ReadResource types
+  - [.] Processor utilities param
+  - [.] Delete old SQLite logic
+  - [.] Make metadata explicit in SQLiteTarget type
+  - [x] Add SQLite begin/commit logic
+  - [.] Remove "loadDatabase"
+  - [.] Check all types
+- [.] File handling
+  - [x] CSS prefixing
+  - [x] Homepage in global nav
+  - [x] Metadata in header
+  - [x] Page list sort
+  - [.] Limit in sort
+- [x] Metafiles
+  - [x] Robots.txt
+  - [x] Sitemap.xml
+  - [x] RSS
+  - [x] 404.html (just make 404.md)
+- [ ] Markup
+  - [.] Image as figure
+  - [ ] Admonitions
+  - [x] Heading anchors
+  - [ ] GFM emoji
+  - [ ] Mermaid
+  - [x] Slogan
+  - [x] TOC
+- [ ] Non-urgent fixes / improvements
+  - [ ] Compare metadata on file update
+  - [ ] Prune/cleanup step
+  - [ ] Dependency type (file, settings, folder)
+- [ ] New systems
+  - [ ] Tags
+  - [ ] External links
+  - [ ] Syntax highlighting
+  - [ ] Social links
+
 ### High priority
 
 - [x] Global nav
 - [x] Breadcrumbs
+- [ ] Page classes
+- [ ] GetMany "path exists" filter
+- [ ] GetMany "extension" filter
+- [ ] Delete settings logic
+- [ ] Update settings logic
+- [ ] Logical operators for filters
+- [ ] Customize menus
 - [ ] More file handling plugins
   - [ ] Fonts
     - [x] .woff
@@ -42,7 +99,7 @@
 - [ ] sitemap.xml
 - [ ] 404.html
 - [ ] Better URL normalization (see notes)
-- [ ] Name casing
+- [x] Name casing
 - [ ] TUI
   - [ ] Create settings.md
     - [ ] Site title
@@ -58,17 +115,16 @@
   - [ ] Create folder settings files
     - [ ] Title
     - [ ] Breadcrumb
+- [ ] Remove index file rules
 - [x] Custom CSS
   - [ ] styles.css
   - [ ] Any CSS file
 - [ ] Tags
-- [ ] Customize index fallback
-- [ ] OR remove index fallback
 - [ ] Date format settings
 - [ ] ::mark::
-- [ ] Infer images
+- [x] Infer images
 - [ ] Favicon
-- [ ] Webmentions
+- [-] Webmentions
 - [x] HTML boilerplate
 - [ ] View transitions
 - [ ] Logo
@@ -86,13 +142,14 @@
   - [ ] Sitemap
 - [ ] Heading anchors
 - [ ] Taxonomy pages and smart frontmatter
-- [ ] CSS cache busting
+- [x] CSS cache busting
 - [ ] Slogan in homepage title
 - [ ] GFM emojis (:smile:)
 
 ### Medium priority
 
 - [ ] Tests
+- [ ] Internal backlinks
 - [ ] Break code into multiple files
 - [ ] Image optimization (unpic)
 - [ ] [SVG by mask](https://pqina.nl/blog/set-svg-background-image-fill-color/) and [CSS icons](https://antfu.me/posts/icons-in-pure-css)
@@ -103,7 +160,7 @@
 - [ ] Deploy
   - [ ] Cloudflare pages
   - [ ] GitHub pages
-- [ ] Post-publish work (ping webmentions)
+- [-] Post-publish work (ping webmentions)
 - [ ] [Desktop app](https://blackboard.sh/electrobun/docs/)
 - [ ] Mermaid
 - [ ] Codeblock syntax highlighting
@@ -116,8 +173,9 @@
   - [ ] Date
 - [ ] TOC
 - [ ] Versioning/publishing script
-- [ ] Verify all element types form Obsidian
+- [ ] Verify all element types from Obsidian
 - [ ] Order/position/kanban
+- [ ] Next/prev links
 - [ ] Banner
 - [ ] CTA
 - [ ] Menu toggle

@@ -17,12 +17,15 @@ import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
 import { h } from 'hastscript'
 import { normalizeHeadings } from 'mdast-normalize-headings'
 import { readFileSync } from "fs"
+import { remove } from "unist-util-remove"
 import { testURL } from "./../../utils.js"
 import { toHast } from 'mdast-util-to-hast'
 import { toString as hastToString } from 'hast-util-to-string'
 import { toString as mdastToString } from 'mdast-util-to-string'
 import { unified } from "unified"
 import { visit } from "unist-util-visit"
+import toc from "@jsdevtools/rehype-toc"
+import slug from "rehype-slug"
 
 const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
 
@@ -30,10 +33,35 @@ const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
 /** @import * as Vowel from "./../../index.js" */
 
 
+const robots = `User-agent: Google-Extended
+Allow: /
+
+User-agent: Googlebot-Image
+Disallow: /
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /`
+
+function toTitleCase(string) {
+  if (!string) return
+  return string.split(" ").map(word => {
+    const letters = word.split("")
+    letters[0] = letters[0].toUpperCase()
+    return letters.join("")
+  }).join(" ")
+}
+
 function readURL(data) {
   const hast = fromHtml(data)
   const metadata = {}
 
+  // TODO: Remove to a separate processor
   visit(hast, (node) => {
     if (node.tagName === "meta") {
       if (node.properties && node.properties.property) {
@@ -76,14 +104,17 @@ function readMarkdown(string, filePath, destinationPath, database, config) {
 
   normalizeHeadings(mdast)
   const pathInfo = path.parse(filePath)
-  const metadata = getMetadata(mdast)
+  const metadata = getMetadata(mdast, filePath)
 
 
-  // TODO: Add labels for aliases
-  metadata.inferred_label = pathInfo.name
-  const destinationInfo = path.parse(destinationPath)
-  const name = destinationInfo.name === "index" ? "" : destinationInfo.name
-  metadata.prettyURL = (new URL(`${destinationInfo.dir}/${name}`, "thismessage:/")).pathname
+  metadata.inferred_label = toTitleCase(pathInfo.name)
+
+  if (destinationPath) {
+    const destinationInfo = path.parse(destinationPath)
+    const name = destinationInfo.name === "index" ? "" : destinationInfo.name
+    // FIXME the prettyURL should include the preceding slash
+    metadata.prettyURL = (new URL(`${destinationInfo.dir}/${name}`, "thismessage:/")).pathname
+  }
   const jobs = []
 
   selectMetadata(metadata)
@@ -112,6 +143,28 @@ function readMarkdown(string, filePath, destinationPath, database, config) {
       }
     }
   })
+
+  if (filePath === "settings.md") {
+    if (metadata.fm_domain) {
+      database.target.create({
+        path: "sitemap.xml",
+        abstract: {},
+        metadata: {
+          domain: metadata.fm_domain,
+          title: metadata.title
+        }
+      })
+
+      database.target.create({
+        path: "feed.xml",
+        abstract: {},
+        metadata: {
+          domain: metadata.fm_domain,
+          title: metadata.title
+        }
+      })
+    }
+  }
 
   return { abstract: mdast, metadata, jobs }
 }
@@ -177,7 +230,7 @@ function truncateText(text) {
 }
 
 /** @param {object} tree */
-function getMetadata(tree) {
+function getMetadata(tree, filePath) {
   const metadata = {}
 
   for (let i = 0; i < tree.children.length; i++) {
@@ -187,9 +240,9 @@ function getMetadata(tree) {
       case "paragraph":
         if (child.children.length !== 1) {
           if (!metadata.fm_description && !metadata.inferred_description) {
-            const description = truncateText(text)
-            metadata.inferred_description = description
+            metadata.inferred_description = text
           }
+          tree.children.splice(0, i + 1)
           i = Infinity
           break
         } else if (child.children[0].type === "image") {
@@ -207,13 +260,19 @@ function getMetadata(tree) {
           }
         } else {
           const inferred_date = extractDate(mdastToString(child))
-          if (inferred_date) metadata.inferred_date = inferred_date
-          else i = Infinity
+          if (inferred_date) {
+            metadata.inferred_date = inferred_date
+          } else {
+            const description = truncateText(text)
+            metadata.inferred_description = description
+            tree.children.splice(0, i + 1)
+            i = Infinity
+          }
           break
         }
       case "heading":
         if (child.depth === 1) {
-          metadata.inferred_title = mdastToString(child)
+          metadata.inferred_title = mdastToString(child) || toTitleCase(path.parse(filePath).name)
         }
         break
       case "yaml":
@@ -223,13 +282,12 @@ function getMetadata(tree) {
         }
         break
       default:
+        tree.children.splice(0, i + 1)
         i = Infinity
         break
     }
   }
 
-  // TODO: Extract links!
-  // TODO: Extract backlinks
   return metadata
 
 }
@@ -242,6 +300,15 @@ function readAbstract(abstract, database, config) {
 
 /** @type {Votive.ReadFolder} */
 function readFolder(folder, database, config, isRoot) {
+  if (folder === "") {
+    database.target.create({
+      path: "robots.txt",
+      abstract: {
+        content: robots
+      },
+      metadata: {}
+    })
+  }
   const settings = database.setting.getByFolder(folder)
 
   const folderInfo = path.parse(folder)
@@ -264,8 +331,8 @@ function readFolder(folder, database, config, isRoot) {
   if (!indexFile && (!isRoot && !aliasFile)) {
     database.target.create({
       metadata: {
-        title: folderInfo.name,
-        breadcrumb: folderInfo.name,
+        title: toTitleCase(folderInfo.name),
+        breadcrumb: toTitleCase(folderInfo.name),
         prettyURL: "/" + path.normalize(path.format({
           dir: path.join(folderInfo.dir),
           name: folderInfo.name
@@ -276,6 +343,7 @@ function readFolder(folder, database, config, isRoot) {
       syntax: "html"
     })
   }
+
 
 
 
@@ -350,11 +418,6 @@ function readFolder(folder, database, config, isRoot) {
       }
     }
 
-    // TODO: Create robots
-    // TODO: Create RSS
-    // TODO: Create sitemap
-
-
     const site_title = settings.fm_title
       || settings.inferred_title
       || (indexFile && indexFile.metadata.title)
@@ -382,8 +445,8 @@ function readFolder(folder, database, config, isRoot) {
 
   const breadcrumb = indexFile?.metadata?.breadcrumb
     || aliasFile?.metadata?.breadcrumb
-    || folder.split(path.sep).at(-2)
-    || folder.split(path.sep).at(-1)
+    || toTitleCase(folder.split(path.sep).at(-2))
+    || toTitleCase(folder.split(path.sep).at(-1))
     || "Home"
 
 
@@ -425,7 +488,6 @@ function writeHTML(destination, database, config) {
   const ancestorFolders = listFolders(rest.dir)
   ancestorFolders.unshift("")
 
-  // TODO: Multiple filters
   const family = [...ancestorFolders, destinationAsDir].flatMap(folder => {
     // FIXME typing
     return database.target.getManyWithTrackers({
@@ -458,7 +520,7 @@ function writeHTML(destination, database, config) {
       return title
     }
 
-    // TODO Check that this works properly
+    // FIXME Check that this works properly
     if (metadata.title && settings.title) {
       const titles = [metadata.title, ...Object.values(settings.title).flatMap(a => a).reverse()]
       return titles.join(" - ")
@@ -518,7 +580,7 @@ function writeHTML(destination, database, config) {
     }))
   }
 
-  /* TODO Properly handle this image */
+  /* FIXME Properly handle this image */
   if (settings.icon) {
     treeHead.children.push(h("link", {
       href: "/" + settings.icon[0],
@@ -526,8 +588,6 @@ function writeHTML(destination, database, config) {
       type: "image/png"
     }))
   }
-
-  // TODO: FIGURE OUT WHY NAV ITEMS HAVE EXTRA 'SHOP' and 'MORE' segments
 
   function treeNavItems(navItem) {
     return h('a', {
@@ -537,7 +597,10 @@ function writeHTML(destination, database, config) {
   }
 
   function navItemFilter(nav_item) {
-    return !nav_item.metadata.date && nav_item.path !== "index.html"
+    return !nav_item.metadata.date
+      && nav_item.path !== "index.html"
+      && nav_item.syntax === ".html"
+      && nav_item.path
   }
 
   function sort_items(a, b) {
@@ -553,21 +616,15 @@ function writeHTML(destination, database, config) {
       .filter(navItemFilter)
       .toSorted(sort_items)
 
-    return h('nav.local', sorted.map(treeNavItems))
+    return h('nav', sorted.map(treeNavItems))
   }
 
-
-  // TODO: Filter singleton navs
-  // TODO: Filter ephemeral content
-  //
 
   const groupedNavs = Object.groupBy(family, ({ dir }) => dir)
 
   const treeNav = Object.values(groupedNavs).map(treeNavFolder)
 
   let treeBreadcrumbs = []
-
-
 
   const breadcrumbs = Object.entries(settings.breadcrumbs)
     .sort(([a], [b]) => a.length - b.length)
@@ -592,16 +649,45 @@ function writeHTML(destination, database, config) {
 
   const headerElements = []
 
-  if (settings.title) {
-    headerElements.push(h('a', { href: "/", rel: "home" }, settings.title[""]))
+  const homeLink = []
+
+  // TODO better color handling https://antfu.me/posts/icons-in-pure-css
+  if (settings.fm_logo && settings.fm_logo[""]) {
+    if (settings.fm_logo[""][0].endsWith(".svg")) {
+      const [svg] = settings.fm_logo[""]
+      const svgTarget = database.target.getWithTrackers(svg, destination.path)
+      if (svgTarget.metadata.monochrome) {
+        // FIXME aspect ratio
+        headerElements.push(
+          h('a.logo', {
+            style: `background-color: currentColor; mask-image: url('${(new URL(settings.fm_logo[""], "thismessage://")).pathname}'); mask-size: 100% 100%;`,
+            href: "/",
+            rel: "home",
+            alt: ""
+          })
+        )
+      } else {
+        headerElements.push(
+          h('a.logo', {
+            style: `background: url(${(new URL(settings.fm_logo[""], "thismessage://")).pathname}) norepeat center; background-color: transparent; background-size: 100% 100%;`,
+            href: "/",
+            rel: "home",
+            alt: ""
+          })
+        )
+      }
+    }
   }
 
-  if (settings.slogan) {
-    headerElements.push(h('p.slogan', settings.slogan[0]))
+  if (settings.title) {
+    headerElements.push(h('a.title', { href: "/", rel: "home" }, settings.title[""]))
+  }
+
+  if (settings.fm_slogan) {
+    headerElements.push(h('p.slogan', settings.fm_slogan[""][0]))
   }
 
   const treeHeader = h('header', [
-    // TODO: Logo
     ...headerElements,
     ...treeNav,
   ])
@@ -612,6 +698,7 @@ function writeHTML(destination, database, config) {
     if (node.type !== 'element') return
     if (node.tagName !== 'p') return
     if (node.children.length !== 1) return
+    if (!node.children[0].value) return
     return Boolean(node.children[0].value.match(/^\/\S*$/))
   }
 
@@ -624,31 +711,113 @@ function writeHTML(destination, database, config) {
     })
 
     const list = h("section",
-      targets.map(target => h(
-        "article",
-        [
+      targets.map(target => {
+        const card = []
+        if (target.metadata.image) {
+          card.push(
+            h(
+              "a",
+              {
+                href: target.metadata.prettyURL
+              },
+              h(
+                "img",
+                {
+                  src: target.metadata.image
+                }
+              )
+            )
+          )
+        }
+        card.push(
           h("a",
             { href: target.metadata.prettyURL },
-            target.metadata.title
+            h("h1",
+              target.metadata.title
+            )
           )
-        ]
-      ))
+        )
+        if (target.metadata.description) {
+          card.push(
+            h("p",
+              target.metadata.description
+            )
+          )
+        }
+        return h(
+          "article",
+          card
+        )
+      })
     )
 
     p.children.splice(i, 1, list)
 
   })
 
-  // TODO: Add page ID as a class
+  remove(treeContent, (n, i, p) => p.type === "root" && n.tagName === "h1")
 
-  const treeMain = h('main.h-entry',
+  const treeMainHead = []
+
+  if (metadata.title) treeMainHead.push(
+    h("h1", metadata.title)
+  )
+
+  if (metadata.date) {
+    const date = new Date(metadata.date)
+    treeMainHead.push(
+      h("time",
+        {
+          datetime: date.toISOString(),
+          itemprop: "date"
+        },
+        date.toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "long",
+          day: "numeric"
+        })
+      )
+    )
+  }
+
+  if (metadata.image) treeMainHead.push(
+    h("img", {
+      src: metadata.image,
+      itemprop: "image"
+    })
+  )
+
+  if (metadata.description) treeMainHead.push(
+    h("p",
+      {
+        itemprop: "description"
+      },
+      metadata.description
+    )
+  )
+  
+  const slugger = unified()
+    .use(slug)
+    .use(toc, {
+      customizeTOC: (toc) => {
+        toc.properties = {
+          "aria-label": "Contents"
+        }
+      }
+    })
+
+  const treeContentSlugged = slugger.runSync(treeContent)
+
+  const treeMain = h('main',
     [
-      h('nav.breadcrumbs', {
-        'aria-label': 'Breadcrumb'
+      h('nav', {
+        'aria-label': 'Breadcrumbs'
       }, treeBreadcrumbs),
+      treeMainHead,
       treeContent
     ])
 
+  /* URL handling */
   visit(treeMain, (node, index, parent) => {
     if (node.type === "text" && parent.tagName === 'p' && parent.children.length === 1) {
       const validURL = testURL(node.value)
@@ -656,7 +825,6 @@ function writeHTML(destination, database, config) {
         const metadata = database.url.get(node.value)
         if (metadata) {
           parent.tagName = "article"
-          // TODO: Add url to metadata
           parent.children = [
             h("a", { href: node.value },
               h("h2", metadata.title)
@@ -667,17 +835,13 @@ function writeHTML(destination, database, config) {
     }
   })
 
-  // TODO: Write sidebar
-
-  // TODO: Filter for targets that have a path set
-  // TODO: Filter for targets by extension
-  // FIXME this type should work fine
-
   const everything = database.target.getManyWithTrackers({
     folder: "",
     recursive: true,
     dependent: destination.path,
-  })
+  }).filter(target => target.path)
+
+  const homeFile = everything.find(item => item.path === "index.html" && item.dir === "")
 
   const globalNavItems = everything.filter(item => {
     return item.dir === ""
@@ -685,6 +849,8 @@ function writeHTML(destination, database, config) {
       && !item.metadata.date
   })
     .map(getChildren)
+
+  globalNavItems.unshift(homeFile)
 
   function getChildren(item) {
     const children = everything.filter(child => {
@@ -725,7 +891,7 @@ function writeHTML(destination, database, config) {
     )
   }
 
-  const treeGlobalNav = h('nav.global',
+  const treeGlobalNav = h('nav',
     treeNavList(globalNavItems)
   )
 
@@ -741,7 +907,14 @@ function writeHTML(destination, database, config) {
     ])
   ])
 
-  const treeBody = h('body', [
+  const pageClass = destination.metadata.prettyURL
+    .split("/")
+    .filter(a => a)
+    .map(a => a.replace("_", ""))
+    .join("_")
+    || "home"
+
+  const treeBody = h(`body.${pageClass}`, [
     treeHeader,
     treeMain,
     treeAside,
@@ -767,9 +940,6 @@ function writeHTML(destination, database, config) {
     ]
   )
 
-  // TODO
-  // Mutate
-  // Get links
 
   const data = unified()
     .use(rehypePresetMinify)
