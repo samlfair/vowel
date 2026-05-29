@@ -5,16 +5,18 @@
 - Bundled with [Votive](https://github.com/samlfair/votive)
 - Served with [Voot](https://github.com/samlfair/voot)
 
+See the docs: [vowel.cc](https://vowel.cc).
+
 ## Roadmap
 
 ### Launch checklist
 
-- [ ] CLI
+- [x] CLI
 - [ ] Docs
-- [ ] Classes
-- [ ] Route patterns
-- [ ] Post list metadata
-- [ ] Transaction management
+- [x] Classes
+- [x] Route patterns
+- [x] Post list metadata
+- [.] Transaction management
 
 - [.] Fixes
   - [x] Global nav sublinks
@@ -61,7 +63,7 @@
 
 - [x] Global nav
 - [x] Breadcrumbs
-- [ ] Page classes
+- [x] Page classes
 - [ ] GetMany "path exists" filter
 - [ ] GetMany "extension" filter
 - [ ] Delete settings logic
@@ -88,36 +90,36 @@
     - [x] .svg
   - [ ] Styles
     - [x] .css
-    - [ ] Bundling
+    - [x] Bundling
   - [ ] PDFs
   - [ ] Videos
   - [ ] Arbitrary data
-- [ ] Add homepage to global nav
-- [ ] Page lists
-- [ ] Dates
-- [ ] robots.txt
-- [ ] sitemap.xml
+- [x] Add homepage to global nav
+- [x] Page lists
+- [x] Dates
+- [x] robots.txt
+- [x] sitemap.xml
 - [ ] 404.html
 - [ ] Better URL normalization (see notes)
 - [x] Name casing
-- [ ] TUI
-  - [ ] Create settings.md
-    - [ ] Site title
-    - [ ] Domain
+- [x] TUI
+  - [x] Create settings.md
+    - [x] Site title
+    - [x] Domain
     - [ ] Webmentions
-    - [ ] Logo
-    - [ ] Wordmark
+    - [x] Logo
+    - [x] Wordmark
     - [ ] Identity (rel=me)
-    - [ ] Filename breadcrumbs
-    - [ ] RSS
-    - [ ] Sitemap
-  - [ ] Create home.md
+    - [x] Filename breadcrumbs
+    - [x] RSS
+    - [x] Sitemap
+  - [x] Create home.md
   - [ ] Create folder settings files
     - [ ] Title
     - [ ] Breadcrumb
 - [ ] Remove index file rules
 - [x] Custom CSS
-  - [ ] styles.css
+  - [x] styles.css
   - [ ] Any CSS file
 - [ ] Tags
 - [ ] Date format settings
@@ -127,8 +129,8 @@
 - [-] Webmentions
 - [x] HTML boilerplate
 - [ ] View transitions
-- [ ] Logo
-- [ ] Wordmark
+- [x] Logo
+- [x] Wordmark
 - [ ] Sort nav items
 - [ ] Canonical URL
 - [ ] Handle external links
@@ -140,10 +142,10 @@
   - [ ] HTML
   - [ ] RSS
   - [ ] Sitemap
-- [ ] Heading anchors
+- [x] Heading anchors
 - [ ] Taxonomy pages and smart frontmatter
 - [x] CSS cache busting
-- [ ] Slogan in homepage title
+- [x] Slogan in homepage title
 - [ ] GFM emojis (:smile:)
 
 ### Medium priority
@@ -215,7 +217,6 @@ rel=author? rel=bookmark? rel=external?
 
 
 Annotations (see notes)
-
 
 Interactivity (see notes)
 

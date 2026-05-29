@@ -222,12 +222,12 @@
 		color: unset;
 	}
 
-	.breadcrumbs a {
+	[aria-label=Breadcrumbs] a {
 		font-size: 0.8em;
 		color: unset;
 	}
 
-	.breadcrumbs>a:not(:last-child):after {
+	[aria-label=Breadcrumbs]>a:not(:last-child):after {
 		margin-inline: 0.2em;
 		content: '/';
 	}
@@ -253,7 +253,7 @@
 		width: 1em;
 	}
 
-	header .slogan {
+	header .tagline {
 		font-weight: 500;
 	}
 

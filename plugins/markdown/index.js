@@ -48,6 +48,53 @@ Disallow: /
 User-agent: CCBot
 Disallow: /`
 
+
+function makeHead(metadata, url) {
+
+  const treeMainHead = []
+
+  if (metadata.title) treeMainHead.push(
+    h("h1", metadata.title)
+  )
+
+  if (metadata.date) {
+    const date = new Date(metadata.date)
+    treeMainHead.push(
+      h("time",
+        {
+          datetime: date.toISOString(),
+          itemprop: "date"
+        },
+        date.toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "long",
+          day: "numeric"
+        })
+      )
+    )
+  }
+
+  if (metadata.image) treeMainHead.push(
+    h("img", {
+      src: metadata.image,
+      itemprop: "image"
+    })
+  )
+
+  if (metadata.fm_description) treeMainHead.push(
+    h("p",
+      {
+        itemprop: "description"
+      },
+      metadata.fm_description
+    )
+  )
+
+  if (url) return h('a', { href: url }, treeMainHead)
+
+  return treeMainHead
+}
+
 function toTitleCase(string) {
   if (!string) return
   return string.split(" ").map(word => {
@@ -104,8 +151,9 @@ function readMarkdown(string, filePath, destinationPath, database, config) {
 
   normalizeHeadings(mdast)
   const pathInfo = path.parse(filePath)
-  const metadata = getMetadata(mdast, filePath)
 
+  const startTitle = performance.now()
+  const metadata = getMetadata(mdast, filePath)
 
   metadata.inferred_label = toTitleCase(pathInfo.name)
 
@@ -130,6 +178,7 @@ function readMarkdown(string, filePath, destinationPath, database, config) {
     }
   }
 
+
   visit(mdast, (node, index, parent) => {
     if (node.type === "text" && parent.children.length === 1 && parent.type === "paragraph") {
       const validURL = testURL(node.value)
@@ -143,6 +192,7 @@ function readMarkdown(string, filePath, destinationPath, database, config) {
       }
     }
   })
+
 
   if (filePath === "settings.md") {
     if (metadata.fm_domain) {
@@ -165,6 +215,7 @@ function readMarkdown(string, filePath, destinationPath, database, config) {
       })
     }
   }
+
 
   return { abstract: mdast, metadata, jobs }
 }
@@ -199,7 +250,7 @@ function selectMetadata(metadata) {
 
   const description =
     metadata.fm_description
-    || metadata.slogan
+    || metadata.tagline
     || metadata.inferred_description
 
   if (description) {
@@ -219,14 +270,16 @@ function selectMetadata(metadata) {
  * @param {string} text
  */
 function truncateText(text) {
-  const match = text.match(/^(?<desc>((\b.+?){28})\S)\s(?<etc>.+)$/)
-  if (!match) {
-    return text
-  } else if (match.groups.etc) {
-    return match.groups.desc + "..."
-  } else {
-    return match.groups.desc
-  }
+  // const match = text.match(/^(?<desc>((\b.+?){28})\S)\s(?<etc>.+)$/)
+  // if (!match) {
+  return text
+  // } else if (match.groups.etc) {
+  // console.log("truncate 4")
+  // return match.groups.desc + "..."
+  // } else {
+  // console.log("truncate 5")
+  // return match.groups.desc
+  // }
 }
 
 /** @param {object} tree */
@@ -242,7 +295,6 @@ function getMetadata(tree, filePath) {
           if (!metadata.fm_description && !metadata.inferred_description) {
             metadata.inferred_description = text
           }
-          tree.children.splice(0, i + 1)
           i = Infinity
           break
         } else if (child.children[0].type === "image") {
@@ -263,9 +315,10 @@ function getMetadata(tree, filePath) {
           if (inferred_date) {
             metadata.inferred_date = inferred_date
           } else {
-            const description = truncateText(text)
-            metadata.inferred_description = description
-            tree.children.splice(0, i + 1)
+            if (!metadata.fm_description && !metadata.inferred_description) {
+              metadata.inferred_description = text
+            }
+            // tree.children.splice(0, i + 1)
             i = Infinity
           }
           break
@@ -273,6 +326,9 @@ function getMetadata(tree, filePath) {
       case "heading":
         if (child.depth === 1) {
           metadata.inferred_title = mdastToString(child) || toTitleCase(path.parse(filePath).name)
+          tree.children.splice(0, i + 1)
+        } else {
+          i = Infinity;
         }
         break
       case "yaml":
@@ -282,7 +338,6 @@ function getMetadata(tree, filePath) {
         }
         break
       default:
-        tree.children.splice(0, i + 1)
         i = Infinity
         break
     }
@@ -313,11 +368,11 @@ function readFolder(folder, database, config, isRoot) {
 
   const folderInfo = path.parse(folder)
 
-  const indexPath = path.format({
+  const indexPath = path.relative("./", path.format({
     dir: path.join(folderInfo.dir, folderInfo.name),
     name: "index",
     ext: ".html"
-  })
+  }))
 
   const aliasPath = path.format({
     dir: path.join(folderInfo.dir),
@@ -325,24 +380,69 @@ function readFolder(folder, database, config, isRoot) {
     ext: ".html"
   })
 
-  const indexFile = database.target.get(indexPath)
-  const aliasFile = database.target.get(aliasPath)
 
-  if (!indexFile && (!isRoot && !aliasFile)) {
-    database.target.create({
-      metadata: {
-        title: toTitleCase(folderInfo.name),
-        breadcrumb: toTitleCase(folderInfo.name),
-        prettyURL: "/" + path.normalize(path.format({
+  const aliasFile = database.target.get(aliasPath)
+  const indexFile = database.target.get(indexPath)
+
+  if (!isRoot) {
+    if (!aliasFile) {
+      const title = toTitleCase(folderInfo.name)
+      const prettyURL = (new URL("/" + path.normalize(
+        path.format({
           dir: path.join(folderInfo.dir),
           name: folderInfo.name
-        }))
-      },
-      path: aliasPath,
-      abstract: {},
-      syntax: "html"
-    })
+        })
+      ), "thismessage://")).pathname
+
+      const indexPath = prettyURL + "/*"
+
+      const abstract = fromMarkdown(`# ${title}\n\n${indexPath}`)
+      database.target.create({
+        abstract,
+        path: aliasPath,
+        syntax: "html",
+        metadata: {
+          title: toTitleCase(folderInfo.name),
+          breadcrumb: toTitleCase(folderInfo.name),
+          prettyURL
+        }
+      })
+    }
+  } else {
+    if (!indexFile) {
+      const title = "Home"
+      const prettyURL = "/"
+      const indexPath = prettyURL + "/*"
+
+      const abstract = fromMarkdown(`# ${title}\n\n${indexPath}`)
+      database.target.create({
+        abstract,
+        path: "index.html",
+        syntax: "html",
+        metadata: {
+          title,
+          breadcrumb: title,
+          prettyURL: "/"
+        }
+      })
+    }
   }
+
+  // if (!indexFile && (!isRoot && !aliasFile)) {
+  //   database.target.create({
+  //     metadata: {
+  //       title: toTitleCase(folderInfo.name),
+  //       breadcrumb: toTitleCase(folderInfo.name),
+  //       prettyURL: "/" + path.normalize(path.format({
+  //         dir: path.join(folderInfo.dir),
+  //         name: folderInfo.name
+  //       }))
+  //     },
+  //     path: aliasPath,
+  //     abstract: {},
+  //     syntax: "html"
+  //   })
+  // }
 
 
 
@@ -426,13 +526,13 @@ function readFolder(folder, database, config, isRoot) {
       database.setting.create("", "title", site_title)
     }
 
-    const slogan = settings.fm_slogan
-      && settings.fm_slogan[0]
+    const tagline = settings.fm_tagline
+      && settings.fm_tagline[0]
       || settings.inferred_description
       && settings.inferred_description[0]
 
-    if (slogan) {
-      database.setting.create("", "slogan", slogan)
+    if (tagline) {
+      database.setting.create("", "tagline", tagline)
     }
 
     const icon = settings.fm_icon
@@ -514,9 +614,10 @@ function writeHTML(destination, database, config) {
 
   function createTitle() {
     if (isRoot) {
-      const title = [settings.title[0] || metadata.title, settings.slogan]
+      const title = [settings?.title?.[0] || metadata?.title, settings?.fm_tagline?.[""]?.[0]]
         .filter(a => a)
         .join(" - ")
+
       return title
     }
 
@@ -607,8 +708,9 @@ function writeHTML(destination, database, config) {
     if (typeof a === "number" && typeof b === "number") return a - b
     if (typeof b === "number") return -1
     if (typeof a === "number") return 1
-    if (a.metadata.breadcrumb && b.metadata.breadcrumb) return a.metadata.breadcrumb.localeCompare(b.metadata.breadcrumb)
+    if (a.metadata.breadcrumb && b.metadata.breadcrumb) return String(a.metadata.breadcrumb).localeCompare(String(b.metadata.breadcrumb))
   }
+
 
 
   function treeNavFolder(navFolder) {
@@ -622,7 +724,10 @@ function writeHTML(destination, database, config) {
 
   const groupedNavs = Object.groupBy(family, ({ dir }) => dir)
 
-  const treeNav = Object.values(groupedNavs).map(treeNavFolder)
+  const treeNav = Object.entries(groupedNavs)
+    .sort(([a], [b]) => a.length - b.length)
+    .map(([k, v]) => treeNavFolder(v))
+    .filter(folder => folder.children.length)
 
   let treeBreadcrumbs = []
 
@@ -653,6 +758,15 @@ function writeHTML(destination, database, config) {
 
   // TODO better color handling https://antfu.me/posts/icons-in-pure-css
   if (settings.fm_logo && settings.fm_logo[""]) {
+    headerElements.push(
+      h('a.logo', {
+        href: "/",
+        rel: "home"
+      }, h("img", {
+        src: "/" + settings.fm_logo[""]
+      }))
+    )
+    /*
     if (settings.fm_logo[""][0].endsWith(".svg")) {
       const [svg] = settings.fm_logo[""]
       const svgTarget = database.target.getWithTrackers(svg, destination.path)
@@ -677,14 +791,24 @@ function writeHTML(destination, database, config) {
         )
       }
     }
+    */
   }
 
-  if (settings.title) {
+  if (settings.fm_wordmark && settings.fm_wordmark[""]) {
+    headerElements.push(h("a.wordmark", {
+      href: "/",
+      rel: "home"
+    }, h("img", {
+      src: "/" + settings.fm_wordmark[""]
+    })))
+  }
+
+  if (settings.title && settings.title[""]) {
     headerElements.push(h('a.title', { href: "/", rel: "home" }, settings.title[""]))
   }
 
-  if (settings.fm_slogan) {
-    headerElements.push(h('p.slogan', settings.fm_slogan[""][0]))
+  if (settings.fm_tagline && settings.fm_tagline[""]) {
+    headerElements.push(h('p.tagline', settings.fm_tagline[""][0]))
   }
 
   const treeHeader = h('header', [
@@ -702,100 +826,6 @@ function writeHTML(destination, database, config) {
     return Boolean(node.children[0].value.match(/^\/\S*$/))
   }
 
-  visit(treeContent, testPaths, ({ children: [child] }, i, p) => {
-    const folder = path.relative("/", child.value)
-    const targets = database.target.getManyWithTrackers({
-      folder,
-      query: {},
-      dependent: destination.path
-    })
-
-    const list = h("section",
-      targets.map(target => {
-        const card = []
-        if (target.metadata.image) {
-          card.push(
-            h(
-              "a",
-              {
-                href: target.metadata.prettyURL
-              },
-              h(
-                "img",
-                {
-                  src: target.metadata.image
-                }
-              )
-            )
-          )
-        }
-        card.push(
-          h("a",
-            { href: target.metadata.prettyURL },
-            h("h1",
-              target.metadata.title
-            )
-          )
-        )
-        if (target.metadata.description) {
-          card.push(
-            h("p",
-              target.metadata.description
-            )
-          )
-        }
-        return h(
-          "article",
-          card
-        )
-      })
-    )
-
-    p.children.splice(i, 1, list)
-
-  })
-
-  remove(treeContent, (n, i, p) => p.type === "root" && n.tagName === "h1")
-
-  const treeMainHead = []
-
-  if (metadata.title) treeMainHead.push(
-    h("h1", metadata.title)
-  )
-
-  if (metadata.date) {
-    const date = new Date(metadata.date)
-    treeMainHead.push(
-      h("time",
-        {
-          datetime: date.toISOString(),
-          itemprop: "date"
-        },
-        date.toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric"
-        })
-      )
-    )
-  }
-
-  if (metadata.image) treeMainHead.push(
-    h("img", {
-      src: metadata.image,
-      itemprop: "image"
-    })
-  )
-
-  if (metadata.description) treeMainHead.push(
-    h("p",
-      {
-        itemprop: "description"
-      },
-      metadata.description
-    )
-  )
-  
   const slugger = unified()
     .use(slug)
     .use(toc, {
@@ -807,6 +837,62 @@ function writeHTML(destination, database, config) {
     })
 
   const treeContentSlugged = slugger.runSync(treeContent)
+
+  const treeMainHead = makeHead(metadata)
+
+  visit(treeContent, testPaths, ({ children: [child] }, i, p) => {
+
+    const recursive = child.value.endsWith("**")
+    const many = child.value.endsWith("*")
+
+    if (!many) {
+      const targetFilePathInfo = path.parse(child.value)
+      targetFilePathInfo.ext ||= ".html"
+      delete targetFilePathInfo.base
+      const targetFilePath = path.relative("/", path.format(targetFilePathInfo))
+      const target = database.target.getWithTrackers(targetFilePath, destination.path)
+
+      const article = h('article', makeHead(target.metadata, target.metadata.prettyURL))
+
+      p.children.splice(i, 1, article)
+    }
+
+    if (many) {
+      const { dir } = path.parse(path.relative("/", child.value))
+      const targets = database.target.getManyWithTrackers({
+        folder: dir,
+        recursive,
+        query: {},
+        dependent: destination.path
+      })
+
+      const list = h("section",
+        targets.map(target => {
+          return h('article', makeHead(target.metadata, target.metadata.prettyURL))
+        })
+      )
+
+      p.children.splice(i, 1, list)
+    }
+
+  })
+
+  remove(treeContent, (n, i, p) => p.type === "root" && n.tagName === "h1")
+
+
+  // function copyTreeWithoutArticles(tree) {
+  //   if (tree.tagName !== 'article') {
+  //     return {
+  //       type: tree.type,
+  //       tagName: tree.tagName,
+  //       properties: tree.properties,
+  //       children: tree.children?.map(copyTreeWithoutArticles)
+  //     }
+  //   }
+  // }
+
+
+
 
   const treeMain = h('main',
     [
@@ -846,6 +932,7 @@ function writeHTML(destination, database, config) {
   const globalNavItems = everything.filter(item => {
     return item.dir === ""
       && item.path !== "index.html"
+      && item.path.endsWith(".html")
       && !item.metadata.date
   })
     .map(getChildren)
@@ -887,7 +974,7 @@ function writeHTML(destination, database, config) {
 
   function treeNavList(items) {
     return h('ul',
-      items.map(treeNavItem)
+      items.filter(a => a).map(treeNavItem)
     )
   }
 
@@ -965,7 +1052,6 @@ function router(args) {
         return {
           dir,
           name: "index",
-
           ext: ".html"
         }
       }

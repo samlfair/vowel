@@ -1,7 +1,7 @@
 {
   "name": "vowel",
   "type": "module",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "bin": "bin.js",
   "main": "index.js",
   "scripts": {
@@ -16,6 +16,9 @@
   "license": "MIT",
   "description": "Markdown websites",
   "dependencies": {
+    "@bomb.sh/args": "^0.3.1",
+    "@bomb.sh/tab": "^0.0.15",
+    "@clack/prompts": "^1.4.0",
     "@jsdevtools/rehype-toc": "^3.0.2",
     "autoprefixer": "^10.4.27",
     "cssnano": "^7.1.4",
