@@ -930,13 +930,13 @@ function writeHTML(destination, database, config) {
           const [_, alertLabel] = matches
 
           node.tagName = "aside"
-          node.attributes = {
-            class: `alert ${alertLabel}`
+          node.properties = {
+            class: `alert ${alertLabel.toLowerCase()}`
           }
 
           node.children.splice(0, 2, {
             type: "element",
-            tagName: "h1",
+            tagName: "h2",
             children: [
               {
                 value: toTitleCase(alertLabel),
