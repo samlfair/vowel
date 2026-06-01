@@ -13,6 +13,7 @@ import { gfmFootnoteFromMarkdown } from "mdast-util-gfm-footnote"
 import { gfmStrikethrough } from 'micromark-extension-gfm-strikethrough'
 import { gfmStrikethroughFromMarkdown } from 'mdast-util-gfm-strikethrough'
 import { gfmTable } from 'micromark-extension-gfm-table'
+import rehypeGithubAlert from "rehype-github-alert"
 import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
 import { h } from 'hastscript'
 import { normalizeHeadings } from 'mdast-normalize-headings'
@@ -903,9 +904,8 @@ function writeHTML(destination, database, config) {
       treeContent
     ])
 
-  /* URL handling */
   visit(treeMain, (node, index, parent) => {
-    if (node.type === "text" && parent.tagName === 'p' && parent.children.length === 1) {
+    /* URLs */ if (node.type === "text" && parent.tagName === 'p' && parent.children.length === 1) {
       const validURL = testURL(node.value)
       if (validURL) {
         const metadata = database.url.get(node.value)
@@ -917,6 +917,35 @@ function writeHTML(destination, database, config) {
             )
           ]
         }
+      }
+    } /* GFM Alerts */ else if (node.tagName === "blockquote") {
+      if (node.children[1]
+        && node.children[1].tagName === "p"
+        && node.children[1].children.length === 1
+        && node.children[1].children[0].type === "text"
+      ) {
+        const matches = node.children[1].children[0].value.match(/^\[!(\w+)\]$/)
+
+        if (matches) {
+          const [_, alertLabel] = matches
+
+          node.tagName = "aside"
+          node.attributes = {
+            class: `alert ${alertLabel}`
+          }
+
+          node.children.splice(0, 2, {
+            type: "element",
+            tagName: "h1",
+            children: [
+              {
+                value: toTitleCase(alertLabel),
+                type: "text"
+              }
+            ]
+          })
+        }
+
       }
     }
   })
@@ -1026,7 +1055,6 @@ function writeHTML(destination, database, config) {
       )
     ]
   )
-
 
   const data = unified()
     .use(rehypePresetMinify)
