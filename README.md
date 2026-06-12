@@ -43,7 +43,7 @@ See the docs: [vowel.cc](https://vowel.cc).
   - [x] 404.html (just make 404.md)
 - [ ] Markup
   - [.] Image as figure
-  - [ ] Admonitions
+  - [x] Admonitions
   - [x] Heading anchors
   - [ ] GFM emoji
   - [ ] Mermaid
@@ -134,7 +134,7 @@ See the docs: [vowel.cc](https://vowel.cc).
 - [ ] Sort nav items
 - [ ] Canonical URL
 - [ ] Handle external links
-- [ ] Admonitions
+- [x] Admonitions
 - [ ] Use hgroup for site title, page title, etc
 - [ ] Images as `<figure>`
 - [ ] Hidden routes

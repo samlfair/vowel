@@ -82,6 +82,13 @@ function makeHead(metadata, url) {
     })
   )
 
+  if (!metadata.image && metadata.first_image && url) treeMainHead.push(
+    h("img", {
+      src: metadata.first_image,
+      itemprop: "image"
+    })
+  )
+
   if (metadata.fm_description) treeMainHead.push(
     h("p",
       {
@@ -153,7 +160,6 @@ function readMarkdown(string, filePath, destinationPath, database, config) {
   normalizeHeadings(mdast)
   const pathInfo = path.parse(filePath)
 
-  const startTitle = performance.now()
   const metadata = getMetadata(mdast, filePath)
 
   metadata.inferred_label = toTitleCase(pathInfo.name)
@@ -167,6 +173,15 @@ function readMarkdown(string, filePath, destinationPath, database, config) {
   const jobs = []
 
   selectMetadata(metadata)
+
+  if (!metadata.image) {
+    const firstImageParagraph = mdast.children.find(child => child.children && child.children[0].type === "image")
+    if (firstImageParagraph) {
+      metadata.first_image = firstImageParagraph.children[0].url
+    }
+  }
+
+  if (metadata.fm_published === false) return
 
   if (pathInfo.base === "settings.md") {
     for (const key in metadata) {
@@ -461,61 +476,65 @@ function readFolder(folder, database, config, isRoot) {
       ]
 
 
-      if (themes.includes(settings.theme) || !settings.theme) {
-        if (!settings.theme) database.setting.create("", "theme", "default")
+      if (themes.includes(settings.fm_theme?.[""][0]) || !settings.fm_theme) {
+        if (!settings.fm_theme) database.setting.create("", "theme", "default")
 
-        database.setting.create(
-          "",
-          "stylesheets",
-          "reset.css"
-        )
+        const theme = settings.fm_theme?.[""][0] || "default"
 
-        const resetStylesPath = path.join(VOWEL_DIR, "stylesheets", "ResetStyles.css")
+        if (themes.includes(theme)) {
 
-        if (settings.theme === "reset") return
+          database.setting.create(
+            "",
+            "stylesheets",
+            "reset.css"
+          )
 
-        database.setting.create(
-          "",
-          "stylesheets",
-          "typography.css"
-        )
+          const resetStylesPath = path.join(VOWEL_DIR, "stylesheets", "ResetStyles.css")
+          const resetStyles = readFileSync(resetStylesPath, "utf-8")
 
-        if (settings.theme === "typography") return
+          database.target.create({
+            path: "reset.css",
+            abstract: { css: resetStyles },
+            metadata: {},
+            syntax: "css"
+          })
 
-        database.setting.create(
-          "",
-          "stylesheets",
-          "default.css"
-        )
+          if (theme === "reset") return
 
-        const typeStylesPath = path.join(VOWEL_DIR, "stylesheets", "TypographyStyles.css")
-        const defaultStylesPath = path.join(VOWEL_DIR, "stylesheets", "DefaultStyles.css")
+          database.setting.create(
+            "",
+            "stylesheets",
+            "typography.css"
+          )
 
-        const resetStyles = readFileSync(resetStylesPath, "utf-8")
-        const typeStyles = readFileSync(typeStylesPath, "utf-8")
-        const defaultStyles = readFileSync(defaultStylesPath, "utf-8")
+          const typeStylesPath = path.join(VOWEL_DIR, "stylesheets", "TypographyStyles.css")
+          const typeStyles = readFileSync(typeStylesPath, "utf-8")
 
+          database.target.create({
+            path: "typography.css",
+            abstract: { css: typeStyles },
+            metadata: {},
+            syntax: "css"
+          })
 
-        database.target.create({
-          path: "reset.css",
-          abstract: { css: resetStyles },
-          metadata: {},
-          syntax: "css"
-        })
+          if (theme === "typography") return
 
-        database.target.create({
-          path: "typography.css",
-          abstract: { css: typeStyles },
-          metadata: {},
-          syntax: "css"
-        })
+          database.setting.create(
+            "",
+            "stylesheets",
+            "default.css"
+          )
 
-        database.target.create({
-          path: "default.css",
-          abstract: { css: defaultStyles },
-          metadata: {},
-          syntax: "css"
-        })
+          const defaultStylesPath = path.join(VOWEL_DIR, "stylesheets", "DefaultStyles.css")
+          const defaultStyles = readFileSync(defaultStylesPath, "utf-8")
+
+          database.target.create({
+            path: "default.css",
+            abstract: { css: defaultStyles },
+            metadata: {},
+            syntax: "css"
+          })
+        }
       }
     }
 
@@ -659,12 +678,28 @@ function writeHTML(destination, database, config) {
       property: "og:description",
       content: metadata.description,
     }),
-    h("meta", {
-      property: "og:url",
-      content: metadata.prettyURL
-    }),
     ...treeStyleSheets,
   ])
+
+  if (settings.fm_domain) {
+    const settingsDomain = settings.fm_domain[""][0]
+    const domain = settingsDomain.startsWith("http")
+      ? settingsDomain
+      : "https://" + settingsDomain
+
+    const { href } = new URL(metadata.prettyURL, domain)
+
+    treeHead.children.push(
+      h("meta", {
+        property: "og:url",
+        content: href
+      }),
+      h("link", {
+        rel: "canonical",
+        href
+      })
+    )
+  }
 
 
   if (metadata.image) {
@@ -678,7 +713,7 @@ function writeHTML(destination, database, config) {
   if (settings.title) {
     treeHead.children.push(h("meta", {
       property: "og:site_name",
-      content: settings.title[0]
+      content: settings.fm_title?.[""][0]
     }))
   }
 
@@ -762,7 +797,9 @@ function writeHTML(destination, database, config) {
     headerElements.push(
       h('a.logo', {
         href: "/",
-        rel: "home"
+        alt: "",
+        rel: "home",
+        "style": `mask-image: url("/${settings.fm_logo[""]}")`
       }, h("img", {
         src: "/" + settings.fm_logo[""]
       }))
@@ -843,8 +880,13 @@ function writeHTML(destination, database, config) {
 
   visit(treeContent, testPaths, ({ children: [child] }, i, p) => {
 
-    const recursive = child.value.endsWith("**")
-    const many = child.value.endsWith("*")
+    // const recursive = child.value.endsWith("**")
+    // const many = child.value.endsWith("*")
+
+    const url = new URL(child.value, "thismessage://")
+    const { dir, base } = path.parse(url.pathname)
+    const recursive = base === "**"
+    const many = base === "*" || base === "**"
 
     if (!many) {
       const targetFilePathInfo = path.parse(child.value)
@@ -853,19 +895,26 @@ function writeHTML(destination, database, config) {
       const targetFilePath = path.relative("/", path.format(targetFilePathInfo))
       const target = database.target.getWithTrackers(targetFilePath, destination.path)
 
-      const article = h('article', makeHead(target.metadata, target.metadata.prettyURL))
+      if (target) {
+        const article = h('article', makeHead(target.metadata, target.metadata.prettyURL))
 
-      p.children.splice(i, 1, article)
+        p.children.splice(i, 1, article)
+      }
+
     }
 
     if (many) {
-      const { dir } = path.parse(path.relative("/", child.value))
+      const folder = path.relative("/", dir)
+      // const url = new URL(child.value, "thismessage://")
+      const count = url.searchParams.get("count")
       const targets = database.target.getManyWithTrackers({
-        folder: dir,
+        folder,
         recursive,
         query: {},
         dependent: destination.path
       })
+
+      if (count) targets.splice(Number(count))
 
       const list = h("section",
         targets.map(target => {
@@ -896,6 +945,9 @@ function writeHTML(destination, database, config) {
 
 
   const treeMain = h('main',
+    {
+      itemscope: true
+    },
     [
       h('nav', {
         'aria-label': 'Breadcrumbs'
@@ -954,15 +1006,16 @@ function writeHTML(destination, database, config) {
     folder: "",
     recursive: true,
     dependent: destination.path,
-  }).filter(target => target.path)
+  }).filter(target => target.path
+    && target.path.endsWith(".html")
+    && !target.metadata.date
+  )
 
   const homeFile = everything.find(item => item.path === "index.html" && item.dir === "")
 
   const globalNavItems = everything.filter(item => {
     return item.dir === ""
       && item.path !== "index.html"
-      && item.path.endsWith(".html")
-      && !item.metadata.date
   })
     .map(getChildren)
 

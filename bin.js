@@ -196,7 +196,7 @@ async function main() {
   const dbExists = await exists(".votive.db")
 
   await removeCache(args.logging === "verbose")
-  // await removeDB(args.logging === "verbose")
+  await removeDB(args.logging === "verbose")
   await fs.mkdir(config.destinationFolder, { recursive: true })
 
   if (!args.skip && !dbExists) {

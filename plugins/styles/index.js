@@ -10,9 +10,9 @@ function writeCSS(destination, database, config) {
     code: Buffer.from(destination.abstract.css),
     minify: true,
     targets: {
-      chrome: 146 << 16,
-      firefox: 149 << 16,
-      safari: 26 << 16
+      chrome: 140 << 16,
+      firefox: 140 << 16,
+      safari: 20 << 16
     }
   })
 

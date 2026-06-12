@@ -1,15 +1,27 @@
+import { readFile } from "node:fs/promises"
 /** @import * as Votive from "votive" */
+
+/** @type {Votive.ProcessorWrite} */
+async function writeFile(destination, database, config) {
+  const buffer = await readFile(destination.abstract.filePath)
+  return {
+    data: buffer,
+  }
+}
+
+function readFont(filePath) {
+  return {
+    abstract: { filePath },
+    metadata: {}
+  }
+}
 
 /** @type {Votive.VotiveProcessor} */
 const fontsReader = {
-  syntax: "font",
-  filter: {
-    extensions: [".woff", ".woff2", ".ttf", ".otf"]
-  },
-  read: {
-    path: null,
-  },
-  write: null
+  format: "buffer",
+  extensions: [".woff", ".woff2", ".ttf", ".otf"],
+  readFile: readFont,
+  writeFile
 }
 
 /** @type {Votive.VotivePlugin} */
