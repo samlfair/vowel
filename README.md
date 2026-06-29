@@ -51,7 +51,7 @@ See the docs: [vowel.cc](https://vowel.cc).
   - [x] TOC
 - [ ] Non-urgent fixes / improvements
   - [ ] Compare metadata on file update
-  - [ ] Prune/cleanup step
+  - [x] Prune/cleanup step
   - [ ] Dependency type (file, settings, folder)
 - [ ] New systems
   - [ ] Tags
