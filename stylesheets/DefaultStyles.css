@@ -9,7 +9,7 @@
 
 @layer default {
 	:root {
-
+		--accent-00: oklch(1 0.030170139248992922 90.24115342246611);
 		--accent-01: oklch(0.9536456092315344 0.030170139248992922 90.24115342246611);
 		--accent-02: oklch(0.8924089806120152 0.08826670827983002 90.24115342246611);
 		--accent-03: oklch(0.844618 0.14828222329121668 90.24115342246611);
@@ -21,6 +21,7 @@
 		--accent-09: oklch(0.38727951482578865 0.05695363236371703 90.24115342246611);
 		--accent-10: oklch(0.24916012628129958 0.03201699687903088 90.24115342246611);
 		--accent-11: oklch(0.11046170738630641 0.01528852137867617 90.24115342246611);
+		--danger-00: oklch(1 0.037138530373020395 -25.754653176550182);
 		--danger-01: oklch(0.9536456092315344 0.037138530373020395 -25.754653176550182);
 		--danger-02: oklch(0.8924089806120152 0.0908858065656466 -25.754653176550182);
 		--danger-03: oklch(0.844618 0.15656415898125758 -25.754653176550182);
@@ -32,6 +33,7 @@
 		--danger-09: oklch(0.38727951482578865 0.1036689817070561 -25.754653176550182);
 		--danger-10: oklch(0.24916012628129958 0.058004850702477094 -25.754653176550182);
 		--danger-11: oklch(0.11046170738630641 0.02748297973358925 -25.754653176550182);
+		--info-00: oklch(1 0.032559707682643824 244.1900622367698);
 		--info-01: oklch(0.9536456092315344 0.032559707682643824 244.1900622367698);
 		--info-02: oklch(0.8924089806120152 0.07422782322853594 244.1900622367698);
 		--info-03: oklch(0.844618 0.12605888808084453 244.1900622367698);
@@ -43,6 +45,7 @@
 		--info-09: oklch(0.38727951482578865 0.12889889174890792 244.1900622367698);
 		--info-10: oklch(0.24916012628129958 0.0769636599555286 244.1900622367698);
 		--info-11: oklch(0.11046170738630641 0.034552898697749426 244.1900622367698);
+		--primary-00: oklch(1 0.033943473040194294 -82.72000000000003);
 		--primary-01: oklch(0.9536456092315344 0.033943473040194294 -82.72000000000003);
 		--primary-02: oklch(0.8924089806120152 0.07208713732898053 -82.72000000000003);
 		--primary-03: oklch(0.844618 0.10967407324412015 -82.72000000000003);
@@ -54,6 +57,7 @@
 		--primary-09: oklch(0.38727951482578865 0.22519086267101945 -82.72000000000003);
 		--primary-10: oklch(0.24916012628129958 0.1489244571729748 -82.72000000000003);
 		--primary-11: oklch(0.11046170738630641 0.07262669982202441 -82.72000000000003);
+		--secondary-00: oklch(1 0.03523506763462919 174.9674);
 		--secondary-01: oklch(0.9536456092315344 0.03523506763462919 174.9674);
 		--secondary-02: oklch(0.8924089806120152 0.12226651611616707 174.9674);
 		--secondary-03: oklch(0.844618 0.159299 174.9674);
@@ -65,6 +69,7 @@
 		--secondary-09: oklch(0.38727951482578865 0.037032483883832935 174.9674);
 		--secondary-10: oklch(0.24916012628129958 0.02375390884349093 174.9674);
 		--secondary-11: oklch(0.11046170738630641 0.011400212679566413 174.9674);
+		--success-00: oklch(1 0.024257111887574123 148.30000439636984);
 		--success-01: oklch(0.9536456092315344 0.024257111887574123 148.30000439636984);
 		--success-02: oklch(0.8924089806120152 0.07351482341637697 148.30000439636984);
 		--success-03: oklch(0.844618 0.12466168066207778 148.30000439636984);
@@ -76,6 +81,7 @@
 		--success-09: oklch(0.38727951482578865 0.0457513376060701 148.30000439636984);
 		--success-10: oklch(0.24916012628129958 0.02575933593360364 148.30000439636984);
 		--success-11: oklch(0.11046170738630641 0.012313506052849059 148.30000439636984);
+		--tertiary-00: oklch(1 0.034046389815560296 2.791302501092794);
 		--tertiary-01: oklch(0.9536456092315344 0.034046389815560296 2.791302501092794);
 		--tertiary-02: oklch(0.8924089806120152 0.08421751016426371 2.791302501092794);
 		--tertiary-03: oklch(0.844618 0.14726059081820986 2.791302501092794);
@@ -87,6 +93,7 @@
 		--tertiary-09: oklch(0.38727951482578865 0.09664947566806639 2.791302501092794);
 		--tertiary-10: oklch(0.24916012628129958 0.053320044751899345 2.791302501092794);
 		--tertiary-11: oklch(0.11046170738630641 0.025277009084351466 2.791302501092794);
+		--warning-00: oklch(1 0.033978843637678835 61.19378984733035);
 		--warning-01: oklch(0.9536456092315344 0.033978843637678835 61.19378984733035);
 		--warning-02: oklch(0.8924089806120152 0.09727044978770355 61.19378984733035);
 		--warning-03: oklch(0.844618 0.16243636817381144 61.19378984733035);
@@ -100,13 +107,42 @@
 		--warning-11: oklch(0.11046170738630641 0.017183679327988338 61.19378984733035);
 
 
-		--text-color: light-dark(var(--primary-11), var(--primary-01));
-		--link-color: light-dark(var(--secondary-07), var(--secondary-03));
-		--link-hover-color: light-dark(var(--secondary-06), var(--secondary-04));
-		--border-color: light-dark(var(--primary-03), var(--primary-09));
-		--main-background: light-dark(var(--primary-01), var(--primary-11));
-		--code-background: light-dark(var(--primary-02), var(--primary-10));
-		--soft-background: light-dark(var(--primary-02), var(--primary-10));
+		/* main */
+		--primary-text-color: light-dark(var(--primary-11), var(--primary-01));
+		--primary-heading-color: light-dark(var(--primary-10), var(--primary-02));
+		--primary-link-color: light-dark(var(--secondary-07), var(--secondary-03));
+		--primary-link-hover-color: light-dark(var(--secondary-06), var(--secondary-04));
+		--primary-border-color: light-dark(var(--primary-03), var(--primary-09));
+
+		/* secondary */
+		--secondary-text-color: light-dark(var(--secondary-11), var(--secondary-01));
+		--secondary-heading-color: light-dark(var(--secondary-09), var(--secondary-03));
+
+		/* backgrounds */
+		--main-background: light-dark(var(--primary-00), var(--primary-11));
+		--code-background: light-dark(var(--primary-01), var(--primary-10));
+		--soft-background: light-dark(var(--primary-01), var(--primary-10));
+
+		/* alerts */
+		--warning-background: light-dark(var(--warning-01), var(--warning-10));
+		--warning-text: light-dark(var(--warning-10), var(--warning-01));
+		--warning-border: light-dark(var(--warning-02), var(--warning-08));
+		--warning-heading: light-dark(var(--warning-08), var(--warning-02));
+
+		--danger-background: light-dark(var(--danger-01), var(--danger-10));
+		--danger-text: light-dark(var(--danger-10), var(--danger-01));
+		--danger-border: light-dark(var(--danger-02), var(--danger-08));
+		--danger-heading: light-dark(var(--danger-08), var(--danger-02));
+
+		--success-background: light-dark(var(--success-01), var(--success-10));
+		--success-text: light-dark(var(--success-10), var(--success-01));
+		--success-border: light-dark(var(--success-02), var(--success-08));
+		--success-heading: light-dark(var(--success-08), var(--success-02));
+
+		--note-background: light-dark(var(--note-01), var(--note-10));
+		--note-text: light-dark(var(--note-10), var(--note-01));
+		--node-border: light-dark(var(--node-02), var(--node-08));
+		--note-heading: light-dark(var(--note-08), var(--note-02));
 	}
 
 	:root {
@@ -169,15 +205,15 @@
 	/* Colors */
 
 	html {
-		color: var(--text-color);
+		color: var(--primary-text-color);
 		background: var(--main-background);
 	}
 
 	a:where(:not([rel=home])) {
-		color: var(--link-color);
+		color: var(--primary-link-color);
 
 		&:hover {
-			color: var(--link-hover-color);
+			color: var(--primary-link-hover-color);
 		}
 	}
 
@@ -187,11 +223,11 @@
 	}
 
 	blockquote {
-		border-left: 5px solid var(--border-color);
+		border-left: 5px solid var(--primary-border-color);
 	}
 
 	article {
-		border: 1px solid var(--border-color);
+		border: 1px solid var(--primary-border-color);
 		background: var(--soft-background);
 		padding: 2rem 2rem 2rem;
 		border-radius: calc(1rem + 5px);
@@ -205,7 +241,7 @@
 	}
 
 	hr {
-		border-top: 1px solid var(--text-color);
+		border-top: 1px solid var(--primary-text-color);
 	}
 
 	/* Frontmatter */
@@ -284,7 +320,7 @@
 		}
 
 		nav {
-			border: 1px solid var(--border-color);
+			border: 1px solid var(--primary-border-color);
 			padding: 0px 6px;
 			width: 100%;
 
@@ -313,7 +349,7 @@
 			&:after {
 				display: block;
 				content: '';
-				border-bottom: 1px solid var(--border-color);
+				border-bottom: 1px solid var(--primary-border-color);
 				flex-basis: 100%;
 				margin-block: 0.7rem;
 			}
@@ -389,7 +425,7 @@
 	p:where([itemprop=description]),
 	main>p:first-of-type {
 		font-size: 1.3em;
-		color: var(--secondary-10);
+		color: var(--secondary-text-color);
 	}
 
 	article a {
@@ -443,46 +479,46 @@
 
 	aside.alert.note {
 		--icon: 'ℹ️';
-		background: var(--info-02);
-		color: var(--info-10);
-		border-left: 3px solid var(--info-03);
+		background: var(--info-background);
+		color: var(--info-text);
+		border-left: 3px solid var(--info-border);
 
 		h2 {
-			color: var(--info-08);
+			color: var(--info-heading);
 		}
 	}
 
 	aside.alert.success {
 		--icon: '💡';
-		background: var(--success-02);
-		color: var(--success-10);
-		border-left: 3px solid var(--success-03);
+		background: var(--success-background);
+		color: var(--success-text);
+		border-left: 3px solid var(--success-border);
 
 		h2 {
-			color: var(--success-08);
+			color: var(--success-heading);
 		}
 	}
 
 	aside.alert.warning {
 		--icon: '⚠️';
-		background: var(--warning-02);
-		color: var(--warning-10);
-		border-left: 3px solid var(--warning-03);
+		background: var(--warning-background);
+		color: var(--warning-text);
+		border-left: 3px solid var(--warning-border);
 
 		h2 {
-			color: var(--warning-08);
+			color: var(--warning-heading);
 		}
 	}
 
 
 	aside.alert.danger {
 		--icon: '⛔️';
-		background: var(--danger-02);
-		color: var(--danger-10);
-		border-left: 3px solid var(--danger-03);
+		background: var(--danger-background);
+		color: var(--danger-text);
+		border-left: 3px solid var(--danger-border);
 
 		h2 {
-			color: var(--danger-08);
+			color: var(--danger-border);
 		}
 	}
 
