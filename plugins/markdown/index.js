@@ -19,7 +19,7 @@ import { h } from 'hastscript'
 import { normalizeHeadings } from 'mdast-normalize-headings'
 import { readFileSync } from "fs"
 import { remove } from "unist-util-remove"
-import { testURL } from "./../../utils.js"
+import { testURL, testHashtags, createHashtagPage, toTitleCase, hashtagRegexSingle } from "./../../utils.js"
 import { toHast } from 'mdast-util-to-hast'
 import { toString as hastToString } from 'hast-util-to-string'
 import { toString as mdastToString } from 'mdast-util-to-string'
@@ -103,14 +103,6 @@ function makeHead(metadata, url) {
   return treeMainHead
 }
 
-function toTitleCase(string) {
-  if (!string) return
-  return string.split(" ").map(word => {
-    const letters = word.split("")
-    letters[0] = letters[0].toUpperCase()
-    return letters.join("")
-  }).join(" ")
-}
 
 function readURL(data) {
   const hast = fromHtml(data)
@@ -140,7 +132,7 @@ function readURL(data) {
 
 
 /** @type {Votive.ReadText} */
-function readMarkdown(string, filePath, destinationPath, database, config) {
+function readFile(string, filePath, destinationPath, database, config) {
   const mdast = fromMarkdown(string, {
     // Micromark extensions
     extensions: [
@@ -198,6 +190,7 @@ function readMarkdown(string, filePath, destinationPath, database, config) {
   visit(mdast, (node, index, parent) => {
     if (node.type === "text" && parent.children.length === 1 && parent.type === "paragraph") {
       const validURL = testURL(node.value)
+
       if (validURL) {
 
         jobs.push({
@@ -205,6 +198,107 @@ function readMarkdown(string, filePath, destinationPath, database, config) {
           runner: "text",
           destination: destinationPath
         })
+
+        return
+      }
+
+      const hashtags = testHashtags(node.value)
+
+      // TODO: Tags should not appear in menus
+      // TODO: Make this work when tags are embedded in text
+
+      if (hashtags) {
+        function convertTagsToLinks(value) {
+          const match = value.match(hashtagRegexSingle)
+          if (match) {
+            const remainder = value.slice(match[0].length)
+            const child = {
+              type: "link",
+              url: `/tags/${match[3]}`,
+              children: [
+                {
+                  type: "text",
+                  value: match[0]
+                }
+              ]
+            }
+
+            return [
+              {
+                type: "text",
+                value: match[1]
+              },
+              child,
+              {
+                type: "text",
+                value: match[4]
+              },
+              
+              ...convertTagsToLinks(remainder)
+            ]
+          }
+          return [
+            {
+              type: "text",
+              value: value
+            }
+          ]
+        }
+
+        parent.children = convertTagsToLinks(node.value)
+
+        const markdown = `/tags/**`
+        const mdast = fromMarkdown(markdown)
+
+        const extant = database.target.get("tags.html")
+
+        // FIXME: Update abstract format
+        if (!extant) {
+          // Delete if unnecessary
+          database.target.create({
+            path: `tags.html`,
+            abstract: mdast,
+            metadata: {
+              breadcrumb: "Tags",
+              title: "Tags",
+              prettyURL: "/tags",
+            }
+          })
+        }
+
+        database.dependency.track({}, "tags", null, destinationPath, "tags.html")
+        database.target.markStale("tags.html")
+
+        if (hashtags) {
+          if (!metadata.tags) {
+            metadata.tags = []
+          } else if (!Array.isArray(metadata.tags)) {
+            metadata.tags = []
+          }
+
+          metadata.tags = []
+
+          hashtags.forEach(hashtag => {
+            const title = toTitleCase(hashtag)
+            metadata.tags.push(hashtag)
+
+            const abstract = createHashtagPage(hashtag)
+
+            const tagMetadata = {
+              breadcrumb: title,
+              title: title,
+              prettyURL: `/tags/${hashtag}`,
+              type: "tag",
+              tag: hashtag
+            }
+
+            const created = database.target.create({
+              path: `tags/${hashtag}.html`,
+              abstract,
+              metadata: tagMetadata
+            })
+          })
+        }
       }
     }
   })
@@ -364,7 +458,7 @@ function getMetadata(tree, filePath) {
 }
 
 /** @type {Votive.ReadAbstract} */
-function readAbstract(abstract, database, config) {
+function transformFile(abstract, database, config) {
   const jobs = []
   return { abstract, jobs }
 }
@@ -580,12 +674,30 @@ function readFolder(folder, database, config, isRoot) {
 }
 
 /** @type {Votive.ProcessorWrite} */
-function writeHTML(destination, database, config) {
+function writeFile(destination, database, config) {
   const isRoot = destination.path === "index.html"
+
+  // console.log(destination.metadata)
+
+  if (destination.metadata.type === "tag") {
+    if (!destination.metadata.tag) return false
+
+    const pages = database.target.getManyWithTrackers({
+      recursive: true,
+      dependent: destination,
+      query: {
+        tags: destination.metadata.tag
+      }
+    })
+
+    if (!pages.length) return false
+  }
 
   const settings = database.setting.getByFolder(destination.dir + path.sep)
 
   const { abstract, metadata, ...rest } = destination
+
+  if (metadata.tags) metadata.tags = JSON.parse(metadata.tags)
 
   /** @param {string} filePath */
   function listFolders(filePath) {
@@ -907,10 +1019,15 @@ function writeHTML(destination, database, config) {
       const folder = path.relative("/", dir)
       // const url = new URL(child.value, "thismessage://")
       const count = url.searchParams.get("count")
+      const tag = url.searchParams.get("tag")
+      const query = tag
+        ? { tags: tag }
+        : {}
+
       const targets = database.target.getManyWithTrackers({
         folder,
         recursive,
-        query: {},
+        query,
         dependent: destination.path
       })
 
@@ -1152,26 +1269,26 @@ function router(args) {
 
 
 /** @type {Votive.VotiveProcessor} */
-const markdownReader = {
+const readMarkdown = {
   extensions: [".md"],
   format: "text",
-  readFile: readMarkdown,
+  readFile,
   readResource: readURL,
-  transformFile: readAbstract,
-  readFolder: readFolder,
+  transformFile,
+  readFolder,
 }
 
-const htmlWriter = {
+const writeHTML = {
   extensions: [".html"],
   format: "text",
-  writeFile: writeHTML
+  writeFile
 }
 
 
 /** @type {Votive.VotivePlugin} */
 const vowelMarkdownPlugin = {
   name: "vowel",
-  processors: [markdownReader, htmlWriter],
+  processors: [readMarkdown, writeHTML],
   router
 }
 
