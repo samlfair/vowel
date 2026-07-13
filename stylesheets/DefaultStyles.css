@@ -226,13 +226,21 @@
 		border-left: 5px solid var(--primary-border-color);
 	}
 
-	article {
+	main>article {
 		border: 1px solid var(--primary-border-color);
-		background: var(--soft-background);
 		padding: 2rem 2rem 2rem;
 		border-radius: calc(1rem + 5px);
 		display: flex;
 		flex-direction: column;
+	}
+
+	main>ul._ {
+		list-style: none;
+		padding: 0;
+
+		& article {
+			padding-bottom: 1em;
+		}
 	}
 
 	th,

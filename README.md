@@ -12,7 +12,7 @@ See the docs: [vowel.cc](https://vowel.cc).
 ### Launch checklist
 
 - [x] CLI
-- [ ] Docs
+- [x] Docs
 - [x] Classes
 - [x] Route patterns
 - [x] Post list metadata
@@ -40,7 +40,7 @@ See the docs: [vowel.cc](https://vowel.cc).
   - [x] Robots.txt
   - [x] Sitemap.xml
   - [x] RSS
-  - [x] 404.html (just make 404.md)
+  - [ ] 404.html (just make 404.md)
 - [ ] Markup
   - [.] Image as figure
   - [x] Admonitions

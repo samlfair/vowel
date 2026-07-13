@@ -1,7 +1,47 @@
 import {fromMarkdown} from 'mdast-util-from-markdown'
 import {toHast} from 'mdast-util-to-hast'
 import {toHtml} from 'hast-util-to-html'
+import path from "node:path"
+import { randomUUID } from "node:crypto"
 
+export const imageSizes = [414, 768, 1440, 1920]
+export const imageExts = ["avif", "webp"]
+
+/**
+ * @param {object} params
+ * @property {string} targetFilePath
+ * @property {number} size
+ * @property {string} targetDirectory
+ * @property {string} uuid
+ */
+export function createImagePath({ targetFilePath, size, ext, targetDirectory, uuid }) {
+  const { dir, name } = path.parse(targetFilePath)
+  return path.format({
+    dir: path.relative(".", path.normalize(path.join(targetDirectory, dir))),
+    name: `${name}-${uuid}-${size}`,
+    ext
+  })
+}
+
+/**
+ * @param {string} targetFilePath
+ * @param {string} targetDirectory
+ * @param {string} uuid
+ */
+export function createImagePaths(targetFilePath, targetDirectory, uuid) {
+  const defaultExt = path.extname(targetFilePath)
+  return [...imageExts, defaultExt].map(ext => {
+    return imageSizes.map(size => {
+      return createImagePath({
+        targetFilePath,
+        size,
+        ext,
+        targetDirectory,
+        uuid
+      })
+    })
+  })
+}
 
 /** @param {string} text */
 export function testURL(text) {

@@ -19,7 +19,7 @@ import { h } from 'hastscript'
 import { normalizeHeadings } from 'mdast-normalize-headings'
 import { readFileSync } from "fs"
 import { remove } from "unist-util-remove"
-import { testURL, testHashtags, createHashtagPage, toTitleCase, hashtagRegexSingle } from "./../../utils.js"
+import { testURL, testHashtags, createHashtagPage, toTitleCase, hashtagRegexSingle, createImagePaths, imageSizes, imageExts } from "./../../utils.js"
 import { toHast } from 'mdast-util-to-hast'
 import { toString as hastToString } from 'hast-util-to-string'
 import { toString as mdastToString } from 'mdast-util-to-string'
@@ -27,6 +27,7 @@ import { unified } from "unified"
 import { visit } from "unist-util-visit"
 import toc from "@jsdevtools/rehype-toc"
 import slug from "rehype-slug"
+import * as unpic from "unpic"
 
 const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
 
@@ -50,7 +51,86 @@ User-agent: CCBot
 Disallow: /`
 
 
-function makeHead(metadata, url) {
+
+/**
+ * @param {string} imagePath
+ * @param {Votive.Database} database
+ * @param {string} dependent
+ */
+function createDynamicImage(imagePath, database, dependent, alt, itemprop) {
+  // TODO: Hardcode image height and width
+  const parsed = path.parse(imagePath);
+  const isURL = testURL(imagePath)
+  const isImg = !parsed.ext.search(/^.(png|jpeg|jpg)$/);
+
+  if (isURL) {
+    const parsedImageURL = unpic.parseUrl(imagePath)
+    if (parsedImageURL) {
+
+      const sources = [...imageExts, "jpeg"].map((format, index) => {
+
+        const isImg = index === imageExts.length
+        // TODO: Ignore images that have options already specified
+        const urls = imageSizes.map(size => {
+          return unpic.transformUrl({
+            format: format,
+            url: parsedImageURL.src,
+            provider: parsedImageURL.cdn,
+            width: size
+          })
+        })
+
+        const sizes = urls.map((url, index) => `${url} ${imageSizes[index]}w`).join(", ")
+
+        return h(isImg ? "img" : "source", {
+          type: "image/" + format,
+          srcset: sizes,
+          src: isImg && urls.at(-1),
+          loading: isImg && "lazy",
+          sizes: "100vw",
+          alt: isImg && alt
+        })
+      })
+
+      return h("picture", { itemprop: itemprop && "image" }, sources)
+    }
+  }
+
+  if (!isImg) return
+
+  const relativePath = imagePath.startsWith("/") ? path.relative("/", imagePath) : imagePath
+  const image = database.target.getWithTrackers(relativePath, dependent)
+  console.log({ image, relativePath })
+  if (!image) return
+  const formats = createImagePaths(image.abstract.sourcePath, "./", image.abstract.uuid)
+
+
+  const sources = formats.map((format, index) => {
+    const isImg = index === formats.length - 1
+
+    const sizes = format.map((size, index) => `/${size} ${imageSizes[index]}w`).join(", ")
+    const type = "image/" + path.extname(format[0]).slice(1)
+    return h(isImg ? "img" : "source", {
+      type,
+      srcset: sizes,
+      loading: isImg && "lazy",
+      src: isImg && "/" + format.at(-1),
+      sizes: "100vw",
+      alt: isImg && alt
+    })
+  })
+
+
+  return h("picture", { itemprop: itemprop && "image" }, sources)
+}
+
+/**
+ * @param {object} metadata
+ * @param {string} url
+ * @param {Votive.Database} database
+ * @param {Votive.VotiveConfig} config
+ */
+function makeHead(metadata, url, database, config) {
 
   const treeMainHead = []
 
@@ -75,19 +155,16 @@ function makeHead(metadata, url) {
     )
   }
 
-  if (metadata.image) treeMainHead.push(
-    h("img", {
-      src: metadata.image,
-      itemprop: "image"
-    })
-  )
 
-  if (!metadata.image && metadata.first_image && url) treeMainHead.push(
-    h("img", {
-      src: metadata.first_image,
-      itemprop: "image"
-    })
-  )
+
+
+  if (metadata.image || (metadata.first_image && url)) {
+    const metaImage = metadata.image || metadata.first_image
+
+    treeMainHead.push(
+      createDynamicImage(metaImage, database, url, null, true)
+    )
+  }
 
   if (metadata.fm_description) treeMainHead.push(
     h("p",
@@ -233,7 +310,7 @@ function readFile(string, filePath, destinationPath, database, config) {
                 type: "text",
                 value: match[4]
               },
-              
+
               ...convertTagsToLinks(remainder)
             ]
           }
@@ -297,6 +374,7 @@ function readFile(string, filePath, destinationPath, database, config) {
               abstract,
               metadata: tagMetadata
             })
+
           })
         }
       }
@@ -728,7 +806,9 @@ function writeFile(destination, database, config) {
       dependent: destination.path,
       query: {}
     })
-  }).filter(({ path }) => path)
+  }).filter(({ path, dir }) => {
+    return path && path !== "tags.html" && dir !== "tags"
+  })
 
   const treeStyleSheets = []
 
@@ -988,7 +1068,21 @@ function writeFile(destination, database, config) {
 
   const treeContentSlugged = slugger.runSync(treeContent)
 
-  const treeMainHead = makeHead(metadata)
+  const treeMainHead = makeHead(metadata, null, database, config)
+
+  visit(treeContent, { tagName: "img" }, (node, index, parent) => {
+    const { src, alt } = node.properties
+    const image = createDynamicImage(src, database, destination.path.path, alt)
+    if (index === 0 && parent.children.length > 1) {
+      console.log(parent.children)
+      const [_, ...caption] = parent.children
+      parent.children = [
+        h("figure", [image, h("figcaption", caption)])
+      ]
+    } else {
+      parent.children.splice(index, 1, image)
+    }
+  })
 
   visit(treeContent, testPaths, ({ children: [child] }, i, p) => {
 
@@ -1008,7 +1102,7 @@ function writeFile(destination, database, config) {
       const target = database.target.getWithTrackers(targetFilePath, destination.path)
 
       if (target) {
-        const article = h('article', makeHead(target.metadata, target.metadata.prettyURL))
+        const article = h('article', makeHead(target.metadata, target.metadata.prettyURL, database, config))
 
         p.children.splice(i, 1, article)
       }
@@ -1033,9 +1127,18 @@ function writeFile(destination, database, config) {
 
       if (count) targets.splice(Number(count))
 
-      const list = h("section",
+      const escapedDir = folder.replace("_", "--").replace(path.sep, "_")
+      const escapedDirs = escapedDir.split("_").filter(a => a).map((segment, index, array) => {
+        return "_" + array.slice(0, index + 1).join("_")
+      })
+      escapedDirs.unshift("_")
+      const dirClasses = escapedDirs.join(".")
+
+      const list = h(`ul.${dirClasses}`,
         targets.map(target => {
-          return h('article', makeHead(target.metadata, target.metadata.prettyURL))
+          return h('li',
+            h('article', makeHead(target.metadata, target.metadata.prettyURL, database, config))
+          )
         })
       )
 
@@ -1133,6 +1236,7 @@ function writeFile(destination, database, config) {
   const globalNavItems = everything.filter(item => {
     return item.dir === ""
       && item.path !== "index.html"
+      && item.path !== "tags.html"
   })
     .map(getChildren)
 

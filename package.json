@@ -1,7 +1,7 @@
 {
   "name": "vowel",
   "type": "module",
-  "version": "0.4.0",
+  "version": "0.6.1",
   "bin": "bin.js",
   "main": "index.js",
   "scripts": {
@@ -58,6 +58,7 @@
     "remark-html": "^16.0.1",
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
+    "sharp": "^0.35.3",
     "unified": "^11.0.5",
     "unist-util-find": "^3.0.0",
     "unist-util-is": "^6.0.0",
@@ -66,9 +67,10 @@
     "unist-util-stringify-position": "^4.0.0",
     "unist-util-visit": "^5.0.0",
     "unist-util-visit-parents": "^6.0.0",
+    "unpic": "^4.2.2",
     "url-metadata": "^5.4.1",
-    "votive": "^0.2.0",
     "voot": "^0.1.0",
+    "votive": "^0.4.0",
     "xast-util-sitemap": "^2.0.0",
     "xast-util-to-xml": "^4.0.0",
     "xml": "^1.0.1",

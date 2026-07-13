@@ -1,10 +1,38 @@
+import { randomUUID } from "node:crypto"
 import fs from "fs/promises"
+import sharp from 'sharp'
+import path from "node:path"
+import {createImagePath, imageSizes, imageExts } from "./../../utils.js"
 
 /** @import * as Votive from "votive" */
 
+
 /** @type {Votive.ProcessorWrite} */
 async function writeImage(destination, database, config) {
+  const { uuid, sourcePath } = destination.abstract
+
+  const defaultFormat = path.extname(sourcePath)
+
+  const image = sharp(destination.path)
+
+  const images = imageSizes.flatMap(size => {
+    [...imageExts, defaultFormat].map(ext => {
+      const filePath = createImagePath({
+        targetFilePath: sourcePath,
+        size,
+        ext,
+        targetDirectory: config.destinationFolder,
+        uuid
+      })
+
+      return image.clone().resize(size).toFile(filePath)
+    })
+  })
+
+  await Promise.all(images)
+
   const buffer = await fs.readFile(destination.path)
+
   return {
     data: buffer,
   }
@@ -12,11 +40,13 @@ async function writeImage(destination, database, config) {
 
 /** @type {Votive.ProcessorRead} */
 function readImagePath(string) {
+  const uuid =randomUUID()
 
   const data = {
     metadata: {},
     abstract: {
-      path: string
+      sourcePath: string,
+      uuid
     }
   }
 
