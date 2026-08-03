@@ -100,7 +100,6 @@ function createDynamicImage(imagePath, database, dependent, alt, itemprop) {
 
   const relativePath = imagePath.startsWith("/") ? path.relative("/", imagePath) : imagePath
   const image = database.target.getWithTrackers(relativePath, dependent)
-  console.log({ image, relativePath })
   if (!image) return
   const formats = createImagePaths(image.abstract.sourcePath, "./", image.abstract.uuid)
 
@@ -919,15 +918,16 @@ function writeFile(destination, database, config) {
   }
 
   function treeNavItems(navItem) {
-    return h('a', {
+    return h('li', h('a', {
       href: navItem.metadata.prettyURL,
       "aria-current": metadata.prettyURL === navItem.metadata.prettyURL ? 'page' : null
-    }, navItem.metadata.breadcrumb)
+    }, navItem.metadata.breadcrumb))
   }
 
   function navItemFilter(nav_item) {
     return !nav_item.metadata.date
       && nav_item.path !== "index.html"
+      && nav_item.path !== "404.html"
       && nav_item.syntax === ".html"
       && nav_item.path
   }
@@ -946,16 +946,17 @@ function writeFile(destination, database, config) {
       .filter(navItemFilter)
       .toSorted(sort_items)
 
-    return h('nav', sorted.map(treeNavItems))
+    return h('ul', sorted.map(treeNavItems))
   }
 
 
   const groupedNavs = Object.groupBy(family, ({ dir }) => dir)
 
-  const treeNav = Object.entries(groupedNavs)
+  const treeNav = h('nav', Object.entries(groupedNavs)
     .sort(([a], [b]) => a.length - b.length)
     .map(([k, v]) => treeNavFolder(v))
     .filter(folder => folder.children.length)
+    )
 
   let treeBreadcrumbs = []
 
@@ -987,13 +988,14 @@ function writeFile(destination, database, config) {
   // TODO better color handling https://antfu.me/posts/icons-in-pure-css
   if (settings.fm_logo && settings.fm_logo[""]) {
     headerElements.push(
-      h('a.logo', {
+      h('a#logo', {
         href: "/",
-        alt: "",
+        "aria-label": "logo",
         rel: "home",
-        "style": `mask-image: url("/${settings.fm_logo[""]}")`
+        "style": `--logo-url: url("/${settings.fm_logo[""]}")`
       }, h("img", {
-        src: "/" + settings.fm_logo[""]
+        src: "/" + settings.fm_logo[""],
+        alt: ""
       }))
     )
     /*
@@ -1004,7 +1006,7 @@ function writeFile(destination, database, config) {
         // FIXME aspect ratio
         headerElements.push(
           h('a.logo', {
-            style: `background-color: currentColor; mask-image: url('${(new URL(settings.fm_logo[""], "thismessage://")).pathname}'); mask-size: 100% 100%;`,
+            style: `background-color: currentColor; --logo-url: url('${(new URL(settings.fm_logo[""], "thismessage://")).pathname}'); mask-size: 100% 100%;`,
             href: "/",
             rel: "home",
             alt: ""
@@ -1025,7 +1027,7 @@ function writeFile(destination, database, config) {
   }
 
   if (settings.fm_wordmark && settings.fm_wordmark[""]) {
-    headerElements.push(h("a.wordmark", {
+    headerElements.push(h("a#wordmark", {
       href: "/",
       rel: "home"
     }, h("img", {
@@ -1034,16 +1036,16 @@ function writeFile(destination, database, config) {
   }
 
   if (settings.title && settings.title[""]) {
-    headerElements.push(h('a.title', { href: "/", rel: "home" }, settings.title[""]))
+    headerElements.push(h('a#title', { href: "/", rel: "home" }, settings.title[""]))
   }
 
   if (settings.fm_tagline && settings.fm_tagline[""]) {
-    headerElements.push(h('p.tagline', settings.fm_tagline[""][0]))
+    headerElements.push(h('p#tagline', settings.fm_tagline[""][0]))
   }
 
   const treeHeader = h('header', [
     ...headerElements,
-    ...treeNav,
+    treeNav
   ])
 
   const treeContent = toHast(abstract)
@@ -1068,7 +1070,11 @@ function writeFile(destination, database, config) {
 
   const treeContentSlugged = slugger.runSync(treeContent)
 
+  const treeTableOfContents = treeContentSlugged.children.shift()
+
   const treeMainHead = makeHead(metadata, null, database, config)
+
+  treeMainHead.push(treeTableOfContents)
 
   visit(treeContent, { tagName: "img" }, (node, index, parent) => {
     const { src, alt } = node.properties
@@ -1173,7 +1179,7 @@ function writeFile(destination, database, config) {
         'aria-label': 'Breadcrumbs'
       }, treeBreadcrumbs),
       treeMainHead,
-      treeContent
+      h('section#content', treeContent)
     ])
 
   visit(treeMain, (node, index, parent) => {
@@ -1236,6 +1242,7 @@ function writeFile(destination, database, config) {
   const globalNavItems = everything.filter(item => {
     return item.dir === ""
       && item.path !== "index.html"
+      && item.path !== "404.html"
       && item.path !== "tags.html"
   })
     .map(getChildren)
@@ -1288,8 +1295,8 @@ function writeFile(destination, database, config) {
   const treeAside = h('aside', treeGlobalNav)
 
   const treeFooter = h('footer', [
-    h('section.copyright', `© ${new Date().getFullYear()}`),
-    h('section.shoutout', [
+    h('section#copyright', `© ${new Date().getFullYear()}`),
+    h('section#shoutout', [
       "Made with ",
       h('a', {
         href: "https://vowel.cc"
