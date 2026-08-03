@@ -9,6 +9,11 @@ See the docs: [vowel.cc](https://vowel.cc).
 
 ## Roadmap
 
+### Priorities
+
+- [ ] Create CONTRIBUTING.md
+- [ ] 
+
 ### Launch checklist
 
 - [x] CLI
@@ -42,7 +47,7 @@ See the docs: [vowel.cc](https://vowel.cc).
   - [x] RSS
   - [ ] 404.html (just make 404.md)
 - [ ] Markup
-  - [.] Image as figure
+  - [x] Image as figure
   - [x] Admonitions
   - [x] Heading anchors
   - [ ] GFM emoji
@@ -54,7 +59,7 @@ See the docs: [vowel.cc](https://vowel.cc).
   - [x] Prune/cleanup step
   - [ ] Dependency type (file, settings, folder)
 - [ ] New systems
-  - [ ] Tags
+  - [x] Tags
   - [ ] External links
   - [ ] Syntax highlighting
   - [ ] Social links
