@@ -9,6 +9,11 @@ See the docs: [vowel.cc](https://vowel.cc).
 
 ## Roadmap
 
+### Priorities
+
+- [ ] Create CONTRIBUTING.md
+- [ ] 
+
 ### Launch checklist
 
 - [x] CLI
