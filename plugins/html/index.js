@@ -1,0 +1,671 @@
+import path from "node:path"
+import rehypePresetMinify from "rehype-preset-minify"
+import rehypeStringify from "rehype-stringify"
+import { fromMarkdown } from 'mdast-util-from-markdown'
+import { frontmatter } from "micromark-extension-frontmatter"
+import { frontmatterFromMarkdown } from 'mdast-util-frontmatter'
+import { gfmFootnote } from "micromark-extension-gfm-footnote"
+import { gfmFootnoteFromMarkdown } from "mdast-util-gfm-footnote"
+import { gfmStrikethrough } from 'micromark-extension-gfm-strikethrough'
+import { gfmStrikethroughFromMarkdown } from 'mdast-util-gfm-strikethrough'
+import { gfmTable } from 'micromark-extension-gfm-table'
+import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
+import { h } from 'hastscript'
+import { readFileSync } from "fs"
+import { remove } from "unist-util-remove"
+import { testURL, testHashtags, createHashtagPage, toTitleCase, hashtagRegexSingle, createImagePaths, imageSizes, imageExts } from "./../../utils.js"
+import { toString as hastToString } from 'hast-util-to-string'
+import { unified } from "unified"
+import { EXIT, SKIP, visit } from "unist-util-visit"
+import toc from "@jsdevtools/rehype-toc"
+import slug from "rehype-slug"
+import createDynamicImage from "./image.js"
+
+/** @import * as Votive from "votive" */
+/** @import * as Vowel from "./../../index.js" */
+
+
+/**
+ * @param {object} metadata
+ * @param {string} url
+ * @param {Votive.Database} database
+ * @param {Votive.VotiveConfig} config
+ */
+function makeHeader(metadata, url, database, config) {
+
+  const treeMainHead = []
+
+  if (metadata.title) treeMainHead.push(
+    h("h1", metadata.title)
+  )
+
+  if (metadata.date) {
+    const date = new Date(metadata.date)
+    treeMainHead.push(
+      h("time",
+        {
+          datetime: date.toISOString(),
+          itemprop: "date"
+        },
+        date.toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "long",
+          day: "numeric"
+        })
+      )
+    )
+  }
+
+  if (metadata.image || (metadata.first_image && url)) {
+    const metaImage = metadata.image || metadata.first_image
+
+    treeMainHead.push(
+      createDynamicImage(metaImage, database, url, null, true)
+    )
+  }
+
+  if (metadata.fm_description) treeMainHead.push(
+    h("p",
+      {
+        itemprop: "description"
+      },
+      metadata.fm_description
+    )
+  )
+
+  if (url) return h('a', { href: url }, treeMainHead)
+
+  return treeMainHead
+}
+
+/** @type {Votive.ProcessorWrite} */
+function writeFile(destination, database, config) {
+  const isRoot = destination.path === "index.html"
+
+
+  if (destination.metadata.type === "tag") {
+    if (!destination.metadata.tag) return false
+
+    const pages = database.target.getManyWithTrackers({
+      recursive: true,
+      dependent: destination,
+      query: {
+        tags: destination.metadata.tag
+      }
+    })
+
+    if (!pages.length) return false
+  }
+
+  const settings = database.setting.getByFolder(destination.dir + path.sep)
+
+  const { abstract, metadata, ...rest } = destination
+
+  if (metadata.tags) metadata.tags = JSON.parse(metadata.tags)
+
+  /** @param {string} filePath */
+  function listFolders(filePath) {
+    if (!filePath) return []
+
+    const pathInfo = path.parse(filePath)
+    const dir = pathInfo.dir && pathInfo.dir
+    return [...listFolders(
+      dir
+    ), filePath]
+  }
+
+  const parsedPath = path.parse("" + destination.path)
+
+  const destinationAsDir = path.relative("", path.format({
+    dir: parsedPath.dir,
+    name: parsedPath.name
+  }))
+
+  const ancestorFolders = listFolders(rest.dir)
+  ancestorFolders.unshift("")
+
+  const family = [...ancestorFolders, destinationAsDir].flatMap(folder => {
+    // FIXME typing
+    return database.target.getManyWithTrackers({
+      folder: Array.isArray(folder) ? path.join(...folder) : folder,
+      recursive: false,
+      dependent: destination.path,
+      query: {}
+    })
+  }).filter(({ path, dir }) => {
+    return path && path !== "tags.html" && dir !== "tags"
+  })
+
+  const treeStyleSheets = []
+
+  Object.values(settings.stylesheets).forEach(file => {
+    file.forEach(sheet => {
+      const cacheBuster = Math.random().toString(36).slice(2, 10);
+      treeStyleSheets.push(
+        h('link', {
+          rel: "stylesheet",
+          href: `/${sheet}?${cacheBuster}`
+        })
+      )
+    })
+  })
+
+  function createTitle() {
+    if (isRoot) {
+      const title = [settings?.title?.[0] || metadata?.title, settings?.fm_tagline?.[""]?.[0]]
+        .filter(a => a)
+        .join(" - ")
+
+      return title
+    }
+
+    // FIXME Check that this works properly
+    if (metadata.title && settings.title) {
+      const titles = [metadata.title, ...Object.values(settings.title).flatMap(a => a).reverse()]
+      return titles.join(" - ")
+    }
+
+    if (metadata.title || settings.title) {
+      return metadata.title || settings.title.reverse()
+    }
+
+    return "Website"
+  }
+
+
+  const title = createTitle()
+
+  const treeHead = h('head', [
+    h('meta', {
+      charset: "UTF-8",
+    }),
+    h("meta", {
+      name: "viewport",
+      content: "width=device-width, initial-scale=1.0"
+    }),
+    h("meta", {
+      "http-equiv": "X-UA-Compatible",
+      content: "ie-edge"
+    }),
+    h('title', title),
+    h('meta', {
+      property: "og:title",
+      content: title
+    }),
+    h('meta', {
+      property: "og:description",
+      content: metadata.description,
+    }),
+    ...treeStyleSheets,
+  ])
+
+  if (settings.fm_domain) {
+    const settingsDomain = settings.fm_domain[""][0]
+    const domain = settingsDomain.startsWith("http")
+      ? settingsDomain
+      : "https://" + settingsDomain
+
+    const { href } = new URL(metadata.prettyURL, domain)
+
+    treeHead.children.push(
+      h("meta", {
+        property: "og:url",
+        content: href
+      }),
+      h("link", {
+        rel: "canonical",
+        href
+      })
+    )
+  }
+
+  if (metadata.image) {
+    treeHead.children.push(h("meta", {
+      property: "og:image",
+      content: metadata.image
+    }))
+  }
+
+  /* FIXME this could be a section title */
+  if (settings.title) {
+    treeHead.children.push(h("meta", {
+      property: "og:site_name",
+      content: settings.fm_title?.[""][0]
+    }))
+  }
+
+  /* FIXME Properly handle this image */
+  if (settings.icon) {
+    treeHead.children.push(h("link", {
+      href: "/" + settings.icon[0],
+      rel: "icon",
+      type: "image/png"
+    }))
+  }
+
+  function treeNavItems(navItem) {
+    return h('li', h('a', {
+      href: navItem.metadata.prettyURL,
+      "aria-current": metadata.prettyURL === navItem.metadata.prettyURL ? 'page' : null
+    }, navItem.metadata.breadcrumb))
+  }
+
+  function navItemFilter(nav_item) {
+    return !nav_item.metadata.date
+      && nav_item.path !== "index.html"
+      && nav_item.path !== "404.html"
+      && nav_item.syntax === ".html"
+      && nav_item.path
+  }
+
+  function sort_items(a, b) {
+    if (typeof a === "number" && typeof b === "number") return a - b
+    if (typeof b === "number") return -1
+    if (typeof a === "number") return 1
+    if (a.metadata.breadcrumb && b.metadata.breadcrumb) return String(a.metadata.breadcrumb).localeCompare(String(b.metadata.breadcrumb))
+  }
+
+  function treeNavFolder(navFolder) {
+    const sorted = navFolder
+      .filter(navItemFilter)
+      .toSorted(sort_items)
+
+    return h('ul', sorted.map(treeNavItems))
+  }
+
+
+  const groupedNavs = Object.groupBy(family, ({ dir }) => dir)
+
+  const treeNav = h('nav', Object.entries(groupedNavs)
+    .sort(([a], [b]) => a.length - b.length)
+    .map(([k, v]) => treeNavFolder(v))
+    .filter(folder => folder.children.length)
+  )
+
+  let treeBreadcrumbs = []
+
+  const breadcrumbs = Object.entries(settings.breadcrumbs)
+    .sort(([a], [b]) => a.length - b.length)
+    .map(([path, [label]]) => ["/" + path, label])
+
+  treeBreadcrumbs.push(
+    ...breadcrumbs.map(([path, label]) => {
+      return h('a', {
+        href: path
+      }, label)
+    })
+  )
+
+  if (!isRoot) {
+    treeBreadcrumbs.push(
+      h('a', {
+        href: destination.metadata.prettyURL,
+        'aria-current': 'page'
+      }, metadata.breadcrumb)
+    )
+  }
+
+  const headerElements = []
+
+  const homeLink = []
+
+  if (settings.fm_logo && settings.fm_logo[""]) {
+    headerElements.push(
+      h('a#logo', {
+        href: "/",
+        "aria-label": "logo",
+        rel: "home",
+        "style": `--logo-url: url("/${settings.fm_logo[""]}")`
+      }, h("img", {
+        src: "/" + settings.fm_logo[""],
+        alt: ""
+      }))
+    )
+  }
+
+  if (settings.fm_wordmark && settings.fm_wordmark[""]) {
+    headerElements.push(h("a#wordmark", {
+      href: "/",
+      rel: "home"
+    }, h("img", {
+      src: "/" + settings.fm_wordmark[""]
+    })))
+  }
+
+  if (settings.title && settings.title[""]) {
+    headerElements.push(h('a#title', { href: "/", rel: "home" }, settings.title[""]))
+  }
+
+  if (settings.fm_tagline && settings.fm_tagline[""]) {
+    headerElements.push(h('p#tagline', settings.fm_tagline[""][0]))
+  }
+
+  const treeHeader = h('header', [
+    ...headerElements,
+    treeNav
+  ])
+
+
+  function testPaths(node, i, p) {
+    if (node.type !== 'element') return
+    if (node.tagName !== 'p') return
+    if (node.children.length !== 1) return
+    if (!node.children[0]) return
+    if (!node.children[0].value) return
+    return Boolean(node.children[0].value.match(/^\/\S*$/))
+  }
+
+  const slugger = unified()
+    .use(slug)
+    .use(toc, {
+      customizeTOC: (toc) => {
+        toc.properties = {
+          "aria-label": "Contents"
+        }
+      }
+    })
+
+  const treeContentSlugged = slugger.runSync(abstract)
+
+  const treeTableOfContents = treeContentSlugged.children.shift()
+
+  const treeMainHead = makeHeader(metadata, null, database, config)
+
+  treeMainHead.push(treeTableOfContents)
+
+  visit(abstract, { tagName: "img" }, (node, index, parent) => {
+    const { src, alt } = node.properties
+    const image = createDynamicImage(src, database, destination.path.path, alt)
+    console.log({ image })
+    if (index === 0 && parent.children.length > 1) {
+      const [_, ...caption] = parent.children
+      parent.children = [
+        h("figure", [image, h("figcaption", caption)])
+      ]
+    } else {
+      parent.children.splice(index, 1, image)
+    }
+  })
+
+  visit(abstract, testPaths, ({ children: [child] }, i, p) => {
+
+    // const recursive = child.value.endsWith("**")
+    // const many = child.value.endsWith("*")
+
+    const url = new URL(child.value, "thismessage://")
+    const { dir, base } = path.parse(url.pathname)
+    const recursive = base === "**"
+    const many = base === "*" || base === "**"
+
+    if (!many) {
+      const targetFilePathInfo = path.parse(child.value)
+      targetFilePathInfo.ext ||= ".html"
+      delete targetFilePathInfo.base
+      const targetFilePath = path.relative("/", path.format(targetFilePathInfo))
+      const target = database.target.getWithTrackers(targetFilePath, destination.path)
+
+      if (target) {
+        const article = h('article', makeHeader(target.metadata, target.metadata.prettyURL, database, config))
+
+        p.children.splice(i, 1, article)
+
+        return SKIP
+      }
+
+    }
+
+    if (many) {
+      const folder = path.relative("/", dir)
+      // const url = new URL(child.value, "thismessage://")
+      const count = url.searchParams.get("count")
+      const tag = url.searchParams.get("tag")
+      const query = tag
+        ? { tags: tag }
+        : {}
+
+      const targets = database.target.getManyWithTrackers({
+        folder,
+        recursive,
+        query,
+        dependent: destination.path
+      })
+
+      if (count) targets.splice(Number(count))
+
+      const escapedDir = folder.replace("_", "--").replace(path.sep, "_")
+      const escapedDirs = escapedDir.split("_").filter(a => a).map((segment, index, array) => {
+        return "_" + array.slice(0, index + 1).join("_")
+      })
+      escapedDirs.unshift("_")
+      const dirClasses = escapedDirs.join(".")
+
+      const list = h(`ul.${dirClasses}`,
+        targets.map(target => {
+          return h('li',
+            h('article', makeHeader(target.metadata, target.metadata.prettyURL, database, config))
+          )
+        })
+      )
+
+      p.children.splice(i, 1, list)
+
+      return SKIP
+    }
+
+  })
+
+  try {
+    
+
+  remove(abstract, (n, i, p) => p.type === "root" && n.tagName === "h1")
+
+  } catch(e) {
+    console.log(JSON.stringify(abstract, null, 2))
+  }
+
+  // function copyTreeWithoutArticles(tree) {
+  //   if (tree.tagName !== 'article') {
+  //     return {
+  //       type: tree.type,
+  //       tagName: tree.tagName,
+  //       properties: tree.properties,
+  //       children: tree.children?.map(copyTreeWithoutArticles)
+  //     }
+  //   }
+  // }
+
+
+
+
+  const treeMain = h('main',
+    {
+      itemscope: true
+    },
+    [
+      h('nav', {
+        'aria-label': 'Breadcrumbs'
+      }, treeBreadcrumbs),
+      treeMainHead,
+      h('section#content', abstract)
+    ])
+
+  visit(treeMain, (node, index, parent) => {
+    /* URLs */ if (node.type === "text" && parent.tagName === 'p' && parent.children.length === 1) {
+      const validURL = testURL(node.value)
+      if (validURL) {
+        const metadata = database.url.get(node.value)
+        if (metadata) {
+          parent.tagName = "article"
+          parent.children = [
+            h("a", { href: node.value },
+              h("h2", metadata.title)
+            )
+          ]
+        }
+      }
+    } /* GFM Alerts */ else if (node.tagName === "blockquote") {
+      if (node.children[1]
+        && node.children[1].tagName === "p"
+        && node.children[1].children.length === 1
+        && node.children[1].children[0].type === "text"
+      ) {
+        const matches = node.children[1].children[0].value.match(/^\[!(\w+)\]$/)
+
+        if (matches) {
+          const [_, alertLabel] = matches
+
+          node.tagName = "aside"
+          node.properties = {
+            class: `alert ${alertLabel.toLowerCase()}`
+          }
+
+          node.children.splice(0, 2, {
+            type: "element",
+            tagName: "h2",
+            children: [
+              {
+                value: toTitleCase(alertLabel),
+                type: "text"
+              }
+            ]
+          })
+        }
+
+      }
+    }
+  })
+
+  const everything = database.target.getManyWithTrackers({
+    folder: "",
+    recursive: true,
+    dependent: destination.path,
+  }).filter(target => target.path
+    && target.path.endsWith(".html")
+    && !target.metadata.date
+  )
+
+  const homeFile = everything.find(item => item.path === "index.html" && item.dir === "")
+
+  const globalNavItems = everything.filter(item => {
+    return item.dir === ""
+      && item.path !== "index.html"
+      && item.path !== "404.html"
+      && item.path !== "tags.html"
+  })
+    .map(getChildren)
+
+  globalNavItems.unshift(homeFile)
+
+  function getChildren(item) {
+    const children = everything.filter(child => {
+      return "/" + child.dir === item.metadata.prettyURL
+        && child.path !== "index.html"
+    })
+
+    const populatedChildren = children.length > 0 && children.map(child => {
+      return getChildren(child)
+    })
+
+    const node = {
+      path: "/" + item.path,
+      metadata: item.metadata
+    }
+
+    if (populatedChildren) node.children = populatedChildren
+
+    return node
+  }
+
+  function treeNavItem(item) {
+    if (item.children) {
+      return h('li', [
+        h('a', { href: item.path }, item.metadata.breadcrumb),
+        treeNavList(item.children)
+      ])
+    }
+
+    return h('li',
+      h('a', { href: item.path }, item.metadata.breadcrumb)
+    )
+  }
+
+  function treeNavList(items) {
+    return h('ul',
+      items.filter(a => a).map(treeNavItem)
+    )
+  }
+
+  const treeGlobalNav = h('nav',
+    treeNavList(globalNavItems)
+  )
+
+  const treeAside = h('aside', treeGlobalNav)
+
+  const treeFooter = h('footer', [
+    h('section#copyright', `© ${new Date().getFullYear()}`),
+    h('section#shoutout', [
+      "Made with ",
+      h('a', {
+        href: "https://vowel.cc"
+      }, "Vowel"),
+    ])
+  ])
+
+  const pageClass = destination.metadata.prettyURL
+    .split("/")
+    .filter(a => a)
+    .map(a => a.replace("_", ""))
+    .join("_")
+    || "home"
+
+  const treeBody = h(`body.${pageClass}`, [
+    treeHeader,
+    treeMain,
+    treeAside,
+    treeFooter
+  ])
+
+  const tree = h(
+    null,
+    [
+      {
+        type: "doctype",
+        name: 'html'
+      },
+      h('html',
+        {
+          lang: "en"
+        },
+        [
+          treeHead,
+          treeBody
+        ]
+      )
+    ]
+  )
+
+  const data = unified()
+    .use(rehypePresetMinify)
+    .use(rehypeStringify)
+    .stringify(tree)
+
+  return {
+    data
+  }
+
+}
+
+const writeHTML = {
+  extensions: [".html"],
+  format: "text",
+  writeFile
+}
+
+
+/** @type {Votive.VotivePlugin} */
+const vowelWriteHTMLPlugin = {
+  name: "vowel-write-html",
+  processors: [writeHTML],
+}
+
+export default vowelWriteHTMLPlugin

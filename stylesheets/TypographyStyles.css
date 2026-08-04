@@ -1,7 +1,5 @@
 @layer reset, typography;
 
-/* TODO remove unset color */
-
 @layer typography {
 	html {
 		font-family:
@@ -102,10 +100,6 @@
 		/* margin: 1rem 0 1rem 3rem; */
 	}
 
-	li {
-		margin-bottom: 0.5rem;
-	}
-
 	/* Extra selector for specificity, see below */
 	li>p:not(:last-child) {
 		margin: 0;
@@ -145,26 +139,9 @@
 		text-decoration: none;
 	}
 
-	li.checked,
-	li.unchecked {
-		padding-left: 0.8rem;
-	}
-
 	figcaption {
 		margin-top: 0.5rem;
 		font-style: italic;
-	}
-
-	article+article {
-		margin-top: 1rem;
-	}
-
-	article a {
-		color: unset;
-	}
-
-	article a:hover {
-		color: unset;
 	}
 
 	article h2 {
@@ -187,44 +164,18 @@
 		padding-right: 0;
 	}
 
-	:where(pre,
-		blockquote,
-		dl,
-		figure,
-		table,
-		p,
-		ul,
-		ol,
-		form,
-		article,
-		section,
-		aside,
-		time,
-		dl):not(:last-child) {
-		margin-bottom: 2.5rem;
-	}
-
 	hr {
 		margin-top: 3rem;
 		margin-bottom: 3.5rem;
 		border-width: 0px;
 	}
 
-	dt {
-		font-weight: 500;
-	}
-
 	time {
 		display: block;
 	}
 
-	time a {
-		color: unset;
-	}
-
 	[aria-label=Breadcrumbs] a {
 		font-size: 0.8em;
-		color: unset;
 	}
 
 	[aria-label=Breadcrumbs]>a:not(:last-child):after {
@@ -236,31 +187,23 @@
 		text-wrap: nowrap;
 	}
 
-	.icon {
-		height: 1em;
-		width: 1em;
-	}
-
 	header a[rel=home] {
-		color: unset;
 		font-weight: 900;
 		font-size: 2.8em;
+		text-box-trim: trim-both;
+		text-box-edge: cap alphabetic;
 	}
 
-	header .logo {
-		display: inline-block;
-		height: 1em;
-		width: 1em;
-	}
-
-	header .tagline {
-		font-weight: 500;
+	header #tagline {
+		font-weight: 600;
+		font-size: 2.5em;
+		text-box-trim: trim-both;
+		text-box-edge: cap alphabetic;
 	}
 
 	nav a:where([aria-current='page'], [aria-current='true']),
 	nav a:where([aria-current='page'], [aria-current='true']):hover {
 		text-decoration: none;
-		color: unset;
 		cursor: default;
 	}
 

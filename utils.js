@@ -1,6 +1,5 @@
 import {fromMarkdown} from 'mdast-util-from-markdown'
 import {toHast} from 'mdast-util-to-hast'
-import {toHtml} from 'hast-util-to-html'
 import path from "node:path"
 import { randomUUID } from "node:crypto"
 
@@ -75,6 +74,7 @@ export function toTitleCase(string) {
 export function createHashtagPage(tag) {
   const markdown = `# ${toTitleCase(tag)}\n\n/**?tag=${tag}`
   const mdast = fromMarkdown(markdown)
+  const hast = toHast(mdast)
 
-  return mdast
+  return hast
 }

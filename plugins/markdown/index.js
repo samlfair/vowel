@@ -1,9 +1,4 @@
-import extractDate from "./../../extractDate.js"
 import path from "node:path"
-import rehypeDocument from 'rehype-document'
-import rehypePresetMinify from "rehype-preset-minify"
-import rehypeStringify from "rehype-stringify"
-import yaml from 'yaml'
 import { fromHtml } from 'hast-util-from-html'
 import { fromMarkdown } from 'mdast-util-from-markdown'
 import { frontmatter } from "micromark-extension-frontmatter"
@@ -13,172 +8,21 @@ import { gfmFootnoteFromMarkdown } from "mdast-util-gfm-footnote"
 import { gfmStrikethrough } from 'micromark-extension-gfm-strikethrough'
 import { gfmStrikethroughFromMarkdown } from 'mdast-util-gfm-strikethrough'
 import { gfmTable } from 'micromark-extension-gfm-table'
-import rehypeGithubAlert from "rehype-github-alert"
 import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
-import { h } from 'hastscript'
 import { normalizeHeadings } from 'mdast-normalize-headings'
+import toc from "@jsdevtools/rehype-toc"
 import { readFileSync } from "fs"
-import { remove } from "unist-util-remove"
 import { testURL, testHashtags, createHashtagPage, toTitleCase, hashtagRegexSingle, createImagePaths, imageSizes, imageExts } from "./../../utils.js"
 import { toHast } from 'mdast-util-to-hast'
 import { toString as hastToString } from 'hast-util-to-string'
-import { toString as mdastToString } from 'mdast-util-to-string'
-import { unified } from "unified"
 import { visit } from "unist-util-visit"
-import toc from "@jsdevtools/rehype-toc"
-import slug from "rehype-slug"
-import * as unpic from "unpic"
+import getMetadata from "./metadata.js"
+import generateRobots from "./robots.js"
 
 const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
 
 /** @import * as Votive from "votive" */
 /** @import * as Vowel from "./../../index.js" */
-
-
-const robots = `User-agent: Google-Extended
-Allow: /
-
-User-agent: Googlebot-Image
-Disallow: /
-
-User-agent: GPTBot
-Disallow: /
-
-User-agent: ChatGPT-User
-Disallow: /
-
-User-agent: CCBot
-Disallow: /`
-
-
-
-/**
- * @param {string} imagePath
- * @param {Votive.Database} database
- * @param {string} dependent
- */
-function createDynamicImage(imagePath, database, dependent, alt, itemprop) {
-  // TODO: Hardcode image height and width
-  const parsed = path.parse(imagePath);
-  const isURL = testURL(imagePath)
-  const isImg = !parsed.ext.search(/^.(png|jpeg|jpg)$/);
-
-  if (isURL) {
-    const parsedImageURL = unpic.parseUrl(imagePath)
-    if (parsedImageURL) {
-
-      const sources = [...imageExts, "jpeg"].map((format, index) => {
-
-        const isImg = index === imageExts.length
-        // TODO: Ignore images that have options already specified
-        const urls = imageSizes.map(size => {
-          return unpic.transformUrl({
-            format: format,
-            url: parsedImageURL.src,
-            provider: parsedImageURL.cdn,
-            width: size
-          })
-        })
-
-        const sizes = urls.map((url, index) => `${url} ${imageSizes[index]}w`).join(", ")
-
-        return h(isImg ? "img" : "source", {
-          type: "image/" + format,
-          srcset: sizes,
-          src: isImg && urls.at(-1),
-          loading: isImg && "lazy",
-          sizes: "100vw",
-          alt: isImg && alt
-        })
-      })
-
-      return h("picture", { itemprop: itemprop && "image" }, sources)
-    }
-  }
-
-  if (!isImg) return
-
-  const relativePath = imagePath.startsWith("/") ? path.relative("/", imagePath) : imagePath
-  const image = database.target.getWithTrackers(relativePath, dependent)
-  if (!image) return
-  const formats = createImagePaths(image.abstract.sourcePath, "./", image.abstract.uuid)
-
-
-  const sources = formats.map((format, index) => {
-    const isImg = index === formats.length - 1
-
-    const sizes = format.map((size, index) => `/${size} ${imageSizes[index]}w`).join(", ")
-    const type = "image/" + path.extname(format[0]).slice(1)
-    return h(isImg ? "img" : "source", {
-      type,
-      srcset: sizes,
-      loading: isImg && "lazy",
-      src: isImg && "/" + format.at(-1),
-      sizes: "100vw",
-      alt: isImg && alt
-    })
-  })
-
-
-  return h("picture", { itemprop: itemprop && "image" }, sources)
-}
-
-/**
- * @param {object} metadata
- * @param {string} url
- * @param {Votive.Database} database
- * @param {Votive.VotiveConfig} config
- */
-function makeHead(metadata, url, database, config) {
-
-  const treeMainHead = []
-
-  if (metadata.title) treeMainHead.push(
-    h("h1", metadata.title)
-  )
-
-  if (metadata.date) {
-    const date = new Date(metadata.date)
-    treeMainHead.push(
-      h("time",
-        {
-          datetime: date.toISOString(),
-          itemprop: "date"
-        },
-        date.toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric"
-        })
-      )
-    )
-  }
-
-
-
-
-  if (metadata.image || (metadata.first_image && url)) {
-    const metaImage = metadata.image || metadata.first_image
-
-    treeMainHead.push(
-      createDynamicImage(metaImage, database, url, null, true)
-    )
-  }
-
-  if (metadata.fm_description) treeMainHead.push(
-    h("p",
-      {
-        itemprop: "description"
-      },
-      metadata.fm_description
-    )
-  )
-
-  if (url) return h('a', { href: url }, treeMainHead)
-
-  return treeMainHead
-}
-
 
 function readURL(data) {
   const hast = fromHtml(data)
@@ -209,6 +53,8 @@ function readURL(data) {
 
 /** @type {Votive.ReadText} */
 function readFile(string, filePath, destinationPath, database, config) {
+  const jobs = []
+
   const mdast = fromMarkdown(string, {
     // Micromark extensions
     extensions: [
@@ -228,19 +74,7 @@ function readFile(string, filePath, destinationPath, database, config) {
   normalizeHeadings(mdast)
   const pathInfo = path.parse(filePath)
 
-  const metadata = getMetadata(mdast, filePath)
-
-  metadata.inferred_label = toTitleCase(pathInfo.name)
-
-  if (destinationPath) {
-    const destinationInfo = path.parse(destinationPath)
-    const name = destinationInfo.name === "index" ? "" : destinationInfo.name
-    // FIXME the prettyURL should include the preceding slash
-    metadata.prettyURL = (new URL(`${destinationInfo.dir}/${name}`, "thismessage:/")).pathname
-  }
-  const jobs = []
-
-  selectMetadata(metadata)
+  const metadata = getMetadata(mdast, filePath, destinationPath)
 
   if (!metadata.image) {
     const firstImageParagraph = mdast.children.find(child => child.children && child.children[0].type === "image")
@@ -325,6 +159,7 @@ function readFile(string, filePath, destinationPath, database, config) {
 
         const markdown = `/tags/**`
         const mdast = fromMarkdown(markdown)
+        const hast = toHast(mdast)
 
         const extant = database.target.get("tags.html")
 
@@ -333,7 +168,7 @@ function readFile(string, filePath, destinationPath, database, config) {
           // Delete if unnecessary
           database.target.create({
             path: `tags.html`,
-            abstract: mdast,
+            abstract: hast,
             metadata: {
               breadcrumb: "Tags",
               title: "Tags",
@@ -404,135 +239,12 @@ function readFile(string, filePath, destinationPath, database, config) {
   }
 
 
-  return { abstract: mdast, metadata, jobs }
+  const hast = toHast(mdast)
+
+  return { abstract: hast, metadata }
 }
 
-/** @param {ReturnType<getMetadata>} metadata */
-function selectMetadata(metadata) {
-  const date =
-    metadata.fm_date
-    || metadata.inferred_date
 
-  if (date) {
-    metadata.date = date
-  }
-
-  const title =
-    metadata.fm_title
-    || metadata.inferred_title
-    || metadata.inferred_label
-
-  if (title) {
-    metadata.title = title
-  }
-
-  const breadcrumb =
-    metadata.fm_breadcrumb
-    || metadata.title
-    || metadata.inferred_label
-
-  if (breadcrumb) {
-    metadata.breadcrumb = breadcrumb
-  }
-
-  const description =
-    metadata.fm_description
-    || metadata.tagline
-    || metadata.inferred_description
-
-  if (description) {
-    metadata.description = description
-  }
-
-  const image =
-    metadata.fm_image
-    || metadata.inferred_image
-
-  if (image) {
-    metadata.image = image
-  }
-}
-
-/**
- * @param {string} text
- */
-function truncateText(text) {
-  // const match = text.match(/^(?<desc>((\b.+?){28})\S)\s(?<etc>.+)$/)
-  // if (!match) {
-  return text
-  // } else if (match.groups.etc) {
-  // console.log("truncate 4")
-  // return match.groups.desc + "..."
-  // } else {
-  // console.log("truncate 5")
-  // return match.groups.desc
-  // }
-}
-
-/** @param {object} tree */
-function getMetadata(tree, filePath) {
-  const metadata = {}
-
-  for (let i = 0; i < tree.children.length; i++) {
-    const child = tree.children[i]
-    const text = mdastToString(child)
-    switch (child.type) {
-      case "paragraph":
-        if (child.children.length !== 1) {
-          if (!metadata.fm_description && !metadata.inferred_description) {
-            metadata.inferred_description = text
-          }
-          i = Infinity
-          break
-        } else if (child.children[0].type === "image") {
-          metadata.inferred_image = child.children[0].url
-          metadata.inferred_alt_text = child.children[0].alt
-          break
-        } else if (testURL(text)) {
-          const url = new URL(text)
-          if (text.match(/\.(jpeg|jpg|png)$/)) {
-            metadata.inferred_image = url
-            break
-          } else {
-            metadata.inferred_link = url
-            break
-          }
-        } else {
-          const inferred_date = extractDate(mdastToString(child))
-          if (inferred_date) {
-            metadata.inferred_date = inferred_date
-          } else {
-            if (!metadata.fm_description && !metadata.inferred_description) {
-              metadata.inferred_description = text
-            }
-            // tree.children.splice(0, i + 1)
-            i = Infinity
-          }
-          break
-        }
-      case "heading":
-        if (child.depth === 1) {
-          metadata.inferred_title = mdastToString(child) || toTitleCase(path.parse(filePath).name)
-          tree.children.splice(0, i + 1)
-        } else {
-          i = Infinity;
-        }
-        break
-      case "yaml":
-        const frontmatter = yaml.parse(child.value)
-        for (const key in frontmatter) {
-          metadata["fm_" + key] = frontmatter[key]
-        }
-        break
-      default:
-        i = Infinity
-        break
-    }
-  }
-
-  return metadata
-
-}
 
 /** @type {Votive.ReadAbstract} */
 function transformFile(abstract, database, config) {
@@ -546,7 +258,7 @@ function readFolder(folder, database, config, isRoot) {
     database.target.create({
       path: "robots.txt",
       abstract: {
-        content: robots
+        content: generateRobots()
       },
       metadata: {}
     })
@@ -583,7 +295,7 @@ function readFolder(folder, database, config, isRoot) {
 
       const indexPath = prettyURL + "/*"
 
-      const abstract = fromMarkdown(`# ${title}\n\n${indexPath}`)
+      const abstract = toHast(fromMarkdown(`# ${title}\n\n${indexPath}`))
       database.target.create({
         abstract,
         path: aliasPath,
@@ -614,25 +326,6 @@ function readFolder(folder, database, config, isRoot) {
       })
     }
   }
-
-  // if (!indexFile && (!isRoot && !aliasFile)) {
-  //   database.target.create({
-  //     metadata: {
-  //       title: toTitleCase(folderInfo.name),
-  //       breadcrumb: toTitleCase(folderInfo.name),
-  //       prettyURL: "/" + path.normalize(path.format({
-  //         dir: path.join(folderInfo.dir),
-  //         name: folderInfo.name
-  //       }))
-  //     },
-  //     path: aliasPath,
-  //     abstract: {},
-  //     syntax: "html"
-  //   })
-  // }
-
-
-
 
   if (isRoot) {
     const settings = database.setting.getByFolder(config.sourceFolder)
@@ -750,603 +443,6 @@ function readFolder(folder, database, config, isRoot) {
   }
 }
 
-/** @type {Votive.ProcessorWrite} */
-function writeFile(destination, database, config) {
-  const isRoot = destination.path === "index.html"
-
-  // console.log(destination.metadata)
-
-  if (destination.metadata.type === "tag") {
-    if (!destination.metadata.tag) return false
-
-    const pages = database.target.getManyWithTrackers({
-      recursive: true,
-      dependent: destination,
-      query: {
-        tags: destination.metadata.tag
-      }
-    })
-
-    if (!pages.length) return false
-  }
-
-  const settings = database.setting.getByFolder(destination.dir + path.sep)
-
-  const { abstract, metadata, ...rest } = destination
-
-  if (metadata.tags) metadata.tags = JSON.parse(metadata.tags)
-
-  /** @param {string} filePath */
-  function listFolders(filePath) {
-    if (!filePath) return []
-
-    const pathInfo = path.parse(filePath)
-    const dir = pathInfo.dir && pathInfo.dir
-    return [...listFolders(
-      dir
-    ), filePath]
-  }
-
-  const parsedPath = path.parse("" + destination.path)
-
-  const destinationAsDir = path.relative("", path.format({
-    dir: parsedPath.dir,
-    name: parsedPath.name
-  }))
-
-  const ancestorFolders = listFolders(rest.dir)
-  ancestorFolders.unshift("")
-
-  const family = [...ancestorFolders, destinationAsDir].flatMap(folder => {
-    // FIXME typing
-    return database.target.getManyWithTrackers({
-      folder: Array.isArray(folder) ? path.join(...folder) : folder,
-      recursive: false,
-      dependent: destination.path,
-      query: {}
-    })
-  }).filter(({ path, dir }) => {
-    return path && path !== "tags.html" && dir !== "tags"
-  })
-
-  const treeStyleSheets = []
-
-  Object.values(settings.stylesheets).forEach(file => {
-    file.forEach(sheet => {
-      const cacheBuster = Math.random().toString(36).slice(2, 10);
-      treeStyleSheets.push(
-        h('link', {
-          rel: "stylesheet",
-          href: `/${sheet}?${cacheBuster}`
-        })
-      )
-    })
-  })
-
-  function createTitle() {
-    if (isRoot) {
-      const title = [settings?.title?.[0] || metadata?.title, settings?.fm_tagline?.[""]?.[0]]
-        .filter(a => a)
-        .join(" - ")
-
-      return title
-    }
-
-    // FIXME Check that this works properly
-    if (metadata.title && settings.title) {
-      const titles = [metadata.title, ...Object.values(settings.title).flatMap(a => a).reverse()]
-      return titles.join(" - ")
-    }
-
-    if (metadata.title || settings.title) {
-      return metadata.title || settings.title.reverse()
-    }
-
-    return "Website"
-  }
-
-
-  const title = createTitle()
-
-  const treeHead = h('head', [
-    h('meta', {
-      charset: "UTF-8",
-    }),
-    h("meta", {
-      name: "viewport",
-      content: "width=device-width, initial-scale=1.0"
-    }),
-    h("meta", {
-      "http-equiv": "X-UA-Compatible",
-      content: "ie-edge"
-    }),
-    h('title', title),
-    h('meta', {
-      property: "og:title",
-      content: title
-    }),
-    h('meta', {
-      property: "og:description",
-      content: metadata.description,
-    }),
-    ...treeStyleSheets,
-  ])
-
-  if (settings.fm_domain) {
-    const settingsDomain = settings.fm_domain[""][0]
-    const domain = settingsDomain.startsWith("http")
-      ? settingsDomain
-      : "https://" + settingsDomain
-
-    const { href } = new URL(metadata.prettyURL, domain)
-
-    treeHead.children.push(
-      h("meta", {
-        property: "og:url",
-        content: href
-      }),
-      h("link", {
-        rel: "canonical",
-        href
-      })
-    )
-  }
-
-
-  if (metadata.image) {
-    treeHead.children.push(h("meta", {
-      property: "og:image",
-      content: metadata.image
-    }))
-  }
-
-  /* FIXME this could be a section title */
-  if (settings.title) {
-    treeHead.children.push(h("meta", {
-      property: "og:site_name",
-      content: settings.fm_title?.[""][0]
-    }))
-  }
-
-  /* FIXME Properly handle this image */
-  if (settings.icon) {
-    treeHead.children.push(h("link", {
-      href: "/" + settings.icon[0],
-      rel: "icon",
-      type: "image/png"
-    }))
-  }
-
-  function treeNavItems(navItem) {
-    return h('li', h('a', {
-      href: navItem.metadata.prettyURL,
-      "aria-current": metadata.prettyURL === navItem.metadata.prettyURL ? 'page' : null
-    }, navItem.metadata.breadcrumb))
-  }
-
-  function navItemFilter(nav_item) {
-    return !nav_item.metadata.date
-      && nav_item.path !== "index.html"
-      && nav_item.path !== "404.html"
-      && nav_item.syntax === ".html"
-      && nav_item.path
-  }
-
-  function sort_items(a, b) {
-    if (typeof a === "number" && typeof b === "number") return a - b
-    if (typeof b === "number") return -1
-    if (typeof a === "number") return 1
-    if (a.metadata.breadcrumb && b.metadata.breadcrumb) return String(a.metadata.breadcrumb).localeCompare(String(b.metadata.breadcrumb))
-  }
-
-
-
-  function treeNavFolder(navFolder) {
-    const sorted = navFolder
-      .filter(navItemFilter)
-      .toSorted(sort_items)
-
-    return h('ul', sorted.map(treeNavItems))
-  }
-
-
-  const groupedNavs = Object.groupBy(family, ({ dir }) => dir)
-
-  const treeNav = h('nav', Object.entries(groupedNavs)
-    .sort(([a], [b]) => a.length - b.length)
-    .map(([k, v]) => treeNavFolder(v))
-    .filter(folder => folder.children.length)
-    )
-
-  let treeBreadcrumbs = []
-
-  const breadcrumbs = Object.entries(settings.breadcrumbs)
-    .sort(([a], [b]) => a.length - b.length)
-    .map(([path, [label]]) => ["/" + path, label])
-
-  treeBreadcrumbs.push(
-    ...breadcrumbs.map(([path, label]) => {
-      return h('a', {
-        href: path
-      }, label)
-    })
-  )
-
-  if (!isRoot) {
-    treeBreadcrumbs.push(
-      h('a', {
-        href: destination.metadata.prettyURL,
-        'aria-current': 'page'
-      }, metadata.breadcrumb)
-    )
-  }
-
-  const headerElements = []
-
-  const homeLink = []
-
-  // TODO better color handling https://antfu.me/posts/icons-in-pure-css
-  if (settings.fm_logo && settings.fm_logo[""]) {
-    headerElements.push(
-      h('a#logo', {
-        href: "/",
-        "aria-label": "logo",
-        rel: "home",
-        "style": `--logo-url: url("/${settings.fm_logo[""]}")`
-      }, h("img", {
-        src: "/" + settings.fm_logo[""],
-        alt: ""
-      }))
-    )
-    /*
-    if (settings.fm_logo[""][0].endsWith(".svg")) {
-      const [svg] = settings.fm_logo[""]
-      const svgTarget = database.target.getWithTrackers(svg, destination.path)
-      if (svgTarget.metadata.monochrome) {
-        // FIXME aspect ratio
-        headerElements.push(
-          h('a.logo', {
-            style: `background-color: currentColor; --logo-url: url('${(new URL(settings.fm_logo[""], "thismessage://")).pathname}'); mask-size: 100% 100%;`,
-            href: "/",
-            rel: "home",
-            alt: ""
-          })
-        )
-      } else {
-        headerElements.push(
-          h('a.logo', {
-            style: `background: url(${(new URL(settings.fm_logo[""], "thismessage://")).pathname}) norepeat center; background-color: transparent; background-size: 100% 100%;`,
-            href: "/",
-            rel: "home",
-            alt: ""
-          })
-        )
-      }
-    }
-    */
-  }
-
-  if (settings.fm_wordmark && settings.fm_wordmark[""]) {
-    headerElements.push(h("a#wordmark", {
-      href: "/",
-      rel: "home"
-    }, h("img", {
-      src: "/" + settings.fm_wordmark[""]
-    })))
-  }
-
-  if (settings.title && settings.title[""]) {
-    headerElements.push(h('a#title', { href: "/", rel: "home" }, settings.title[""]))
-  }
-
-  if (settings.fm_tagline && settings.fm_tagline[""]) {
-    headerElements.push(h('p#tagline', settings.fm_tagline[""][0]))
-  }
-
-  const treeHeader = h('header', [
-    ...headerElements,
-    treeNav
-  ])
-
-  const treeContent = toHast(abstract)
-
-  function testPaths(node, i, p) {
-    if (node.type !== 'element') return
-    if (node.tagName !== 'p') return
-    if (node.children.length !== 1) return
-    if (!node.children[0].value) return
-    return Boolean(node.children[0].value.match(/^\/\S*$/))
-  }
-
-  const slugger = unified()
-    .use(slug)
-    .use(toc, {
-      customizeTOC: (toc) => {
-        toc.properties = {
-          "aria-label": "Contents"
-        }
-      }
-    })
-
-  const treeContentSlugged = slugger.runSync(treeContent)
-
-  const treeTableOfContents = treeContentSlugged.children.shift()
-
-  const treeMainHead = makeHead(metadata, null, database, config)
-
-  treeMainHead.push(treeTableOfContents)
-
-  visit(treeContent, { tagName: "img" }, (node, index, parent) => {
-    const { src, alt } = node.properties
-    const image = createDynamicImage(src, database, destination.path.path, alt)
-    if (index === 0 && parent.children.length > 1) {
-      console.log(parent.children)
-      const [_, ...caption] = parent.children
-      parent.children = [
-        h("figure", [image, h("figcaption", caption)])
-      ]
-    } else {
-      parent.children.splice(index, 1, image)
-    }
-  })
-
-  visit(treeContent, testPaths, ({ children: [child] }, i, p) => {
-
-    // const recursive = child.value.endsWith("**")
-    // const many = child.value.endsWith("*")
-
-    const url = new URL(child.value, "thismessage://")
-    const { dir, base } = path.parse(url.pathname)
-    const recursive = base === "**"
-    const many = base === "*" || base === "**"
-
-    if (!many) {
-      const targetFilePathInfo = path.parse(child.value)
-      targetFilePathInfo.ext ||= ".html"
-      delete targetFilePathInfo.base
-      const targetFilePath = path.relative("/", path.format(targetFilePathInfo))
-      const target = database.target.getWithTrackers(targetFilePath, destination.path)
-
-      if (target) {
-        const article = h('article', makeHead(target.metadata, target.metadata.prettyURL, database, config))
-
-        p.children.splice(i, 1, article)
-      }
-
-    }
-
-    if (many) {
-      const folder = path.relative("/", dir)
-      // const url = new URL(child.value, "thismessage://")
-      const count = url.searchParams.get("count")
-      const tag = url.searchParams.get("tag")
-      const query = tag
-        ? { tags: tag }
-        : {}
-
-      const targets = database.target.getManyWithTrackers({
-        folder,
-        recursive,
-        query,
-        dependent: destination.path
-      })
-
-      if (count) targets.splice(Number(count))
-
-      const escapedDir = folder.replace("_", "--").replace(path.sep, "_")
-      const escapedDirs = escapedDir.split("_").filter(a => a).map((segment, index, array) => {
-        return "_" + array.slice(0, index + 1).join("_")
-      })
-      escapedDirs.unshift("_")
-      const dirClasses = escapedDirs.join(".")
-
-      const list = h(`ul.${dirClasses}`,
-        targets.map(target => {
-          return h('li',
-            h('article', makeHead(target.metadata, target.metadata.prettyURL, database, config))
-          )
-        })
-      )
-
-      p.children.splice(i, 1, list)
-    }
-
-  })
-
-  remove(treeContent, (n, i, p) => p.type === "root" && n.tagName === "h1")
-
-
-  // function copyTreeWithoutArticles(tree) {
-  //   if (tree.tagName !== 'article') {
-  //     return {
-  //       type: tree.type,
-  //       tagName: tree.tagName,
-  //       properties: tree.properties,
-  //       children: tree.children?.map(copyTreeWithoutArticles)
-  //     }
-  //   }
-  // }
-
-
-
-
-  const treeMain = h('main',
-    {
-      itemscope: true
-    },
-    [
-      h('nav', {
-        'aria-label': 'Breadcrumbs'
-      }, treeBreadcrumbs),
-      treeMainHead,
-      h('section#content', treeContent)
-    ])
-
-  visit(treeMain, (node, index, parent) => {
-    /* URLs */ if (node.type === "text" && parent.tagName === 'p' && parent.children.length === 1) {
-      const validURL = testURL(node.value)
-      if (validURL) {
-        const metadata = database.url.get(node.value)
-        if (metadata) {
-          parent.tagName = "article"
-          parent.children = [
-            h("a", { href: node.value },
-              h("h2", metadata.title)
-            )
-          ]
-        }
-      }
-    } /* GFM Alerts */ else if (node.tagName === "blockquote") {
-      if (node.children[1]
-        && node.children[1].tagName === "p"
-        && node.children[1].children.length === 1
-        && node.children[1].children[0].type === "text"
-      ) {
-        const matches = node.children[1].children[0].value.match(/^\[!(\w+)\]$/)
-
-        if (matches) {
-          const [_, alertLabel] = matches
-
-          node.tagName = "aside"
-          node.properties = {
-            class: `alert ${alertLabel.toLowerCase()}`
-          }
-
-          node.children.splice(0, 2, {
-            type: "element",
-            tagName: "h2",
-            children: [
-              {
-                value: toTitleCase(alertLabel),
-                type: "text"
-              }
-            ]
-          })
-        }
-
-      }
-    }
-  })
-
-  const everything = database.target.getManyWithTrackers({
-    folder: "",
-    recursive: true,
-    dependent: destination.path,
-  }).filter(target => target.path
-    && target.path.endsWith(".html")
-    && !target.metadata.date
-  )
-
-  const homeFile = everything.find(item => item.path === "index.html" && item.dir === "")
-
-  const globalNavItems = everything.filter(item => {
-    return item.dir === ""
-      && item.path !== "index.html"
-      && item.path !== "404.html"
-      && item.path !== "tags.html"
-  })
-    .map(getChildren)
-
-  globalNavItems.unshift(homeFile)
-
-  function getChildren(item) {
-    const children = everything.filter(child => {
-      return "/" + child.dir === item.metadata.prettyURL
-        && child.path !== "index.html"
-    })
-
-    const populatedChildren = children.length > 0 && children.map(child => {
-      return getChildren(child)
-    })
-
-    const node = {
-      path: "/" + item.path,
-      metadata: item.metadata
-    }
-
-    if (populatedChildren) node.children = populatedChildren
-
-    return node
-  }
-
-  function treeNavItem(item) {
-    if (item.children) {
-      return h('li', [
-        h('a', { href: item.path }, item.metadata.breadcrumb),
-        treeNavList(item.children)
-      ])
-    }
-
-    return h('li',
-      h('a', { href: item.path }, item.metadata.breadcrumb)
-    )
-  }
-
-  function treeNavList(items) {
-    return h('ul',
-      items.filter(a => a).map(treeNavItem)
-    )
-  }
-
-  const treeGlobalNav = h('nav',
-    treeNavList(globalNavItems)
-  )
-
-  const treeAside = h('aside', treeGlobalNav)
-
-  const treeFooter = h('footer', [
-    h('section#copyright', `© ${new Date().getFullYear()}`),
-    h('section#shoutout', [
-      "Made with ",
-      h('a', {
-        href: "https://vowel.cc"
-      }, "Vowel"),
-    ])
-  ])
-
-  const pageClass = destination.metadata.prettyURL
-    .split("/")
-    .filter(a => a)
-    .map(a => a.replace("_", ""))
-    .join("_")
-    || "home"
-
-  const treeBody = h(`body.${pageClass}`, [
-    treeHeader,
-    treeMain,
-    treeAside,
-    treeFooter
-  ])
-
-  const tree = h(
-    null,
-    [
-      {
-        type: "doctype",
-        name: 'html'
-      },
-      h('html',
-        {
-          lang: "en"
-        },
-        [
-          treeHead,
-          treeBody
-        ]
-      )
-    ]
-  )
-
-  const data = unified()
-    .use(rehypePresetMinify)
-    .use(rehypeStringify)
-    .stringify(tree)
-
-  return {
-    data
-  }
-}
-
 /** @type {Votive.Router} */
 function router(args) {
   const { name, dir, inRootDir, ext } = args
@@ -1389,17 +485,12 @@ const readMarkdown = {
   readFolder,
 }
 
-const writeHTML = {
-  extensions: [".html"],
-  format: "text",
-  writeFile
-}
 
 
 /** @type {Votive.VotivePlugin} */
 const vowelMarkdownPlugin = {
   name: "vowel",
-  processors: [readMarkdown, writeHTML],
+  processors: [readMarkdown],
   router
 }
 
