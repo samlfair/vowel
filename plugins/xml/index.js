@@ -12,7 +12,7 @@ const processor = {
 
       // FIXME move the filter to SQLite
       const pages = database.target
-        .getManyWithTrackers({
+        .getByFolder({
           folder: "",
           recursive: true,
           query: {},
@@ -63,14 +63,14 @@ const processor = {
 
     } else if (target.path === "feed.xml") {
 
-      const pages = database.target.getManyWithTrackers({
+      const pages = database.target.getByFolder({
         query: {},
         folder: "",
         recursive: true,
-        dependent: "feed.xml"
+        dependent: "feed.xml",
+        orderBy: { property: "date", direction: "desc" }
       })
         .filter(a => a.metadata.date)
-        .sort((a, b) => b.metadata.date - a.metadata.date)
 
       const domain = target.metadata.domain
         && target.metadata.domain.startsWith("http")

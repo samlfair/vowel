@@ -98,9 +98,9 @@ function writeFile(destination, database, config) {
   if (destination.metadata.type === "tag") {
     if (!destination.metadata.tag) return false
 
-    const pages = database.target.getManyWithTrackers({
+    const pages = database.target.getByFolder({
       recursive: true,
-      dependent: destination,
+      dependent: destination.path,
       query: {
         tags: destination.metadata.tag
       }
@@ -138,7 +138,7 @@ function writeFile(destination, database, config) {
 
   const family = [...ancestorFolders, destinationAsDir].flatMap(folder => {
     // FIXME typing
-    return database.target.getManyWithTrackers({
+    return database.target.getByFolder({
       folder: Array.isArray(folder) ? path.join(...folder) : folder,
       recursive: false,
       dependent: destination.path,
@@ -439,14 +439,14 @@ function writeFile(destination, database, config) {
           ? { tags: tag }
           : {}
 
-        const targets = database.target.getManyWithTrackers({
+        const targets = database.target.getByFolder({
           folder,
           recursive,
           query,
-          dependent: destination.path
+          dependent: destination.path,
+          orderBy: { property: "date", direction: "desc" },
+          limit: count ? Number(count) : undefined
         })
-
-        if (count) targets.splice(Number(count))
 
         const escapedDir = folder.replace("_", "--").replace(path.sep, "_")
         const escapedDirs = escapedDir.split("_").filter(a => a).map((segment, index, array) => {
@@ -551,7 +551,7 @@ function writeFile(destination, database, config) {
     }
   })
 
-  const everything = database.target.getManyWithTrackers({
+  const everything = database.target.getByFolder({
     folder: "",
     recursive: true,
     dependent: destination.path,
