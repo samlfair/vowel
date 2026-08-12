@@ -269,7 +269,7 @@ function writeFile(destination, database, config) {
     return !nav_item.metadata.date
       && nav_item.path !== "index.html"
       && nav_item.path !== "404.html"
-      && nav_item.syntax === ".html"
+      && nav_item.extension === ".html"
       && nav_item.path
   }
 

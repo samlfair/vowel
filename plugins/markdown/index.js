@@ -278,7 +278,7 @@ function readFolder(folder, database, config, isRoot) {
         prettyURL: "404.html"
       },
       path: "404.html",
-      syntax: ".html"
+      extension: ".html"
     })
   }
 
@@ -318,7 +318,7 @@ function readFolder(folder, database, config, isRoot) {
       database.target.create({
         abstract,
         path: aliasPath,
-        syntax: ".html",
+        extension: ".html",
         metadata: {
           title: toTitleCase(folderInfo.name),
           breadcrumb: toTitleCase(folderInfo.name),
@@ -336,7 +336,7 @@ function readFolder(folder, database, config, isRoot) {
       database.target.create({
         abstract,
         path: "index.html",
-        syntax: "html",
+        extension: "html",
         metadata: {
           title,
           breadcrumb: title,
@@ -382,7 +382,7 @@ function readFolder(folder, database, config, isRoot) {
             path: "reset.css",
             abstract: { css: resetStyles },
             metadata: {},
-            syntax: "css"
+            extension: "css"
           })
 
           if (theme === "reset") return
@@ -396,7 +396,7 @@ function readFolder(folder, database, config, isRoot) {
             path: "typography.css",
             abstract: { css: typeStyles },
             metadata: {},
-            syntax: "css"
+            extension: "css"
           })
 
           if (theme === "typography") return
@@ -410,7 +410,7 @@ function readFolder(folder, database, config, isRoot) {
             path: "default.css",
             abstract: { css: defaultStyles },
             metadata: {},
-            syntax: "css"
+            extension: "css"
           })
         }
       }
