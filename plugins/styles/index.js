@@ -28,14 +28,23 @@ function writeCSS(destination, database, config) {
 
 /** @type {Votive.ReadText} */
 function readCSS(text, filePath, destinationPath, database, config) {
+
+  const settings = database.setting.getByFolder("/")
+
   const pathInfo = path.parse(filePath)
 
-  database.setting.create(
-    pathInfo.dir,
-    "stylesheets",
-    filePath
-  )
+  const depth = filePath.split(path.sep).length - 1
 
+  if (settings.stylesheets?.[depth]) {
+    settings.stylesheets.push(filePath)
+  } else {
+    database.setting.create(
+      pathInfo.dir,
+      "stylesheets",
+      [filePath]
+    )
+
+  }
   const metadata = {}
   const abstract = {
     css: text

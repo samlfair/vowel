@@ -27,7 +27,7 @@ See the docs: [vowel.cc](https://vowel.cc).
 - [.] Fixes
   - [x] Global nav sublinks
   - [x] Hot reload
-  - [.] Explicit asset handling
+  - [x] Explicit asset handling
   - [.] Change "job" to "resources"
     - [.] ReadResource types
   - [.] Processor utilities param
@@ -58,7 +58,7 @@ See the docs: [vowel.cc](https://vowel.cc).
 - [ ] Non-urgent fixes / improvements
   - [ ] Compare metadata on file update
   - [x] Prune/cleanup step
-  - [ ] Dependency type (file, settings, folder)
+  - [x] Dependency type (file, settings, folder)
 - [ ] New systems
   - [x] Tags
   - [ ] External links
@@ -74,7 +74,7 @@ See the docs: [vowel.cc](https://vowel.cc).
 - [ ] GetMany "extension" filter
 - [ ] Delete settings logic
 - [ ] Update settings logic
-- [ ] Logical operators for filters
+- [x] Logical operators for filters
 - [ ] Customize menus
 - [ ] More file handling plugins
   - [ ] Fonts
@@ -97,9 +97,9 @@ See the docs: [vowel.cc](https://vowel.cc).
   - [ ] Styles
     - [x] .css
     - [x] Bundling
-  - [ ] PDFs
-  - [ ] Videos
-  - [ ] Arbitrary data
+  - [x] PDFs
+  - [x] Videos
+  - [x] Arbitrary data
 - [x] Add homepage to global nav
 - [x] Page lists
 - [x] Dates

@@ -263,6 +263,25 @@ function readFolder(folder, database, config, isRoot) {
       metadata: {}
     })
   }
+
+  
+
+  const pageNotFound = database.target.getWithTrackers("404.html", folder)
+
+  if(!pageNotFound) {
+    const abstract = toHast(fromMarkdown(`# 404\n\nPage not found.`))
+    database.target.create({
+      abstract,
+      metadata: {
+        title: "Page not found",
+        breadcrumb: "404",
+        prettyURL: "404.html"
+      },
+      path: "404.html",
+      syntax: ".html"
+    })
+  }
+
   const settings = database.setting.getByFolder(folder)
 
   const folderInfo = path.parse(folder)
@@ -299,7 +318,7 @@ function readFolder(folder, database, config, isRoot) {
       database.target.create({
         abstract,
         path: aliasPath,
-        syntax: "html",
+        syntax: ".html",
         metadata: {
           title: toTitleCase(folderInfo.name),
           breadcrumb: toTitleCase(folderInfo.name),
@@ -328,8 +347,6 @@ function readFolder(folder, database, config, isRoot) {
   }
 
   if (isRoot) {
-    const settings = database.setting.getByFolder(config.sourceFolder)
-
     setTheme(settings)
 
     function setTheme(settings) {
@@ -339,19 +356,24 @@ function readFolder(folder, database, config, isRoot) {
         "default"
       ]
 
-
-      if (themes.includes(settings.fm_theme?.[""][0]) || !settings.fm_theme) {
+      if (themes.includes(settings.fm_theme?.[0]) || !settings.fm_theme) {
         if (!settings.fm_theme) database.setting.create("", "theme", "default")
 
-        const theme = settings.fm_theme?.[""][0] || "default"
+        const theme = settings.fm_theme?.[0] || "default"
 
         if (themes.includes(theme)) {
 
-          database.setting.create(
-            "",
-            "stylesheets",
-            "reset.css"
-          )
+          if (settings.stylesheets) {
+            settings.stylesheets.push("reset.css")
+          } else {
+            database.setting.create(
+              folder,
+              "stylesheets",
+              "reset.css",
+            )
+
+            settings = database.setting.getByFolder(folder)
+          }
 
           const resetStylesPath = path.join(VOWEL_DIR, "stylesheets", "ResetStyles.css")
           const resetStyles = readFileSync(resetStylesPath, "utf-8")
@@ -365,11 +387,7 @@ function readFolder(folder, database, config, isRoot) {
 
           if (theme === "reset") return
 
-          database.setting.create(
-            "",
-            "stylesheets",
-            "typography.css"
-          )
+          settings.stylesheets.push("typography.css")
 
           const typeStylesPath = path.join(VOWEL_DIR, "stylesheets", "TypographyStyles.css")
           const typeStyles = readFileSync(typeStylesPath, "utf-8")
@@ -383,11 +401,7 @@ function readFolder(folder, database, config, isRoot) {
 
           if (theme === "typography") return
 
-          database.setting.create(
-            "",
-            "stylesheets",
-            "default.css"
-          )
+          settings.stylesheets.push("default.css")
 
           const defaultStylesPath = path.join(VOWEL_DIR, "stylesheets", "DefaultStyles.css")
           const defaultStyles = readFileSync(defaultStylesPath, "utf-8")
@@ -432,8 +446,6 @@ function readFolder(folder, database, config, isRoot) {
     || toTitleCase(folder.split(path.sep).at(-2))
     || toTitleCase(folder.split(path.sep).at(-1))
     || "Home"
-
-
 
   database.setting.create(folder, "breadcrumbs", breadcrumb)
 

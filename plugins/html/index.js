@@ -26,6 +26,18 @@ import createDynamicImage from "./image.js"
 
 
 /**
+ * @param {array} array
+ * @param {number} num
+ */
+function getLast(array, num = 1) {
+  if(!array) return
+  if (num > array.length) return
+  if (array.at(array.length - num)) return array.at(array.length - num)
+  return getLast(array, num + 1)
+}
+
+
+/**
  * @param {object} metadata
  * @param {string} url
  * @param {Votive.Database} database
@@ -97,11 +109,11 @@ function writeFile(destination, database, config) {
     if (!pages.length) return false
   }
 
-  const settings = database.setting.getByFolder(destination.dir + path.sep)
+  const { name } = path.parse(destination.path)
+
+  const settings = database.setting.getByFolder(destination.dir + path.sep + name)
 
   const { abstract, metadata, ...rest } = destination
-
-  if (metadata.tags) metadata.tags = JSON.parse(metadata.tags)
 
   /** @param {string} filePath */
   function listFolders(filePath) {
@@ -139,20 +151,22 @@ function writeFile(destination, database, config) {
   const treeStyleSheets = []
 
   Object.values(settings.stylesheets).forEach(file => {
-    file.forEach(sheet => {
-      const cacheBuster = Math.random().toString(36).slice(2, 10);
-      treeStyleSheets.push(
-        h('link', {
-          rel: "stylesheet",
-          href: `/${sheet}?${cacheBuster}`
-        })
-      )
-    })
+    if (file) {
+      file.forEach(sheet => {
+        const cacheBuster = Math.random().toString(36).slice(2, 10);
+        treeStyleSheets.push(
+          h('link', {
+            rel: "stylesheet",
+            href: `/${sheet}?${cacheBuster}`
+          })
+        )
+      })
+    }
   })
 
   function createTitle() {
     if (isRoot) {
-      const title = [settings?.title?.[0] || metadata?.title, settings?.fm_tagline?.[""]?.[0]]
+      const title = [settings?.title?.[0] || metadata?.title, settings?.fm_tagline?.[0]]
         .filter(a => a)
         .join(" - ")
 
@@ -200,7 +214,7 @@ function writeFile(destination, database, config) {
   ])
 
   if (settings.fm_domain) {
-    const settingsDomain = settings.fm_domain[""][0]
+    const settingsDomain = settings.fm_domain[0]
     const domain = settingsDomain.startsWith("http")
       ? settingsDomain
       : "https://" + settingsDomain
@@ -226,18 +240,19 @@ function writeFile(destination, database, config) {
     }))
   }
 
+
   /* FIXME this could be a section title */
   if (settings.title) {
     treeHead.children.push(h("meta", {
       property: "og:site_name",
-      content: settings.fm_title?.[""][0]
+      content: getLast(settings.fm_title)
     }))
   }
 
   /* FIXME Properly handle this image */
   if (settings.icon) {
     treeHead.children.push(h("link", {
-      href: "/" + settings.icon[0],
+      href: "/" + getLast(settings.icon),
       rel: "icon",
       type: "image/png"
     }))
@@ -284,14 +299,14 @@ function writeFile(destination, database, config) {
 
   let treeBreadcrumbs = []
 
-  const breadcrumbs = Object.entries(settings.breadcrumbs)
-    .sort(([a], [b]) => a.length - b.length)
-    .map(([path, [label]]) => ["/" + path, label])
+  const breadcrumbs = ancestorFolders
+    .map((folderPath, index) => [folderPath, settings.breadcrumbs?.[index]])
+    .filter(([, label]) => label != null)
 
   treeBreadcrumbs.push(
-    ...breadcrumbs.map(([path, label]) => {
+    ...breadcrumbs.map(([folderPath, label]) => {
       return h('a', {
-        href: path
+        href: folderPath ? "/" + folderPath : "/"
       }, label)
     })
   )
@@ -309,35 +324,35 @@ function writeFile(destination, database, config) {
 
   const homeLink = []
 
-  if (settings.fm_logo && settings.fm_logo[""]) {
+  if (settings.fm_logo && settings.fm_logo[0]) {
     headerElements.push(
       h('a#logo', {
         href: "/",
         "aria-label": "logo",
         rel: "home",
-        "style": `--logo-url: url("/${settings.fm_logo[""]}")`
+        "style": `--logo-url: url("/${getLast(settings.fm_logo)}")`
       }, h("img", {
-        src: "/" + settings.fm_logo[""],
+        src: "/" + getLast(settings.fm_logo),
         alt: ""
       }))
     )
   }
 
-  if (settings.fm_wordmark && settings.fm_wordmark[""]) {
+  if (settings.fm_wordmark && getLast(settings.fm_wordmark)) {
     headerElements.push(h("a#wordmark", {
       href: "/",
       rel: "home"
     }, h("img", {
-      src: "/" + settings.fm_wordmark[""]
+      src: "/" + getLast(settings.fm_wordmark)
     })))
   }
 
-  if (settings.title && settings.title[""]) {
-    headerElements.push(h('a#title', { href: "/", rel: "home" }, settings.title[""]))
+  if (settings.title && settings.title[0]) {
+    headerElements.push(h('a#title', { href: "/", rel: "home" }, getLast(settings.title)))
   }
 
-  if (settings.fm_tagline && settings.fm_tagline[""]) {
-    headerElements.push(h('p#tagline', settings.fm_tagline[""][0]))
+  if (settings.fm_tagline && getLast(settings.fm_tagline)) {
+    headerElements.push(h('p#tagline', getLast(settings.fm_tagline)))
   }
 
   const treeHeader = h('header', [
@@ -376,7 +391,7 @@ function writeFile(destination, database, config) {
   visit(abstract, { tagName: "img" }, (node, index, parent) => {
     const { src, alt } = node.properties
     const image = createDynamicImage(src, database, destination.path.path, alt)
-    console.log({ image })
+    if (!image) return
     if (index === 0 && parent.children.length > 1) {
       const [_, ...caption] = parent.children
       parent.children = [
@@ -387,80 +402,81 @@ function writeFile(destination, database, config) {
     }
   })
 
-  visit(abstract, testPaths, ({ children: [child] }, i, p) => {
+  try {
+    visit(abstract, testPaths, ({ children: [child] }, i, p) => {
 
-    // const recursive = child.value.endsWith("**")
-    // const many = child.value.endsWith("*")
+      // const recursive = child.value.endsWith("**")
+      // const many = child.value.endsWith("*")
 
-    const url = new URL(child.value, "thismessage://")
-    const { dir, base } = path.parse(url.pathname)
-    const recursive = base === "**"
-    const many = base === "*" || base === "**"
+      const url = new URL(child.value, "thismessage://")
+      const { dir, base } = path.parse(url.pathname)
+      const recursive = base === "**"
+      const many = base === "*" || base === "**"
 
-    if (!many) {
-      const targetFilePathInfo = path.parse(child.value)
-      targetFilePathInfo.ext ||= ".html"
-      delete targetFilePathInfo.base
-      const targetFilePath = path.relative("/", path.format(targetFilePathInfo))
-      const target = database.target.getWithTrackers(targetFilePath, destination.path)
+      if (!many) {
+        const targetFilePathInfo = path.parse(child.value)
+        targetFilePathInfo.ext ||= ".html"
+        delete targetFilePathInfo.base
+        const targetFilePath = path.relative("/", path.format(targetFilePathInfo))
+        const target = database.target.getWithTrackers(targetFilePath, destination.path)
 
-      if (target) {
-        const article = h('article', makeHeader(target.metadata, target.metadata.prettyURL, database, config))
+        if (target) {
+          const article = h('article', makeHeader(target.metadata, target.metadata.prettyURL, database, config))
 
-        p.children.splice(i, 1, article)
+          p.children.splice(i, 1, article)
+
+          return SKIP
+        }
+
+      }
+
+      if (many) {
+        const folder = path.relative("/", dir)
+        // const url = new URL(child.value, "thismessage://")
+        const count = url.searchParams.get("count")
+        const tag = url.searchParams.get("tag")
+        const query = tag
+          ? { tags: tag }
+          : {}
+
+        const targets = database.target.getManyWithTrackers({
+          folder,
+          recursive,
+          query,
+          dependent: destination.path
+        })
+
+        if (count) targets.splice(Number(count))
+
+        const escapedDir = folder.replace("_", "--").replace(path.sep, "_")
+        const escapedDirs = escapedDir.split("_").filter(a => a).map((segment, index, array) => {
+          return "_" + array.slice(0, index + 1).join("_")
+        })
+        escapedDirs.unshift("_")
+        const dirClasses = escapedDirs.join(".")
+
+        const list = h(`ul.${dirClasses}`,
+          targets.map(target => {
+            return h('li',
+              h('article', makeHeader(target.metadata, target.metadata.prettyURL, database, config))
+            )
+          })
+        )
+
+        p.children.splice(i, 1, list)
 
         return SKIP
       }
 
-    }
-
-    if (many) {
-      const folder = path.relative("/", dir)
-      // const url = new URL(child.value, "thismessage://")
-      const count = url.searchParams.get("count")
-      const tag = url.searchParams.get("tag")
-      const query = tag
-        ? { tags: tag }
-        : {}
-
-      const targets = database.target.getManyWithTrackers({
-        folder,
-        recursive,
-        query,
-        dependent: destination.path
-      })
-
-      if (count) targets.splice(Number(count))
-
-      const escapedDir = folder.replace("_", "--").replace(path.sep, "_")
-      const escapedDirs = escapedDir.split("_").filter(a => a).map((segment, index, array) => {
-        return "_" + array.slice(0, index + 1).join("_")
-      })
-      escapedDirs.unshift("_")
-      const dirClasses = escapedDirs.join(".")
-
-      const list = h(`ul.${dirClasses}`,
-        targets.map(target => {
-          return h('li',
-            h('article', makeHeader(target.metadata, target.metadata.prettyURL, database, config))
-          )
-        })
-      )
-
-      p.children.splice(i, 1, list)
-
-      return SKIP
-    }
-
-  })
+    })
+  } catch (e) {
+    // console.log(JSON.stringify(abstract, null, 2))
+  }
 
   try {
-    
-
-  remove(abstract, (n, i, p) => p.type === "root" && n.tagName === "h1")
-
-  } catch(e) {
-    console.log(JSON.stringify(abstract, null, 2))
+    remove(abstract, (n, i, p) => p.type === "root" && n.tagName === "h1")
+  } catch (e) {
+    // console.log(JSON.stringify(abstract, null, 2))
   }
 
   // function copyTreeWithoutArticles(tree) {

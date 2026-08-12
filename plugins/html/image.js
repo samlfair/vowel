@@ -55,10 +55,8 @@ function createDynamicImage(imagePath, database, dependent, alt, itemprop) {
 
   const relativePath = imagePath.startsWith("/") ? path.relative("/", imagePath) : imagePath
   const image = database.target.getWithTrackers(relativePath, dependent)
-  console.log({ relativePath })
   if (!image) return
   const formats = createImagePaths(image.abstract.sourcePath, "./", image.abstract.uuid)
-
 
   const sources = formats.map((format, index) => {
     const isImg = index === formats.length - 1
@@ -74,7 +72,6 @@ function createDynamicImage(imagePath, database, dependent, alt, itemprop) {
       alt: isImg && alt
     })
   })
-
 
   return h("picture", { itemprop: itemprop && "image" }, sources)
 }
