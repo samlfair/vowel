@@ -6,6 +6,7 @@ import vowelWriteXMLPlugin from "./plugins/xml/index.js"
 import vowelVectorPlugin from "./plugins/vectors/index.js"
 import vowelFontsPlugin from "./plugins/fonts/index.js"
 import vowelWriteHTMLPlugin from "./plugins/html/index.js"
+import vowelURLsPlugin from "./plugins/urls/index.js"
 
 /** @import {VotiveConfig} from "votive" */
 export const config = {
@@ -19,6 +20,7 @@ export const config = {
     vowelWriteXMLPlugin,
     vowelVectorPlugin,
     vowelFontsPlugin,
+    vowelURLsPlugin,
     vowelWriteHTMLPlugin
   ]
 }
