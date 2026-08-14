@@ -28,21 +28,21 @@ function isExternalLinkParagraph(node) {
 
 /**
  * Walks a target's abstract for link-preview paragraphs and queues one
- * fetch job per URL found, so the write side (html/index.js) can render
+ * fetch task per URL found, so the write side (html/index.js) can render
  * a preview card once the data is cached. Deliberately does not fetch
- * anything itself - jobs are only ever run when the caller invokes
+ * anything itself - tasks are only ever run when the caller invokes
  * runFetches() (see votive's fetchURLs.js), and a URL already cached
  * (success or in a failure cooldown) is skipped automatically, so this
  * never re-fetches the same link on every build.
  * @type {Votive.ReadAbstract}
  */
 function transformFile(abstract, database, config, targetFilePath) {
-  const jobs = []
+  const urls = []
 
   function walk(node) {
     if (!node || typeof node !== "object") return
     if (isExternalLinkParagraph(node)) {
-      jobs.push({
+      urls.push({
         data: node.children[0].value,
         runner: "text",
         destination: targetFilePath
@@ -54,7 +54,7 @@ function transformFile(abstract, database, config, targetFilePath) {
 
   walk(abstract)
 
-  return { abstract, jobs }
+  return { abstract, urls }
 }
 
 /**
@@ -78,9 +78,7 @@ const linkPreviewProcessor = {
   extensions: [".html"],
   format: "text",
   transformFile,
-  read: {
-    url: parseLinkPreview
-  }
+  readURL: parseLinkPreview
 }
 
 /** @type {Votive.VotivePlugin} */

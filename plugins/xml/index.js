@@ -58,7 +58,7 @@ const processor = {
 
       return {
         data: sitemap,
-        jobs: []
+        urls: []
       }
 
     } else if (target.path === "feed.xml") {

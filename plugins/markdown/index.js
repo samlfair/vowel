@@ -53,7 +53,7 @@ function readURL(data) {
 
 /** @type {Votive.ReadText} */
 function readFile(string, filePath, destinationPath, database, config) {
-  const jobs = []
+  const urls = []
 
   const mdast = fromMarkdown(string, {
     // Micromark extensions
@@ -103,7 +103,7 @@ function readFile(string, filePath, destinationPath, database, config) {
 
       if (validURL) {
 
-        jobs.push({
+        urls.push({
           data: node.value,
           runner: "text",
           destination: destinationPath
@@ -248,8 +248,8 @@ function readFile(string, filePath, destinationPath, database, config) {
 
 /** @type {Votive.ReadAbstract} */
 function transformFile(abstract, database, config) {
-  const jobs = []
-  return { abstract, jobs }
+  const urls = []
+  return { abstract, urls }
 }
 
 /** @type {Votive.ReadFolder} */
@@ -450,8 +450,8 @@ function readFolder(folder, database, config, isRoot) {
   database.setting.create(folder, "breadcrumbs", breadcrumb)
 
   return {
-    jobs: [],
-    destinations: []
+    urls: [],
+    targets: []
   }
 }
 
