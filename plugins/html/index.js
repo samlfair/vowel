@@ -20,6 +20,7 @@ import { EXIT, SKIP, visit } from "unist-util-visit"
 import toc from "@jsdevtools/rehype-toc"
 import slug from "rehype-slug"
 import createDynamicImage from "./image.js"
+import { isExternalLinkParagraph } from "../urls/index.js"
 
 /** @import * as Votive from "votive" */
 /** @import * as Vowel from "./../../index.js" */
@@ -269,7 +270,7 @@ function writeFile(destination, database, config) {
     return !nav_item.metadata.date
       && nav_item.path !== "index.html"
       && nav_item.path !== "404.html"
-      && nav_item.syntax === ".html"
+      && nav_item.extension === ".html"
       && nav_item.path
   }
 
@@ -468,6 +469,28 @@ function writeFile(destination, database, config) {
         return SKIP
       }
 
+    })
+  } catch (e) {
+    // console.log(JSON.stringify(abstract, null, 2))
+  }
+
+  try {
+    visit(abstract, isExternalLinkParagraph, ({ children: [child] }, i, p) => {
+      const url = child.value
+      const preview = database.url.get(url)
+      if (!preview) return
+
+      const card = h('a.link-preview', { href: url, target: "_blank", rel: "noopener noreferrer" }, [
+        preview.image ? h('img.link-preview-image', { src: preview.image, alt: "" }) : null,
+        h('span.link-preview-body', [
+          h('span.link-preview-title', preview.title || url),
+          preview.description ? h('span.link-preview-description', preview.description) : null
+        ].filter(Boolean))
+      ].filter(Boolean))
+
+      p.children.splice(i, 1, card)
+
+      return SKIP
     })
   } catch (e) {
     // console.log(JSON.stringify(abstract, null, 2))

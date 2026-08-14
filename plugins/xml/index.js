@@ -18,7 +18,7 @@ const processor = {
           query: {},
           dependent: "sitemap.xml"
         })
-        .filter(a => a.syntax === ".html" && a.path)
+        .filter(a => a.extension === ".html" && a.path)
 
       const domain = target.metadata.domain
         && target.metadata.domain.startsWith("http")

@@ -18,7 +18,7 @@ import init from "./index.js"
 /** @param {boolean} verbose */
 async function removeCache(verbose) {
   try {
-    await fs.rm("./.votive.db")
+    await fs.rm(config.databasePath)
     if (verbose) console.info(`${styleText("dim", "loading:")} ${styleText("green", "cache cleared")}`)
   } catch (e) {
     if (verbose) console.info(`${styleText("dim", "loading:")} ${styleText("green", "no database cache found")}`)
@@ -28,7 +28,7 @@ async function removeCache(verbose) {
 /** @param {boolean} verbose */
 async function removeDB(verbose) {
   try {
-    await fs.rm("./output", { recursive: true, force: true })
+    await fs.rm(config.destinationFolder, { recursive: true, force: true })
     if (verbose) console.info(`${styleText("dim", "loading:")} ${styleText("green", "output cleared")}`)
   } catch (e) {
     if (verbose) console.info(`${styleText("dim", "loading:")} ${styleText("green", "no output cache found")}`)
@@ -193,7 +193,7 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
 async function main() {
   const args = parse(process.argv.slice(2))
 
-  const dbExists = await exists(".votive.db")
+  const dbExists = await exists(config.databasePath)
 
   await removeCache(args.logging === "verbose")
   await removeDB(args.logging === "verbose")
