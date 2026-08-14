@@ -30,11 +30,12 @@ import { isExternalLinkParagraph } from "../urls/index.js"
  * @param {array} array
  * @param {number} num
  */
-function getLast(array, num = 1) {
-  if(!array) return
-  if (num > array.length) return
-  if (array.at(array.length - num)) return array.at(array.length - num)
-  return getLast(array, num + 1)
+function getLast(ancestorArrays, num = 1) {
+  if (!ancestorArrays) return
+  if (num > ancestorArrays.length) return
+  const level = ancestorArrays.at(ancestorArrays.length - num)
+  if (level && level.length) return level.at(-1)
+  return getLast(ancestorArrays, num + 1)
 }
 
 
@@ -167,7 +168,7 @@ function writeFile(destination, database, config) {
 
   function createTitle() {
     if (isRoot) {
-      const title = [settings?.title?.[0] || metadata?.title, settings?.fm_tagline?.[0]]
+      const title = [settings?.title?.[0]?.at(-1) || metadata?.title, settings?.fm_tagline?.[0]?.at(-1)]
         .filter(a => a)
         .join(" - ")
 
@@ -181,7 +182,7 @@ function writeFile(destination, database, config) {
     }
 
     if (metadata.title || settings.title) {
-      return metadata.title || settings.title.reverse()
+      return metadata.title || getLast(settings.title)
     }
 
     return "Website"
@@ -214,8 +215,8 @@ function writeFile(destination, database, config) {
     ...treeStyleSheets,
   ])
 
-  if (settings.fm_domain) {
-    const settingsDomain = settings.fm_domain[0]
+  if (settings.fm_domain?.[0]?.length) {
+    const settingsDomain = settings.fm_domain[0].at(-1)
     const domain = settingsDomain.startsWith("http")
       ? settingsDomain
       : "https://" + settingsDomain
@@ -301,7 +302,7 @@ function writeFile(destination, database, config) {
   let treeBreadcrumbs = []
 
   const breadcrumbs = ancestorFolders
-    .map((folderPath, index) => [folderPath, settings.breadcrumbs?.[index]])
+    .map((folderPath, index) => [folderPath, settings.breadcrumbs?.[index]?.at(-1)])
     .filter(([, label]) => label != null)
 
   treeBreadcrumbs.push(
@@ -325,7 +326,7 @@ function writeFile(destination, database, config) {
 
   const homeLink = []
 
-  if (settings.fm_logo && settings.fm_logo[0]) {
+  if (settings.fm_logo?.[0]?.length) {
     headerElements.push(
       h('a#logo', {
         href: "/",
@@ -348,7 +349,7 @@ function writeFile(destination, database, config) {
     })))
   }
 
-  if (settings.title && settings.title[0]) {
+  if (settings.title?.[0]?.length) {
     headerElements.push(h('a#title', { href: "/", rel: "home" }, getLast(settings.title)))
   }
 
