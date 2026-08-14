@@ -36,7 +36,7 @@ function isExternalLinkParagraph(node) {
  * never re-fetches the same link on every build.
  * @type {Votive.ReadAbstract}
  */
-function transformFile(abstract, database, config, targetFilePath) {
+function transformFile(abstract, settings, api, config, targetFilePath) {
   const urls = []
 
   function walk(node) {

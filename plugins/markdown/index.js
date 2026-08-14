@@ -52,7 +52,7 @@ function readURL(data) {
 
 
 /** @type {Votive.ReadText} */
-function readFile(string, filePath, destinationPath, database, config) {
+function readFile(string, filePath, destinationPath, settings, api, config) {
   const urls = []
 
   const mdast = fromMarkdown(string, {
@@ -149,12 +149,12 @@ function readFile(string, filePath, destinationPath, database, config) {
         const mdast = fromMarkdown(markdown)
         const hast = toHast(mdast)
 
-        const extant = database.target.get("tags.html")
+        const extant = api.target("tags.html")
 
         // FIXME: Update abstract format
         if (!extant) {
           // Delete if unnecessary
-          database.target.create({
+          api.createTarget({
             path: `tags.html`,
             abstract: hast,
             metadata: {
@@ -165,9 +165,6 @@ function readFile(string, filePath, destinationPath, database, config) {
             }
           })
         }
-
-        database.dependency.track({}, "tags", null, destinationPath, "tags.html")
-        database.target.markStale("tags.html")
 
         if (hashtags) {
           if (!metadata.tags) {
@@ -193,7 +190,7 @@ function readFile(string, filePath, destinationPath, database, config) {
               hastAbstract: abstract,
             }
 
-            const created = database.target.create({
+            const created = api.createTarget({
               path: `tags/${hashtag}.html`,
               abstract,
               metadata: tagMetadata
@@ -208,7 +205,7 @@ function readFile(string, filePath, destinationPath, database, config) {
 
   if (filePath === "settings.md") {
     if (metadata.fm_domain) {
-      database.target.create({
+      api.createTarget({
         path: "sitemap.xml",
         abstract: {},
         metadata: {
@@ -217,7 +214,7 @@ function readFile(string, filePath, destinationPath, database, config) {
         }
       })
 
-      database.target.create({
+      api.createTarget({
         path: "feed.xml",
         abstract: {},
         metadata: {
@@ -241,15 +238,15 @@ function readFile(string, filePath, destinationPath, database, config) {
 
 
 /** @type {Votive.ReadAbstract} */
-function transformFile(abstract, database, config) {
+function transformFile(abstract, settings, api, config) {
   const urls = []
   return { abstract, urls }
 }
 
 /** @type {Votive.ReadFolder} */
-function readFolder(folder, database, config, isRoot) {
+function readFolder(folder, settings, api, config, isRoot) {
   if (folder === "") {
-    database.target.create({
+    api.createTarget({
       path: "robots.txt",
       abstract: {
         content: generateRobots()
@@ -258,13 +255,11 @@ function readFolder(folder, database, config, isRoot) {
     })
   }
 
-  
-
-  const pageNotFound = database.target.getWithTrackers("404.html", folder)
+  const pageNotFound = api.target("404.html")
 
   if(!pageNotFound) {
     const abstract = toHast(fromMarkdown(`# 404\n\nPage not found.`))
-    database.target.create({
+    api.createTarget({
       abstract,
       metadata: {
         title: "Page not found",
@@ -277,7 +272,6 @@ function readFolder(folder, database, config, isRoot) {
     })
   }
 
-  const settings = database.setting.getByFolder(folder)
   const newSettings = {}
 
   const folderInfo = path.parse(folder)
@@ -295,8 +289,8 @@ function readFolder(folder, database, config, isRoot) {
   })
 
 
-  const aliasFile = database.target.get(aliasPath)
-  const indexFile = database.target.get(indexPath)
+  const aliasFile = api.target(aliasPath)
+  const indexFile = api.target(indexPath)
 
   if (!isRoot) {
     if (!aliasFile) {
@@ -311,7 +305,7 @@ function readFolder(folder, database, config, isRoot) {
       const indexPath = prettyURL + "/*"
 
       const abstract = toHast(fromMarkdown(`# ${title}\n\n${indexPath}`))
-      database.target.create({
+      api.createTarget({
         abstract,
         path: aliasPath,
         extension: ".html",
@@ -330,7 +324,7 @@ function readFolder(folder, database, config, isRoot) {
       const indexPath = prettyURL + "/*"
 
       const abstract = fromMarkdown(`# ${title}\n\n${indexPath}`)
-      database.target.create({
+      api.createTarget({
         abstract,
         path: "index.html",
         extension: "html",
@@ -359,7 +353,7 @@ function readFolder(folder, database, config, isRoot) {
         const resetStylesPath = path.join(VOWEL_DIR, "stylesheets", "ResetStyles.css")
         const resetStyles = readFileSync(resetStylesPath, "utf-8")
 
-        database.target.create({
+        api.createTarget({
           path: "reset.css",
           abstract: { css: resetStyles },
           metadata: {},
@@ -372,7 +366,7 @@ function readFolder(folder, database, config, isRoot) {
           const typeStylesPath = path.join(VOWEL_DIR, "stylesheets", "TypographyStyles.css")
           const typeStyles = readFileSync(typeStylesPath, "utf-8")
 
-          database.target.create({
+          api.createTarget({
             path: "typography.css",
             abstract: { css: typeStyles },
             metadata: {},
@@ -385,7 +379,7 @@ function readFolder(folder, database, config, isRoot) {
             const defaultStylesPath = path.join(VOWEL_DIR, "stylesheets", "DefaultStyles.css")
             const defaultStyles = readFileSync(defaultStylesPath, "utf-8")
 
-            database.target.create({
+            api.createTarget({
               path: "default.css",
               abstract: { css: defaultStyles },
               metadata: {},

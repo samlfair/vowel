@@ -42,10 +42,10 @@ function getLast(ancestorArrays, num = 1) {
 /**
  * @param {object} metadata
  * @param {string} url
- * @param {Votive.Database} database
+ * @param {import("votive").PluginAPI} api
  * @param {Votive.VotiveConfig} config
  */
-function makeHeader(metadata, url, database, config) {
+function makeHeader(metadata, url, api, config) {
 
   const treeMainHead = []
 
@@ -74,7 +74,7 @@ function makeHeader(metadata, url, database, config) {
     const metaImage = metadata.image || metadata.first_image
 
     treeMainHead.push(
-      createDynamicImage(metaImage, database, url, null, true)
+      createDynamicImage(metaImage, api, null, true)
     )
   }
 
@@ -93,17 +93,16 @@ function makeHeader(metadata, url, database, config) {
 }
 
 /** @type {Votive.ProcessorWrite} */
-function writeFile(destination, database, config) {
-  
+function writeFile(destination, settings, api, config) {
+
   const isRoot = destination.path === "index.html"
 
 
   if (destination.metadata.type === "tag") {
     if (!destination.metadata.tag) return false
 
-    const pages = database.target.getByFolder({
+    const pages = api.targets({
       recursive: true,
-      dependent: destination.path,
       query: {
         tags: destination.metadata.tag
       }
@@ -111,10 +110,6 @@ function writeFile(destination, database, config) {
 
     if (!pages.length) return false
   }
-
-  const { name } = path.parse(destination.path)
-
-  const settings = database.setting.getByFolder(destination.dir + path.sep + name)
 
   const { metadata, ...rest } = destination
   const abstract = metadata.hastAbstract
@@ -142,10 +137,9 @@ function writeFile(destination, database, config) {
 
   const family = [...ancestorFolders, destinationAsDir].flatMap(folder => {
     // FIXME typing
-    return database.target.getByFolder({
+    return api.targets({
       folder: Array.isArray(folder) ? path.join(...folder) : folder,
       recursive: false,
-      dependent: destination.path,
       query: {}
     })
   }).filter(({ path, dir }) => {
@@ -388,13 +382,13 @@ function writeFile(destination, database, config) {
 
   const treeTableOfContents = treeContentSlugged.children.shift()
 
-  const treeMainHead = makeHeader(metadata, null, database, config)
+  const treeMainHead = makeHeader(metadata, null, api, config)
 
   treeMainHead.push(treeTableOfContents)
 
   visit(abstract, { tagName: "img" }, (node, index, parent) => {
     const { src, alt } = node.properties
-    const image = createDynamicImage(src, database, destination.path.path, alt)
+    const image = createDynamicImage(src, api, alt)
     if (!image) return
     if (index === 0 && parent.children.length > 1) {
       const [_, ...caption] = parent.children
@@ -422,10 +416,10 @@ function writeFile(destination, database, config) {
         targetFilePathInfo.ext ||= ".html"
         delete targetFilePathInfo.base
         const targetFilePath = path.relative("/", path.format(targetFilePathInfo))
-        const target = database.target.getWithTrackers(targetFilePath, destination.path)
+        const target = api.target(targetFilePath)
 
         if (target) {
-          const article = h('article', makeHeader(target.metadata, target.metadata.prettyURL, database, config))
+          const article = h('article', makeHeader(target.metadata, target.metadata.prettyURL, api, config))
 
           p.children.splice(i, 1, article)
 
@@ -443,11 +437,10 @@ function writeFile(destination, database, config) {
           ? { tags: tag }
           : {}
 
-        const targets = database.target.getByFolder({
+        const targets = api.targets({
           folder,
           recursive,
           query,
-          dependent: destination.path,
           orderBy: { property: "date", direction: "desc" },
           limit: count ? Number(count) : undefined
         })
@@ -462,7 +455,7 @@ function writeFile(destination, database, config) {
         const list = h(`ul.${dirClasses}`,
           targets.map(target => {
             return h('li',
-              h('article', makeHeader(target.metadata, target.metadata.prettyURL, database, config))
+              h('article', makeHeader(target.metadata, target.metadata.prettyURL, api, config))
             )
           })
         )
@@ -480,7 +473,7 @@ function writeFile(destination, database, config) {
   try {
     visit(abstract, isExternalLinkParagraph, ({ children: [child] }, i, p) => {
       const url = child.value
-      const preview = database.url.get(url)
+      const preview = api.url.get(url)
       if (!preview) return
 
       const card = h('a.link-preview', { href: url, target: "_blank", rel: "noopener noreferrer" }, [
@@ -535,7 +528,7 @@ function writeFile(destination, database, config) {
     /* URLs */ if (node.type === "text" && parent.tagName === 'p' && parent.children.length === 1) {
       const validURL = testURL(node.value)
       if (validURL) {
-        const metadata = database.url.get(node.value)
+        const metadata = api.url.get(node.value)
         if (metadata) {
           parent.tagName = "article"
           parent.children = [
@@ -577,10 +570,9 @@ function writeFile(destination, database, config) {
     }
   })
 
-  const everything = database.target.getByFolder({
+  const everything = api.targets({
     folder: "",
     recursive: true,
-    dependent: destination.path,
   }).filter(target => target.path
     && target.path.endsWith(".html")
     && !target.metadata.date

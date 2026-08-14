@@ -7,12 +7,11 @@ import * as unpic from "unpic"
 
 /**
  * @param {string} imagePath
- * @param {Votive.Database} database
- * @param {string} dependent
+ * @param {import("votive").PluginAPI} api
  * @param {string} alt
  * @param {boolean} [itemprop]
  */
-function createDynamicImage(imagePath, database, dependent, alt, itemprop) {
+function createDynamicImage(imagePath, api, alt, itemprop) {
   // TODO: Hardcode image height and width
   const parsed = path.parse(imagePath);
   const isURL = testURL(imagePath)
@@ -54,7 +53,7 @@ function createDynamicImage(imagePath, database, dependent, alt, itemprop) {
   if (!isImg) return
 
   const relativePath = imagePath.startsWith("/") ? path.relative("/", imagePath) : imagePath
-  const image = database.target.getWithTrackers(relativePath, dependent)
+  const image = api.target(relativePath)
   if (!image) return
   const formats = createImagePaths(image.abstract.sourcePath, "./", image.abstract.uuid)
 

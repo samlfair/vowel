@@ -8,7 +8,7 @@ import {createImagePath, imageSizes, imageExts } from "./../../utils.js"
 
 
 /** @type {Votive.ProcessorWrite} */
-async function writeImage(destination, database, config) {
+async function writeImage(destination, settings, api, config) {
   const { uuid, sourcePath } = destination.abstract
 
   const defaultFormat = path.extname(sourcePath)

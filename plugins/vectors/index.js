@@ -14,7 +14,7 @@ async function writeFile(target) {
 const processor = {
   extensions: [".svg"],
   format: "text",
-  readFile: (text, filePath, destinationPath, database) => {
+  readFile: (text, filePath, destinationPath, settings, api) => {
     const monochrome = text.includes("currentColor") || Boolean(text.match(/#000\b/))
     return {
       abstract: { svg: text },

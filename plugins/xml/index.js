@@ -7,16 +7,15 @@ import xml from "xml"
 const processor = {
   extensions: [".xml"],
   format: "text",
-  writeFile: (target, database) => {
+  writeFile: (target, settings, api) => {
     if (target.path === "sitemap.xml") {
 
       // FIXME move the filter to SQLite
-      const pages = database.target
-        .getByFolder({
+      const pages = api
+        .targets({
           folder: "",
           recursive: true,
           query: {},
-          dependent: "sitemap.xml"
         })
         .filter(a => a.extension === ".html" && a.path)
 
@@ -63,11 +62,10 @@ const processor = {
 
     } else if (target.path === "feed.xml") {
 
-      const pages = database.target.getByFolder({
+      const pages = api.targets({
         query: {},
         folder: "",
         recursive: true,
-        dependent: "feed.xml",
         orderBy: { property: "date", direction: "desc" }
       })
         .filter(a => a.metadata.date)

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises"
 /** @import * as Votive from "votive" */
 
 /** @type {Votive.ProcessorWrite} */
-async function writeFile(destination, database, config) {
+async function writeFile(destination, settings, api, config) {
   const buffer = await readFile(destination.abstract.filePath)
   return {
     data: buffer,
