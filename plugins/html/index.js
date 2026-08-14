@@ -116,7 +116,8 @@ function writeFile(destination, database, config) {
 
   const settings = database.setting.getByFolder(destination.dir + path.sep + name)
 
-  const { abstract, metadata, ...rest } = destination
+  const { metadata, ...rest } = destination
+  const abstract = metadata.hastAbstract
 
   /** @param {string} filePath */
   function listFolders(filePath) {

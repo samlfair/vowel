@@ -161,6 +161,7 @@ function readFile(string, filePath, destinationPath, database, config) {
               breadcrumb: "Tags",
               title: "Tags",
               prettyURL: "/tags",
+              hastAbstract: hast,
             }
           })
         }
@@ -188,7 +189,8 @@ function readFile(string, filePath, destinationPath, database, config) {
               title: title,
               prettyURL: `/tags/${hashtag}`,
               type: "tag",
-              tag: hashtag
+              tag: hashtag,
+              hastAbstract: abstract,
             }
 
             const created = database.target.create({
@@ -231,7 +233,7 @@ function readFile(string, filePath, destinationPath, database, config) {
 
   return {
     abstract: hast,
-    metadata,
+    metadata: { ...metadata, hastAbstract: hast },
     settings: pathInfo.base === "settings.md" ? metadata : undefined
   }
 }
@@ -267,7 +269,8 @@ function readFolder(folder, database, config, isRoot) {
       metadata: {
         title: "Page not found",
         breadcrumb: "404",
-        prettyURL: "404.html"
+        prettyURL: "404.html",
+        hastAbstract: abstract,
       },
       path: "404.html",
       extension: ".html"
@@ -315,7 +318,8 @@ function readFolder(folder, database, config, isRoot) {
         metadata: {
           title: toTitleCase(folderInfo.name),
           breadcrumb: toTitleCase(folderInfo.name),
-          prettyURL
+          prettyURL,
+          hastAbstract: abstract,
         }
       })
     }
@@ -333,7 +337,8 @@ function readFolder(folder, database, config, isRoot) {
         metadata: {
           title,
           breadcrumb: title,
-          prettyURL: "/"
+          prettyURL: "/",
+          hastAbstract: abstract,
         }
       })
     }
