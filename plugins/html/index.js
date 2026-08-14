@@ -94,6 +94,7 @@ function makeHeader(metadata, url, database, config) {
 
 /** @type {Votive.ProcessorWrite} */
 function writeFile(destination, database, config) {
+  
   const isRoot = destination.path === "index.html"
 
 
