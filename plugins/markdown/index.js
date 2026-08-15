@@ -52,7 +52,7 @@ function readURL(data) {
 
 
 /** @type {Votive.ReadText} */
-function readFile(string, filePath, destinationPath, settings, api, config) {
+function readFile(string, filePath, targetPath, settings, api, config) {
   const urls = []
 
   const mdast = fromMarkdown(string, {
@@ -74,7 +74,7 @@ function readFile(string, filePath, destinationPath, settings, api, config) {
   normalizeHeadings(mdast)
   const pathInfo = path.parse(filePath)
 
-  const metadata = getMetadata(mdast, filePath, destinationPath)
+  const metadata = getMetadata(mdast, filePath, targetPath)
 
   if (!metadata.image) {
     const firstImageParagraph = mdast.children.find(child => child.children && child.children[0].type === "image")
@@ -94,7 +94,7 @@ function readFile(string, filePath, destinationPath, settings, api, config) {
         urls.push({
           data: node.value,
           runner: "text",
-          destination: destinationPath
+          target: targetPath
         })
 
         return

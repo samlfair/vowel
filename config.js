@@ -24,7 +24,7 @@ const systemDirectory = systemDirectoryFor(sourceFolder)
 
 export const config = {
   sourceFolder,
-  destinationFolder: path.join(systemDirectory, "output"),
+  targetFolder: path.join(systemDirectory, "output"),
   databasePath: path.join(systemDirectory, ".votive.db"),
   cacheDirectory: path.join(systemDirectory, ".cache"),
   plugins: [

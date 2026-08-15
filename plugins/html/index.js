@@ -93,25 +93,25 @@ function makeHeader(metadata, url, api, config) {
 }
 
 /** @type {Votive.ProcessorWrite} */
-function writeFile(destination, settings, api, config) {
+function writeFile(target, settings, api, config) {
 
-  const isRoot = destination.path === "index.html"
+  const isRoot = target.path === "index.html"
 
 
-  if (destination.metadata.type === "tag") {
-    if (!destination.metadata.tag) return false
+  if (target.metadata.type === "tag") {
+    if (!target.metadata.tag) return false
 
     const pages = api.targets({
       recursive: true,
       query: {
-        tags: destination.metadata.tag
+        tags: target.metadata.tag
       }
     })
 
     if (!pages.length) return false
   }
 
-  const { metadata, ...rest } = destination
+  const { metadata, ...rest } = target
   const abstract = metadata.hastAbstract
 
   /** @param {string} filePath */
@@ -125,9 +125,9 @@ function writeFile(destination, settings, api, config) {
     ), filePath]
   }
 
-  const parsedPath = path.parse("" + destination.path)
+  const parsedPath = path.parse("" + target.path)
 
-  const destinationAsDir = path.relative("", path.format({
+  const targetAsDir = path.relative("", path.format({
     dir: parsedPath.dir,
     name: parsedPath.name
   }))
@@ -135,7 +135,7 @@ function writeFile(destination, settings, api, config) {
   const ancestorFolders = listFolders(rest.dir)
   ancestorFolders.unshift("")
 
-  const family = [...ancestorFolders, destinationAsDir].flatMap(folder => {
+  const family = [...ancestorFolders, targetAsDir].flatMap(folder => {
     // FIXME typing
     return api.targets({
       folder: Array.isArray(folder) ? path.join(...folder) : folder,
@@ -312,7 +312,7 @@ function writeFile(destination, settings, api, config) {
   if (!isRoot) {
     treeBreadcrumbs.push(
       h('a', {
-        href: destination.metadata.prettyURL,
+        href: target.metadata.prettyURL,
         'aria-current': 'page'
       }, metadata.breadcrumb)
     )
@@ -645,7 +645,7 @@ function writeFile(destination, settings, api, config) {
     ])
   ])
 
-  const pageClass = destination.metadata.prettyURL
+  const pageClass = target.metadata.prettyURL
     .split("/")
     .filter(a => a)
     .map(a => a.replace("_", ""))

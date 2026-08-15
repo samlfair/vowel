@@ -45,7 +45,7 @@ function transformFile(abstract, settings, api, config, targetFilePath) {
       urls.push({
         data: node.children[0].value,
         runner: "text",
-        destination: targetFilePath
+        target: targetFilePath
       })
       return
     }

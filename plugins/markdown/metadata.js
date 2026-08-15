@@ -7,9 +7,9 @@ import path from "node:path"
 /**
  * @param {object} tree
  * @param {string} filePath
- * @param {string} destinationPath
+ * @param {string} targetPath
  */
-function getMetadata(tree, filePath, destinationPath) {
+function getMetadata(tree, filePath, targetPath) {
   const metadata = {}
 
   for (let i = 0; i < tree.children.length; i++) {
@@ -74,11 +74,11 @@ function getMetadata(tree, filePath, destinationPath) {
   
   metadata.inferred_label = toTitleCase(pathInfo.name)
 
-  if (destinationPath) {
-    const destinationInfo = path.parse(destinationPath)
-    const name = destinationInfo.name === "index" ? "" : destinationInfo.name
+  if (targetPath) {
+    const targetInfo = path.parse(targetPath)
+    const name = targetInfo.name === "index" ? "" : targetInfo.name
     // FIXME the prettyURL should include the preceding slash
-    metadata.prettyURL = (new URL(`${destinationInfo.dir}/${name}`, "thismessage:/")).pathname
+    metadata.prettyURL = (new URL(`${targetInfo.dir}/${name}`, "thismessage:/")).pathname
   }
 
   selectMetadata(metadata)

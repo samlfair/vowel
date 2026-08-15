@@ -8,12 +8,12 @@ import {createImagePath, imageSizes, imageExts } from "./../../utils.js"
 
 
 /** @type {Votive.ProcessorWrite} */
-async function writeImage(destination, settings, api, config) {
-  const { uuid, sourcePath } = destination.abstract
+async function writeImage(target, settings, api, config) {
+  const { uuid, sourcePath } = target.abstract
 
   const defaultFormat = path.extname(sourcePath)
 
-  const image = sharp(destination.path)
+  const image = sharp(target.path)
 
   const images = imageSizes.flatMap(size => {
     [...imageExts, defaultFormat].map(ext => {
@@ -21,7 +21,7 @@ async function writeImage(destination, settings, api, config) {
         targetFilePath: sourcePath,
         size,
         ext,
-        targetDirectory: config.destinationFolder,
+        targetDirectory: config.targetFolder,
         uuid
       })
 
@@ -31,7 +31,7 @@ async function writeImage(destination, settings, api, config) {
 
   await Promise.all(images)
 
-  const buffer = await fs.readFile(destination.path)
+  const buffer = await fs.readFile(target.path)
 
   return {
     data: buffer,

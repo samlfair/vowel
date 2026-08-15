@@ -28,7 +28,7 @@ async function removeCache(verbose) {
 /** @param {boolean} verbose */
 async function removeDB(verbose) {
   try {
-    await fs.rm(config.destinationFolder, { recursive: true, force: true })
+    await fs.rm(config.targetFolder, { recursive: true, force: true })
     if (verbose) console.info(`${styleText("dim", "loading:")} ${styleText("green", "output cleared")}`)
   } catch (e) {
     if (verbose) console.info(`${styleText("dim", "loading:")} ${styleText("green", "no output cache found")}`)
@@ -197,7 +197,7 @@ async function main() {
 
   await removeCache(args.logging === "verbose")
   await removeDB(args.logging === "verbose")
-  await fs.mkdir(config.destinationFolder, { recursive: true })
+  await fs.mkdir(config.targetFolder, { recursive: true })
 
   if (!args.skip && !dbExists) {
     const loading = votive({ ...config, verbose: false })

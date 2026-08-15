@@ -3,10 +3,10 @@ import { transform } from "lightningcss"
 /** @import * as Votive from "votive" */
 
 /** @type {Votive.ProcessorWrite} */
-function writeCSS(destination, settings, api, config) {
+function writeCSS(target, settings, api, config) {
   const { code, map } = transform({
-    filename: destination.path,
-    code: Buffer.from(destination.abstract.css),
+    filename: target.path,
+    code: Buffer.from(target.abstract.css),
     minify: true,
     targets: {
       chrome: 140 << 16,
@@ -26,7 +26,7 @@ function writeCSS(destination, settings, api, config) {
 
 
 /** @type {Votive.ReadText} */
-function readCSS(text, filePath, destinationPath, settings, api, config) {
+function readCSS(text, filePath, targetPath, settings, api, config) {
   const metadata = {}
   const abstract = {
     css: text
