@@ -1,4 +1,5 @@
 import path from "node:path"
+import openSocket from "voot/client.js"
 import rehypePresetMinify from "rehype-preset-minify"
 import rehypeStringify from "rehype-stringify"
 import { fromMarkdown } from 'mdast-util-from-markdown'
@@ -689,10 +690,23 @@ function writeFile(target, settings, api, config) {
 
 }
 
+/**
+ * Injects voot's live-reload client into a served HTML page - dev-server
+ * only, never touches what's written to disk.
+ * @param {Buffer} body
+ */
+function handlePreviewRequest(body) {
+  const html = body.toString("utf-8")
+  const fileSplit = html.split("</body>")
+  fileSplit.splice(1, 0, `<script>${openSocket.toString()}\n\nopenSocket()</script>`)
+  return fileSplit.join("")
+}
+
 const writeHTML = {
   extensions: [".html"],
   format: "text",
-  writeFile
+  writeFile,
+  handlePreviewRequest
 }
 
 
