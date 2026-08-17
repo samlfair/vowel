@@ -26,7 +26,7 @@ function writeCSS(target, settings, api, config) {
 
 
 /** @type {Votive.ReadText} */
-function readCSS(text, filePath, targetPath, settings, api, config) {
+function readCSS(text, filePath, targetPath, api, config) {
   const metadata = {}
   const abstract = {
     css: text

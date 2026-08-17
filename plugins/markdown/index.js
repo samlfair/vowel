@@ -52,7 +52,7 @@ function readURL(data) {
 
 
 /** @type {Votive.ReadText} */
-function readFile(string, filePath, targetPath, settings, api, config) {
+function readFile(string, filePath, targetPath, api, config) {
   const urls = []
 
   const mdast = fromMarkdown(string, {
@@ -149,22 +149,20 @@ function readFile(string, filePath, targetPath, settings, api, config) {
         const mdast = fromMarkdown(markdown)
         const hast = toHast(mdast)
 
-        const extant = api.target("tags.html")
-
-        // FIXME: Update abstract format
-        if (!extant) {
-          // Delete if unnecessary
-          api.createTarget({
-            path: `tags.html`,
-            abstract: hast,
-            metadata: {
-              breadcrumb: "Tags",
-              title: "Tags",
-              prettyURL: "/tags",
-              hastAbstract: hast,
-            }
-          })
-        }
+        // target.create() is upsert-safe and this is a deterministic
+        // function of a fixed string - re-creating it once per
+        // hashtag-bearing file converges to a no-op after the first,
+        // without needing to check whether it already exists first.
+        api.createTarget({
+          path: `tags.html`,
+          abstract: hast,
+          metadata: {
+            breadcrumb: "Tags",
+            title: "Tags",
+            prettyURL: "/tags",
+            hastAbstract: hast,
+          }
+        })
 
         if (hashtags) {
           if (!metadata.tags) {
