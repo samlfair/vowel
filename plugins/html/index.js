@@ -1,5 +1,6 @@
 import path from "node:path"
 import openSocket from "voot/client.js"
+import rehypeHighlight from "rehype-highlight"
 import rehypePresetMinify from "rehype-preset-minify"
 import rehypeStringify from "rehype-stringify"
 import { fromMarkdown } from 'mdast-util-from-markdown'
@@ -26,6 +27,7 @@ import { isExternalLinkParagraph } from "../urls/index.js"
 /** @import * as Votive from "votive" */
 /** @import * as Vowel from "./../../index.js" */
 
+const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
 
 /**
  * @param {array} array
@@ -115,6 +117,20 @@ function writeFile(target, settings, api, config) {
   const { metadata, ...rest } = target
   const abstract = metadata.hastAbstract
 
+  // Highlights fenced code blocks in place (adds an `hljs` class plus
+  // per-token spans to any <code class="language-x">) - run early, before
+  // treeStyleSheets below, so the stylesheet link can be added only for
+  // pages that actually end up with a highlighted block.
+  unified().use(rehypeHighlight).runSync(abstract)
+
+  let hasHighlightedCode = false
+  visit(abstract, { tagName: "code" }, (node) => {
+    if (node.properties?.className?.includes("hljs")) {
+      hasHighlightedCode = true
+      return EXIT
+    }
+  })
+
   /** @param {string} filePath */
   function listFolders(filePath) {
     if (!filePath) return []
@@ -162,6 +178,27 @@ function writeFile(target, settings, api, config) {
       })
     }
   })
+
+  if (hasHighlightedCode) {
+    if (!api.target("syntax-highlighting.css")) {
+      const syntaxHighlightingStylesPath = path.join(VOWEL_DIR, "stylesheets", "SyntaxHighlightingStyles.css")
+      const syntaxHighlightingStyles = readFileSync(syntaxHighlightingStylesPath, "utf-8")
+
+      api.createTarget({
+        path: "syntax-highlighting.css",
+        abstract: { css: syntaxHighlightingStyles },
+        metadata: {},
+        extension: "css"
+      })
+    }
+
+    treeStyleSheets.push(
+      h('link', {
+        rel: "stylesheet",
+        href: "/syntax-highlighting.css"
+      })
+    )
+  }
 
   function createTitle() {
     if (isRoot) {
