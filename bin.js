@@ -190,8 +190,45 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
 }
 
 
+/**
+ * Runs one registered command directly and exits - no dev server, no
+ * wizard, no cache-wiping. Reuses the exact handler a live "Publish"
+ * button would trigger over WS (see voot's runCommand/handleCommand) -
+ * this is just the other invocation path for the same registered
+ * function, meant for CI/automated use (e.g. `vowel --command deploy`).
+ * @param {string} name
+ * @param {string} [payloadJSON]
+ */
+async function runCLICommand(name, payloadJSON) {
+  const { runCommand } = await import("voot")
+
+  let payload
+  try {
+    payload = payloadJSON ? JSON.parse(payloadJSON) : undefined
+  } catch (e) {
+    console.error(`--payload must be valid JSON: ${e.message}`)
+    process.exitCode = 1
+    return
+  }
+
+  try {
+    const data = await runCommand(config, name, payload, message => {
+      console.info(message?.message ?? message)
+    })
+    if (data !== undefined) console.info(JSON.stringify(data))
+  } catch (e) {
+    console.error(e?.message || e)
+    process.exitCode = 1
+  }
+}
+
 async function main() {
   const args = parse(process.argv.slice(2))
+
+  if (args.command) {
+    await runCLICommand(args.command, args.payload)
+    return
+  }
 
   const dbExists = await exists(config.databasePath)
 
