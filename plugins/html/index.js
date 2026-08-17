@@ -702,11 +702,19 @@ function handlePreviewRequest(body) {
   return fileSplit.join("")
 }
 
+// Vowel always synthesizes a 404.html target (see readFolder in
+// markdown/index.js) - when a requested .html page doesn't exist, serve
+// that instead of an empty 404 body.
+function handlePreviewError() {
+  return "404.html"
+}
+
 const writeHTML = {
   extensions: [".html"],
   format: "text",
   writeFile,
-  handlePreviewRequest
+  handlePreviewRequest,
+  handlePreviewError
 }
 
 
