@@ -29,6 +29,13 @@ import { isExternalLinkParagraph } from "../urls/index.js"
 
 const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
 
+// Compiled from ./editor/SaveButton.svelte via rollup.config.js (`npm run
+// build:editor` from vowel's root) - a small dev-preview widget that
+// posts a timestamped file to voot's write endpoint, read once here and
+// inlined into every previewed page the same way openSocket's reload
+// client is below. See tasks/desktop-app-architecture.md, Part 3.
+const editorClientScript = readFileSync(path.join(import.meta.dirname, "editorClient.js"), "utf-8")
+
 /**
  * @param {array} array
  * @param {number} num
@@ -752,14 +759,18 @@ function writeFile(target, settings, api, config) {
 }
 
 /**
- * Injects voot's live-reload client into a served HTML page - dev-server
- * only, never touches what's written to disk.
+ * Injects voot's live-reload client and the dev-preview save widget into
+ * a served HTML page - dev-server only, never touches what's written to
+ * disk. This is the one place the CLI's own browser tab and an embedder
+ * pointing a native window at the same server (vowel-desktop) actually
+ * share UI - it's the same served HTML either way, so there's nothing
+ * per-host to build. See tasks/desktop-app-architecture.md, Part 3.
  * @param {Buffer} body
  */
 function handlePreviewRequest(body) {
   const html = body.toString("utf-8")
   const fileSplit = html.split("</body>")
-  fileSplit.splice(1, 0, `<script>${openSocket.toString()}\n\nopenSocket()</script>`)
+  fileSplit.splice(1, 0, `<script>${openSocket.toString()}\n\nopenSocket()</script><script>${editorClientScript}</script>`)
   return fileSplit.join("")
 }
 

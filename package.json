@@ -5,7 +5,8 @@
   "bin": "bin.js",
   "main": "index.js",
   "scripts": {
-    "test": "node --test tests/*.js"
+    "test": "node --test tests/*.js",
+    "build:editor": "cd plugins/html/editor && rollup -c"
   },
   "keywords": [
     "markdown",
@@ -15,6 +16,12 @@
   "author": "Sam Littlefair",
   "license": "MIT",
   "description": "Markdown websites",
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "rollup": "^4.0.0",
+    "rollup-plugin-svelte": "^7.2.3",
+    "svelte": "^5.56.9"
+  },
   "dependencies": {
     "@bomb.sh/args": "^0.3.1",
     "@bomb.sh/tab": "^0.0.15",
