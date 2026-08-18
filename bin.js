@@ -6,7 +6,12 @@ import { parse } from "@bomb.sh/args"
 import t from "@bomb.sh/tab"
 import votive from "votive"
 import { styleText } from "node:util"
-import { config } from "./config.js"
+import { createConfig } from "./config.js"
+
+// The CLI's own boundary: cwd is the project folder by convention (you
+// `cd` into your blog and run `vowel`), so "." is the right default here
+// specifically - see createConfig's own doc comment.
+const config = createConfig(".")
 
 /** @param {number} ms */
 function wait(ms) {
