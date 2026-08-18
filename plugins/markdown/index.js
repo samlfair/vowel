@@ -320,7 +320,7 @@ function readFolder(folder, settings, api, config, isRoot) {
       const prettyURL = "/"
       const indexPath = prettyURL + "/*"
 
-      const abstract = fromMarkdown(`# ${title}\n\n${indexPath}`)
+      const abstract = toHast(fromMarkdown(`# ${title}\n\n${indexPath}`))
       api.createTarget({
         abstract,
         path: "index.html",
