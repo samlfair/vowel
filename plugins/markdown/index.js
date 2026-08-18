@@ -1,6 +1,8 @@
 import path from "node:path"
 import { fromHtml } from 'hast-util-from-html'
 import { fromMarkdown } from 'mdast-util-from-markdown'
+import { highlightMarkFromMarkdown } from "mdast-util-highlight-mark"
+import { highlightMark } from "micromark-extension-highlight-mark"
 import { frontmatter } from "micromark-extension-frontmatter"
 import { frontmatterFromMarkdown } from 'mdast-util-frontmatter'
 import { gfmFootnote } from "micromark-extension-gfm-footnote"
@@ -10,46 +12,21 @@ import { gfmStrikethroughFromMarkdown } from 'mdast-util-gfm-strikethrough'
 import { gfmTable } from 'micromark-extension-gfm-table'
 import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
 import { normalizeHeadings } from 'mdast-normalize-headings'
-import toc from "@jsdevtools/rehype-toc"
 import { readFileSync } from "fs"
-import { testURL, testHashtags, createHashtagPage, toTitleCase, hashtagRegexSingle, createImagePaths, imageSizes, imageExts } from "./../../utils.js"
+import { testURL, testHashtags, createHashtagPage, toTitleCase, hashtagRegexSingle } from "./../../utils.js"
 import { toHast } from 'mdast-util-to-hast'
 import { toString as hastToString } from 'hast-util-to-string'
 import { visit } from "unist-util-visit"
 import getMetadata from "./metadata.js"
 import generateRobots from "./robots.js"
+import { h } from "hastscript"
+import { hash } from "node:crypto"
+import { styleText } from "node:util"
 
 const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
 
 /** @import * as Votive from "votive" */
 /** @import * as Vowel from "./../../index.js" */
-
-function readURL(data) {
-  const hast = fromHtml(data)
-  const metadata = {}
-
-  // TODO: Remove to a separate processor
-  visit(hast, (node) => {
-    if (node.tagName === "meta") {
-      if (node.properties && node.properties.property) {
-        metadata[node.properties.property] = node.properties.content
-      }
-    } else if (node.tagName === "title") {
-      metadata.title = hastToString(node)
-    } else if (node.tagName === "link") {
-      if (node.properties?.rel?.includes("me")) {
-        metadata.me = node.properties.href
-      } else if (node.properties?.rel?.includes("webmention")) {
-        metadata.webmention = node.properties.href
-      } else if (node.properties?.rel?.includes("icon")) {
-        metadata.icon = node.properties.href
-      }
-    }
-  })
-
-  return metadata
-}
-
 
 /** @type {Votive.ReadText} */
 function readFile(string, filePath, targetPath, api, config) {
@@ -61,13 +38,15 @@ function readFile(string, filePath, targetPath, api, config) {
       frontmatter(),
       gfmFootnote(),
       gfmStrikethrough(),
-      gfmTable()
+      gfmTable(),
+      highlightMark()
     ],
     mdastExtensions: [
       frontmatterFromMarkdown(),
       gfmFootnoteFromMarkdown(),
       gfmStrikethroughFromMarkdown(),
-      gfmTableFromMarkdown()
+      gfmTableFromMarkdown(),
+      highlightMarkFromMarkdown
     ]
   })
 
@@ -83,7 +62,22 @@ function readFile(string, filePath, targetPath, api, config) {
     }
   }
 
+
   if (metadata.fm_published === false) return
+
+  const secretFileName = metadata.secret_key && hash("MD5", filePath + metadata.secret_key)
+  const secretFileInfo = secretFileName && router({ name: secretFileName, dir: pathInfo.dir.split(path.sep), ext: ".html" })
+  const secretFilePath = secretFileInfo && path.format({ name: secretFileInfo.name, dir: secretFileInfo.dir.join(path.sep), ext: secretFileInfo.ext })
+  if(secretFilePath) {
+    const secretPrettyFilePath = "/" + secretFilePath.slice(0, -5)
+    metadata.prettyURL = secretPrettyFilePath
+    metadata.local_menu_item ??= false
+    metadata.global_menu_item ??= false
+    metadata.sitemap_item ??= false
+    metadata.rss_item ??= false
+    console.info(`${styleText("dim", "build: ")}: secret file path for ${filePath}: ${secretPrettyFilePath}`)
+  }
+
 
   visit(mdast, (node, index, parent) => {
     if (node.type === "text" && parent.children.length === 1 && parent.type === "paragraph") {
@@ -224,11 +218,16 @@ function readFile(string, filePath, targetPath, api, config) {
   }
 
 
-  const hast = toHast(mdast)
+  const hast = toHast(mdast, {
+    unknownHandler: (_, n, p) => n.type === "highlight" && h("mark", n.children)
+  })
 
   return {
     abstract: hast,
+    filePath: secretFilePath,
+    write: metadata.html_file ?? true,
     metadata: { ...metadata, hastAbstract: hast },
+    data: "hello",
     settings: pathInfo.base === "settings.md" ? metadata : undefined
   }
 }
@@ -462,7 +461,6 @@ const readMarkdown = {
   extensions: [".md"],
   format: "text",
   readFile,
-  readResource: readURL,
   transformFile,
   readFolder,
 }

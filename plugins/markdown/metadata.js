@@ -4,6 +4,12 @@ import { testURL, toTitleCase } from "./../../utils.js"
 import yaml from 'yaml'
 import path from "node:path"
 
+
+/**
+- menu_item: true | false
+- secret_url: true | false
+*/
+
 /**
  * @param {object} tree
  * @param {string} filePath
@@ -60,7 +66,12 @@ function getMetadata(tree, filePath, targetPath) {
       case "yaml":
         const frontmatter = yaml.parse(child.value)
         for (const key in frontmatter) {
-          metadata["fm_" + key] = frontmatter[key]
+          const reservedProperties = ["rss_item", "sitemap_item", "html_file", "global_menu_item", "local_menu_item", "secret_key", "theme", "logo", "wordmark", "breadcrumb"]
+          if (reservedProperties.includes(key)) {
+            metadata[key] = frontmatter[key]
+          } else {
+            metadata["fm_" + key] = frontmatter[key]
+          }
         }
         break
       default:
@@ -71,7 +82,7 @@ function getMetadata(tree, filePath, targetPath) {
 
 
   const pathInfo = path.parse(filePath)
-  
+
   metadata.inferred_label = toTitleCase(pathInfo.name)
 
   if (targetPath) {

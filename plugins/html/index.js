@@ -98,6 +98,21 @@ function makeHeader(metadata, url, api, config) {
 /** @type {Votive.ProcessorWrite} */
 function writeFile(target, settings, api, config) {
 
+  /** @param {string} relativePath */
+  function resolvePath(relativePath) {
+    if (relativePath.startsWith("./")) {
+      const dir = path.dirname(target.source)
+      const sourcePath = path.normalize(path.join(dir, relativePath))
+      const targetFile = api.targetBySource(sourcePath)
+      return targetFile.metadata.prettyURL
+    }
+  }
+
+  visit(target.metadata.hastAbstract, { tagName: "a" }, (n, i, p) => {
+    const resolvedPath = resolvePath(n.properties.href)
+    if(resolvedPath) n.properties.href = resolvedPath
+  })
+
   const isRoot = target.path === "index.html"
 
 
@@ -157,7 +172,14 @@ function writeFile(target, settings, api, config) {
     return api.targets({
       folder: Array.isArray(folder) ? path.join(...folder) : folder,
       recursive: false,
-      query: {}
+      query: {
+        "!": {
+          "|": {
+            local_menu_item: 0, // FIXME: Change to boolean,
+            html_file: 0
+          }
+        }
+      }
     })
   }).filter(({ path, dir }) => {
     return path && path !== "tags.html" && dir !== "tags"
@@ -623,6 +645,8 @@ function writeFile(target, settings, api, config) {
       && item.path !== "index.html"
       && item.path !== "404.html"
       && item.path !== "tags.html"
+      && item.metadata.global_menu_item !== 0 // FIXME: This data should come back as a boolean, not binary
+      && item.metadata.html_file !== 0
   })
     .map(getChildren)
 

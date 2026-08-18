@@ -9,13 +9,19 @@ const processor = {
   format: "text",
   writeFile: (target, settings, api) => {
     if (target.path === "sitemap.xml") {
-
       // FIXME move the filter to SQLite
       const pages = api
         .targets({
           folder: "",
           recursive: true,
-          query: {},
+          query: {
+            "!": {
+              "|": {
+                "sitemap_item": false,
+                "html_file": false
+              }
+            }
+          },
         })
         .filter(a => a.extension === ".html" && a.path)
 
@@ -63,7 +69,11 @@ const processor = {
     } else if (target.path === "feed.xml") {
 
       const pages = api.targets({
-        query: {},
+        query: {
+          "!": {
+            rss_item: false
+          }
+        },
         folder: "",
         recursive: true,
         orderBy: { property: "date", direction: "desc" }
@@ -85,7 +95,7 @@ const processor = {
         },
         {
           title: target.metadata.title
-        }
+        },
       )
 
 
@@ -117,7 +127,6 @@ const processor = {
         ...pages.map((page) => {
           const url = (new URL(page.path, domain)).href
 
-
           /** @type {object[]} */
           const entry = [
             {
@@ -148,6 +157,10 @@ const processor = {
               }
             });
           }
+
+          entry.push({
+            content: page.data
+          })
 
           // TODO consider rendering full page in RSS
 

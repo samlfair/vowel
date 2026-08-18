@@ -30,7 +30,7 @@ See the docs: [vowel.cc](https://vowel.cc).
   - [x] Explicit asset handling
   - [.] Change "job" to "resources"
     - [.] ReadResource types
-  - [.] Processor utilities param
+  - [x] Processor utilities param
   - [.] Delete old SQLite logic
   - [.] Make metadata explicit in SQLiteTarget type
   - [x] Add SQLite begin/commit logic
@@ -41,7 +41,7 @@ See the docs: [vowel.cc](https://vowel.cc).
   - [x] Homepage in global nav
   - [x] Metadata in header
   - [x] Page list sort
-  - [.] Limit in sort
+  - [x] Limit in sort
 - [x] Metafiles
   - [x] Robots.txt
   - [x] Sitemap.xml
@@ -55,6 +55,7 @@ See the docs: [vowel.cc](https://vowel.cc).
   - [ ] Mermaid
   - [x] Slogan
   - [x] TOC
+  - [x] ==mark==
 - [ ] Non-urgent fixes / improvements
   - [ ] Compare metadata on file update
   - [x] Prune/cleanup step
@@ -105,13 +106,12 @@ See the docs: [vowel.cc](https://vowel.cc).
 - [x] Dates
 - [x] robots.txt
 - [x] sitemap.xml
-- [ ] 404.html
+- [x] 404.html
 - [ ] Better URL normalization (see notes)
 - [x] Name casing
 - [x] TUI
   - [x] Create settings.md
     - [x] Site title
-    - [x] Domain
     - [ ] Webmentions
     - [x] Logo
     - [x] Wordmark
@@ -127,7 +127,7 @@ See the docs: [vowel.cc](https://vowel.cc).
 - [x] Custom CSS
   - [x] styles.css
   - [ ] Any CSS file
-- [ ] Tags
+- [x] Tags
 - [ ] Date format settings
 - [ ] ::mark::
 - [x] Infer images
@@ -142,7 +142,7 @@ See the docs: [vowel.cc](https://vowel.cc).
 - [ ] Handle external links
 - [x] Admonitions
 - [ ] Use hgroup for site title, page title, etc
-- [ ] Images as `<figure>`
+- [x] Images as `<figure>`
 - [ ] Hidden routes
 - [ ] Frontmatter settings
   - [ ] HTML
@@ -162,8 +162,8 @@ See the docs: [vowel.cc](https://vowel.cc).
 - [ ] Image optimization (unpic)
 - [ ] [SVG by mask](https://pqina.nl/blog/set-svg-background-image-fill-color/) and [CSS icons](https://antfu.me/posts/icons-in-pure-css)
 - [ ] WYSIWYG editor
-- [ ] Better signals
-  - [ ] File-written callback
+- [x] Better signals
+  - [x] File-written callback
 - [ ] Themes
 - [ ] Deploy
   - [ ] Cloudflare pages
@@ -179,7 +179,7 @@ See the docs: [vowel.cc](https://vowel.cc).
   - [ ] Image
   - [ ] URL
   - [ ] Date
-- [ ] TOC
+- [x] TOC
 - [ ] Versioning/publishing script
 - [ ] Verify all element types from Obsidian
 - [ ] Order/position/kanban
