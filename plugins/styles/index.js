@@ -1,3 +1,4 @@
+import path from "node:path"
 import { transform } from "lightningcss"
 
 /** @import * as Votive from "votive" */
@@ -35,7 +36,15 @@ function readCSS(text, filePath, targetPath, api, config) {
   return {
     metadata,
     abstract,
-    settings: { stylesheets: [filePath] }
+    // filePath is the absolute source path (see readSources.js's plugin
+    // contract) - html/index.js's `href: /${sheet}` build expects a
+    // sourceFolder-relative, routable reference instead (matching the
+    // bare "reset.css"/"typography.css" built-ins below in
+    // markdown/index.js), or it renders a broken `//absolute/fs/path`
+    // href (a protocol-relative URL the browser tries to fetch from a
+    // host named "workspaces", not a real stylesheet - found via a real
+    // build, not by inspection).
+    settings: { stylesheets: [path.relative(config.sourceFolder, filePath)] }
   }
 }
 
