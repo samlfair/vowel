@@ -1,4 +1,5 @@
 import path from "node:path"
+import { hash } from "node:crypto"
 import openSocket from "voot/client.js"
 import rehypeHighlight from "rehype-highlight"
 import rehypePresetMinify from "rehype-preset-minify"
@@ -197,7 +198,24 @@ function writeFile(target, settings, api, config) {
   Object.values(settings.stylesheets).forEach(file => {
     if (file) {
       file.forEach(sheet => {
-        const cacheBuster = Math.random().toString(36).slice(2, 10);
+        // Content hash, not Math.random() - a random value here changed
+        // on every rebuild regardless of whether the CSS actually did,
+        // which meant this <link>'s href always differed from the
+        // previous build, which meant voot/client.js's head-diff always
+        // saw a "change" and always fell back to a full page reload
+        // instead of a selective DOM patch. See
+        // tasks/css-cache-buster-bug.md. Hashing the raw source (stored
+        // at read time, styles/index.js's readCSS) rather than the
+        // minified output - the processed CSS isn't persisted back into
+        // the database, only written to disk - and lightningcss's
+        // transform is deterministic for a fixed target-browser config,
+        // so identical raw source always produces identical output.
+        // Bonus over Math.random(): api.target() registers a real
+        // dependency from this page to the stylesheet it references.
+        const stylesheetTarget = api.target(sheet)
+        const cacheBuster = stylesheetTarget?.abstract?.css
+          ? hash("MD5", stylesheetTarget.abstract.css).slice(0, 8)
+          : ""
         treeStyleSheets.push(
           h('link', {
             rel: "stylesheet",
