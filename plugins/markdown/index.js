@@ -227,7 +227,6 @@ function readFile(string, filePath, targetPath, api, config) {
     filePath: secretFilePath,
     write: metadata.html_file ?? true,
     metadata: { ...metadata, hastAbstract: hast },
-    data: "hello",
     settings: pathInfo.base === "settings.md" ? metadata : undefined
   }
 }
