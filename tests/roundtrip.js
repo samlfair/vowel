@@ -4,6 +4,7 @@ import { parseHTML } from "linkedom"
 
 import ingest from "../plugins/html/editor/ingest.js"
 import serialize from "../plugins/html/editor/serialize.js"
+import readFrontmatter from "../plugins/html/editor/frontmatter.js"
 import { globClasses, dirClasses, folderFromClasses, globParams, globDirective } from "../plugins/html/editor/directives.js"
 
 /**
@@ -157,4 +158,52 @@ test("glob directives round trip", () => {
     assert.deepEqual(globParams(classes), params, JSON.stringify(params))
     assert.ok(globDirective(globParams(classes)).startsWith("/"))
   }
+})
+
+test("frontmatter values round trip by type", () => {
+  const { document } = parseHTML(`<main>
+    <h1>The Title</h1>
+    <time datetime="2026-03-04T00:00:00.000Z" itemprop="date">March 4, 2026</time>
+    <p itemprop="description">A description.</p>
+    <dl><dt>tags</dt><dd><ul><li>design</li><li>code</li></ul></dd></dl>
+    <dl><dt>author</dt><dd><dl><dt>name</dt><dd>Sam</dd><dt>url</dt><dd><a href="https://example.com">https://example.com</a></dd></dl></dd></dl>
+    <dl><dt>count</dt><dd>5</dd></dl>
+    <dl><dt>draft</dt><dd>true</dd></dl>
+    <section id="content"><p>Body.</p></section>
+  </main>`)
+
+  const { title, properties } = readFrontmatter(document.querySelector("main"))
+
+  assert.equal(title, "The Title")
+  assert.deepEqual(properties, {
+    // Midnight UTC comes back as a plain date, not an ISO timestamp.
+    date: "2026-03-04",
+    description: "A description.",
+    tags: ["design", "code"],
+    author: { name: "Sam", url: "https://example.com" },
+    count: 5,
+    draft: true
+  })
+})
+
+test("the title is written as a heading, never as a frontmatter key", () => {
+  const { document } = parseHTML('<section id="content"><p>Body.</p></section>')
+  let n = 0
+  const { doc } = ingest(document.getElementById("content"), () => `n${n++}`)
+
+  const markdown = serialize(doc, { title: "The Title", properties: { layout: "page" } })
+  assert.equal(markdown, "---\nlayout: page\n---\n\n# The Title\n\nBody.\n")
+})
+
+test("a page with no frontmatter emits no fence", () => {
+  const { document } = parseHTML('<section id="content"><p>Body.</p></section>')
+  let n = 0
+  const { doc } = ingest(document.getElementById("content"), () => `n${n++}`)
+
+  assert.equal(serialize(doc, { title: null, properties: {} }), "Body.\n")
+})
+
+test("a date left in the body survives as plain text", () => {
+  const { markdown } = roundtrip('<p><time datetime="2026-01-15T00:00:00.000Z">2026-01-15</time></p>')
+  assert.equal(markdown, "2026-01-15")
 })

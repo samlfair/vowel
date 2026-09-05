@@ -6,6 +6,7 @@
 // literal "*" has to come back out as "\*".
 
 import { toMarkdown } from "mdast-util-to-markdown"
+import { stringify as stringifyYAML } from "yaml"
 import { gfmStrikethroughToMarkdown } from "mdast-util-gfm-strikethrough"
 import { highlightMarkToMarkdown } from "mdast-util-highlight-mark"
 
@@ -125,15 +126,16 @@ function blockFrom(id, nodes) {
 
 /**
  * @param {{document_id: string, nodes: Record<string, object>}} doc
+ * @param {{title: string|null, properties: object}} [frontmatter]
  * @returns {string}
  */
-export default function serialize(doc) {
+export default function serialize(doc, frontmatter = { title: null, properties: {} }) {
   const page = doc.nodes[doc.document_id]
   const children = page.body.nodes
     .map(id => blockFrom(id, doc.nodes))
     .filter(Boolean)
 
-  return toMarkdown({ type: "root", children }, {
+  const body = toMarkdown({ type: "root", children }, {
     extensions: [gfmStrikethroughToMarkdown(), highlightMarkToMarkdown],
     bullet: "-",
     emphasis: "_",
@@ -141,4 +143,15 @@ export default function serialize(doc) {
     fences: true,
     rule: "-"
   })
+
+  // The title is written as a heading rather than a frontmatter key, so a
+  // page whose title only ever lived in frontmatter gains one here.
+  const heading = frontmatter.title ? `# ${frontmatter.title}\n\n` : ""
+
+  const properties = frontmatter.properties || {}
+  const yaml = Object.keys(properties).length
+    ? `---\n${stringifyYAML(properties)}---\n\n`
+    : ""
+
+  return yaml + heading + body
 }

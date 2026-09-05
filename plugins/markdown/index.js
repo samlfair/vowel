@@ -11,7 +11,7 @@ import { gfmStrikethrough } from 'micromark-extension-gfm-strikethrough'
 import { gfmStrikethroughFromMarkdown } from 'mdast-util-gfm-strikethrough'
 import { gfmTable } from 'micromark-extension-gfm-table'
 import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
-import { normalizeHeadings } from 'mdast-normalize-headings'
+import { normalizeHeadingLevels } from './metadata.js'
 import { readFileSync } from "fs"
 import { testURL, testHashtags, createHashtagPage, toTitleCase, hashtagRegexSingle } from "./../../utils.js"
 import { toHast } from 'mdast-util-to-hast'
@@ -50,7 +50,7 @@ function readFile(string, filePath, targetPath, api, config) {
     ]
   })
 
-  normalizeHeadings(mdast)
+  normalizeHeadingLevels(mdast)
   const pathInfo = path.parse(filePath)
 
   const metadata = getMetadata(mdast, filePath, targetPath)
@@ -219,7 +219,10 @@ function readFile(string, filePath, targetPath, api, config) {
 
 
   const hast = toHast(mdast, {
-    unknownHandler: (_, n, p) => n.type === "highlight" && h("mark", n.children)
+    unknownHandler: (_, n, p) => {
+      if (n.type === "highlight") return h("mark", n.children)
+      if (n.type === "time") return h("time", { datetime: n.datetime }, n.children)
+    }
   })
 
   return {

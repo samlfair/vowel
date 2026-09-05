@@ -14,8 +14,9 @@ import { gfmTable } from 'micromark-extension-gfm-table'
 import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
 import { h } from 'hastscript'
 import { readFileSync } from "fs"
-import { remove } from "unist-util-remove"
 import { testURL, testHashtags, createHashtagPage, toTitleCase, hashtagRegexSingle, createImagePaths, imageSizes, imageExts } from "./../../utils.js"
+import extractDate from "./../../extractDate.js"
+import { reservedProperties } from "./../markdown/metadata.js"
 import { toString as hastToString } from 'hast-util-to-string'
 import { unified } from "unified"
 import { EXIT, SKIP, visit } from "unist-util-visit"
@@ -65,19 +66,7 @@ function makeHeader(metadata, url, api, config) {
 
   if (metadata.date) {
     const date = new Date(metadata.date)
-    treeMainHead.push(
-      h("time",
-        {
-          datetime: date.toISOString(),
-          itemprop: "date"
-        },
-        date.toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric"
-        })
-      )
-    )
+    treeMainHead.push(makeTime(date))
   }
 
   if (metadata.image || (metadata.first_image && url)) {
@@ -88,18 +77,108 @@ function makeHeader(metadata, url, api, config) {
     )
   }
 
-  if (metadata.fm_description) treeMainHead.push(
+  if (metadata.description) treeMainHead.push(
     h("p",
       {
         itemprop: "description"
       },
-      metadata.fm_description
+      metadata.description
     )
   )
 
   if (url) return h('a', { href: url }, treeMainHead)
 
   return treeMainHead
+}
+
+/** @param {Date} date */
+function makeTime(date) {
+  return h("time",
+    {
+      datetime: date.toISOString(),
+      itemprop: "date"
+    },
+    date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    })
+  )
+}
+
+/**
+ * Renders one frontmatter value by its type. Arrays become lists and
+ * objects nested description lists, so the shape survives into the HTML
+ * and the editor can read it back without being told what it was.
+ * @param {unknown} value
+ */
+function makeValue(value) {
+  if (Array.isArray(value)) {
+    return h("ul", value.map(item => h("li", makeValue(item))))
+  }
+
+  if (value instanceof Date) return makeTime(value)
+
+  if (value && typeof value === "object") {
+    const rows = Object.entries(value).flatMap(([key, nested]) => {
+      return [h("dt", key), h("dd", makeValue(nested))]
+    })
+    return h("dl", rows)
+  }
+
+  if (typeof value !== "string") return String(value)
+
+  // extractDate returns an Invalid Date for things that merely look
+  // date-shaped (a version string, an ISBN), so the guard matters.
+  const date = extractDate(value)
+  if (date && !isNaN(date)) return makeTime(date)
+
+  if (testURL(value)) return h("a", { href: value }, value)
+
+  return value
+}
+
+/**
+ * The page's own frontmatter, one single-item <dl> per property, rendered
+ * as children of <main> beside section#content. Properties vowel handles
+ * specially get their own element instead - a bare <time> or <picture>,
+ * identified by itemprop - since a description list adds nothing there.
+ *
+ * Only frontmatter is rendered. Data inferred from the content (a date the
+ * author wrote at the top of the page) stays where they put it, marked up
+ * in place by the markdown plugin.
+ *
+ * @param {object} metadata
+ * @param {import("votive").PluginAPI} api
+ * @param {Votive.VotiveConfig} config
+ */
+function makeFrontmatter(metadata, api, config) {
+  const handled = ["title", "date", "image", "description"]
+
+  const properties = (metadata.frontmatter_keys || []).filter(key => {
+    return !handled.includes(key)
+  })
+
+  const known = []
+
+  if (metadata.fm_date) {
+    known.push(makeTime(new Date(metadata.fm_date)))
+  }
+
+  if (metadata.fm_image) {
+    known.push(createDynamicImage(metadata.fm_image, api, null, true))
+  }
+
+  if (metadata.fm_description) {
+    known.push(h("p", { itemprop: "description" }, metadata.fm_description))
+  }
+
+  const generic = properties.map(key => {
+    const name = reservedProperties.includes(key) ? key : "fm_" + key
+    return h("dl", [h("dt", key), h("dd", makeValue(metadata[name]))])
+  })
+
+  return [...known, ...generic]
 }
 
 /** @type {Votive.ProcessorWrite} */
@@ -466,7 +545,7 @@ function writeFile(target, settings, api, config) {
 
   const treeTableOfContents = treeContentSlugged.children.shift()
 
-  const treeMainHead = makeHeader(metadata, null, api, config)
+  const treeMainHead = makeFrontmatter(metadata, api, config)
 
   treeMainHead.push(treeTableOfContents)
 
@@ -574,12 +653,6 @@ function writeFile(target, settings, api, config) {
     // console.log(JSON.stringify(abstract, null, 2))
   }
 
-  try {
-    remove(abstract, (n, i, p) => p.type === "root" && n.tagName === "h1")
-  } catch (e) {
-    // console.log(JSON.stringify(abstract, null, 2))
-  }
-
   // function copyTreeWithoutArticles(tree) {
   //   if (tree.tagName !== 'article') {
   //     return {
@@ -599,6 +672,9 @@ function writeFile(target, settings, api, config) {
       itemscope: true
     },
     [
+      // The title is main's first child: the one piece of data hoisted out
+      // of the content regardless of where the author placed it.
+      ...(metadata.title ? [h("h1", metadata.title)] : []),
       h('nav', {
         'aria-label': 'Breadcrumbs'
       }, treeBreadcrumbs),

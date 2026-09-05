@@ -3,6 +3,7 @@
   import { Svedit, KeyMapper } from "svedit"
   import create_session from "./create-session.js"
   import serialize from "./serialize.js"
+  import readFrontmatter from "./frontmatter.js"
   import Toolbar from "./Toolbar.svelte"
 
   export let element
@@ -11,12 +12,20 @@
   let unrecognised = []
   let editable = false
 
+  // The title and frontmatter live in <main>, alongside section#content
+  // rather than inside it. They round trip unchanged for now - reading
+  // them is what lets a save reproduce the whole file.
+  let frontmatter = { title: null, properties: {} }
+
   const key_mapper = new KeyMapper()
   setContext("key_mapper", key_mapper)
 
   onMount(() => {
     // Ingest reads the server-rendered DOM, so it has to run before
     // anything clears it.
+    const main = element.closest("main")
+    if (main) frontmatter = readFrontmatter(main)
+
     const result = create_session(element)
     unrecognised = result.unrecognised
 
@@ -34,11 +43,12 @@
     session = result.session
   })
 
-  // Experimental: the markdown is logged, not written. Wiring this to
-  // voot's write endpoint needs a body-only write mode first, or saving
-  // would drop the file's front matter.
+  // Experimental: the markdown is logged, not written. The whole file is
+  // reproduced - frontmatter, title and body - so wiring this to voot's
+  // write endpoint is now a matter of posting it rather than of teaching
+  // the server to preserve anything.
   function save() {
-    const markdown = serialize(session.doc)
+    const markdown = serialize(session.doc, frontmatter)
     console.info("[vowel] markdown for %s\n\n%s", window.location.pathname, markdown)
     return markdown
   }

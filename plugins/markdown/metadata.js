@@ -10,6 +10,125 @@ import path from "node:path"
 - secret_url: true | false
 */
 
+// Frontmatter keys that are vowel's own controls rather than content, and
+// so keep their bare name instead of being prefixed.
+export const reservedProperties = [
+  "rss_item",
+  "sitemap_item",
+  "html_file",
+  "global_menu_item",
+  "local_menu_item",
+  "secret_key",
+  "theme",
+  "logo",
+  "wordmark",
+  "breadcrumb"
+]
+
+/**
+ * A "#" heading is the page title only in first position (frontmatter
+ * aside). Anywhere else it is an ordinary heading and gets demoted to h2
+ * by normalizeHeadingLevels.
+ * @param {object} tree
+ */
+export function findTitleNode(tree) {
+  const [first] = tree.children.filter(child => child.type !== "yaml")
+  if (!first) return null
+  if (first.type !== "heading" || first.depth !== 1) return null
+  return first
+}
+
+/**
+ * Replaces mdast-normalize-headings, which shifts every heading to
+ * guarantee a single h1 - a different rule that would fight this one.
+ * @param {object} tree
+ */
+export function normalizeHeadingLevels(tree) {
+  const titleNode = findTitleNode(tree)
+
+  for (const child of tree.children) {
+    if (child.type !== "heading") continue
+    if (child === titleNode) continue
+    if (child.depth === 1) child.depth = 2
+  }
+}
+
+/**
+ * Marks a recognized date in place so it renders as <time> without moving
+ * out of the content. The editor reads the element's text back, so the
+ * author's own wording survives the round trip and the markup is simply
+ * re-inferred on the next build.
+ * @param {object} paragraph
+ * @param {Date} date
+ */
+function markAsTime(paragraph, date) {
+  paragraph.children = [{
+    type: "time",
+    datetime: date.toISOString(),
+    children: paragraph.children
+  }]
+}
+
+/**
+ * Recognizable data that may precede the content. Each block is recorded
+ * where the author placed it and never relocated - only the title is
+ * hoisted (see findTitleNode). Adding another inferred property later (an
+ * ISBN, say) means adding a branch here, not new plumbing.
+ *
+ * @param {object} block
+ * @param {object} metadata
+ * @returns {boolean} whether the block was recognizable data
+ */
+function recognizeData(block, metadata) {
+  if (block.type !== "paragraph") return false
+  if (block.children.length !== 1) return false
+
+  const [child] = block.children
+
+  if (child.type === "image") {
+    metadata.inferred_image = child.url
+    metadata.inferred_alt_text = child.alt
+    return true
+  }
+
+  const text = mdastToString(block)
+
+  if (testURL(text)) {
+    const url = new URL(text)
+    if (text.match(/\.(jpeg|jpg|png)$/)) {
+      metadata.inferred_image = url
+    } else {
+      metadata.inferred_link = url
+    }
+    return true
+  }
+
+  const date = extractDate(text)
+  if (!date) return false
+
+  metadata.inferred_date = date
+  markAsTime(block, date)
+  return true
+}
+
+/**
+ * @param {object} node
+ * @param {object} metadata
+ */
+function readFrontmatter(node, metadata) {
+  const frontmatter = yaml.parse(node.value)
+
+  for (const key in frontmatter) {
+    const name = reservedProperties.includes(key) ? key : "fm_" + key
+    metadata[name] = frontmatter[key]
+  }
+
+  // Recorded because presence alone cannot distinguish a property the
+  // author wrote from one selectMetadata derived: breadcrumb defaults to
+  // the title, and would otherwise render as though it had been declared.
+  metadata.frontmatter_keys = Object.keys(frontmatter)
+}
+
 /**
  * @param {object} tree
  * @param {string} filePath
@@ -18,68 +137,32 @@ import path from "node:path"
 function getMetadata(tree, filePath, targetPath) {
   const metadata = {}
 
-  for (let i = 0; i < tree.children.length; i++) {
-    const child = tree.children[i]
-    const text = mdastToString(child)
-    switch (child.type) {
-      case "paragraph":
-        if (child.children.length !== 1) {
-          if (!metadata.fm_description && !metadata.inferred_description) {
-            metadata.inferred_description = text
-          }
-          i = Infinity
-          break
-        } else if (child.children[0].type === "image") {
-          metadata.inferred_image = child.children[0].url
-          metadata.inferred_alt_text = child.children[0].alt
-          break
-        } else if (testURL(text)) {
-          const url = new URL(text)
-          if (text.match(/\.(jpeg|jpg|png)$/)) {
-            metadata.inferred_image = url
-            break
-          } else {
-            metadata.inferred_link = url
-            break
-          }
-        } else {
-          const inferred_date = extractDate(mdastToString(child))
-          if (inferred_date) {
-            metadata.inferred_date = inferred_date
-          } else {
-            if (!metadata.fm_description && !metadata.inferred_description) {
-              metadata.inferred_description = text
-            }
-            // tree.children.splice(0, i + 1)
-            i = Infinity
-          }
-          break
-        }
-      case "heading":
-        if (child.depth === 1) {
-          metadata.inferred_title = mdastToString(child) || toTitleCase(path.parse(filePath).name)
-          tree.children.splice(0, i + 1)
-        } else {
-          i = Infinity;
-        }
-        break
-      case "yaml":
-        const frontmatter = yaml.parse(child.value)
-        for (const key in frontmatter) {
-          const reservedProperties = ["rss_item", "sitemap_item", "html_file", "global_menu_item", "local_menu_item", "secret_key", "theme", "logo", "wordmark", "breadcrumb"]
-          if (reservedProperties.includes(key)) {
-            metadata[key] = frontmatter[key]
-          } else {
-            metadata["fm_" + key] = frontmatter[key]
-          }
-        }
-        break
-      default:
-        i = Infinity
-        break
-    }
+  const frontmatterNode = tree.children.find(child => child.type === "yaml")
+  if (frontmatterNode) readFrontmatter(frontmatterNode, metadata)
+
+  const titleNode = findTitleNode(tree)
+  if (titleNode) {
+    metadata.inferred_title = mdastToString(titleNode) || toTitleCase(path.parse(filePath).name)
   }
 
+  // Everything up to the first block that is not recognizable data is
+  // metadata; that first block is where the content begins, and it also
+  // supplies the description.
+  const blocks = tree.children.filter(child => child.type !== "yaml" && child !== titleNode)
+
+  for (const block of blocks) {
+    const recognized = recognizeData(block, metadata)
+    if (recognized) continue
+
+    if (!metadata.fm_description) metadata.inferred_description = mdastToString(block)
+    break
+  }
+
+  // The title is the single exception to leaving data in place: it is
+  // hoisted out of the content and rendered as main's first child.
+  if (titleNode) {
+    tree.children.splice(tree.children.indexOf(titleNode), 1)
+  }
 
   const pathInfo = path.parse(filePath)
 
