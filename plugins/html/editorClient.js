@@ -113,6 +113,7 @@
 	const ERROR_VALUE = 1 << 23;
 
 	const STATE_SYMBOL = Symbol('$state');
+	const LEGACY_PROPS = Symbol('legacy props');
 	const ATTRIBUTES_CACHE = Symbol('attributes');
 	const CLASS_CACHE = Symbol('class');
 	const STYLE_CACHE = Symbol('style');
@@ -219,6 +220,9 @@
 		}
 	}
 
+	const PROPS_IS_RUNES = 1 << 1;
+	const PROPS_IS_UPDATED = 1 << 2;
+	const PROPS_IS_BINDABLE = 1 << 3;
 	const TEMPLATE_USE_IMPORT_NODE = 1 << 1;
 
 	const UNINITIALIZED = Symbol('uninitialized');
@@ -485,6 +489,35 @@
 
 		// mark as clean so they get scheduled if they depend on pending async state
 		set_signal_status(effect, CLEAN);
+	}
+
+	/** @import { StoreReferencesContainer } from '#client' */
+	/** @import { Store } from '#shared' */
+
+	/**
+	 * Whether or not the prop currently being read is a store binding, as in
+	 * `<Child bind:x={$y} />`. If it is, we treat the prop as mutable even in
+	 * runes mode, and skip `binding_property_non_reactive` validation
+	 */
+	let is_store_binding = false;
+
+	/**
+	 * Returns a tuple that indicates whether `fn()` reads a prop that is a store binding.
+	 * Used to prevent `binding_property_non_reactive` validation false positives and
+	 * ensure that these props are treated as mutable even in runes mode
+	 * @template T
+	 * @param {() => T} fn
+	 * @returns {[T, boolean]}
+	 */
+	function capture_store_binding(fn) {
+		var previous_is_store_binding = is_store_binding;
+
+		try {
+			is_store_binding = false;
+			return [fn(), is_store_binding];
+		} finally {
+			is_store_binding = previous_is_store_binding;
+		}
 	}
 
 	/**
@@ -1883,6 +1916,7 @@
 			}
 
 			if (next_batch !== null) {
+				old_values.clear();
 				next_batch.#process();
 			}
 		}
@@ -2701,7 +2735,13 @@
 	 */
 	function internal_set(source, value, updated_during_traversal = null) {
 		if (!source.equals(value)) {
-			old_values.set(source, is_destroying_effect ? value : source.v);
+			if (is_destroying_effect) {
+				old_values.set(source, value);
+			} else if (!old_values.has(source)) {
+				// only record the value from before the first write in this flush, otherwise a
+				// teardown would see the value from before whichever write happened to be last
+				old_values.set(source, source.v);
+			}
 
 			var batch = Batch.ensure();
 			batch.capture(source, value);
@@ -3470,14 +3510,6 @@
 				}
 			});
 		};
-	}
-
-	/**
-	 * @param {() => void | (() => void)} fn
-	 * @returns {Effect}
-	 */
-	function effect(fn) {
-		return create_effect(EFFECT, fn);
 	}
 
 	/**
@@ -4559,11 +4591,14 @@
 	}
 
 	// used to store the reference to the currently propagated event
-	// to prevent garbage collection between microtasks in Firefox
+	// to prevent garbage collection between microtasks in Firefox (<= 141)
 	// If the event object is GCed too early, the expando __root property
 	// set on the event object is lost, causing the event delegation
 	// to process the event twice
 	let last_propagated_event = null;
+
+	// whether a task is already queued to clear `last_propagated_event`
+	let last_propagated_event_clear_scheduled = false;
 
 	/**
 	 * @this {EventTarget}
@@ -4578,6 +4613,21 @@
 		var current_target = /** @type {null | Element} */ (path[0] || event.target);
 
 		last_propagated_event = event;
+
+		// The reference is only needed while the event can still reach another
+		// delegated root, i.e. during the current (synchronous) dispatch and its
+		// microtask checkpoints. Clearing it in a later task preserves the
+		// Firefox workaround while making sure the slot doesn't retain the last
+		// event forever — through `event.target` it would otherwise keep the
+		// entire detached subtree of whatever the user last clicked in alive
+		// until the next delegated event happens to arrive.
+		if (!last_propagated_event_clear_scheduled) {
+			last_propagated_event_clear_scheduled = true;
+			setTimeout(() => {
+				last_propagated_event_clear_scheduled = false;
+				last_propagated_event = null;
+			});
+		}
 
 		// composedPath contains list of nodes the event has propagated through.
 		// We check `event_symbol` to skip all nodes below it in case this is a
@@ -5205,31 +5255,6 @@
 		}, flags);
 	}
 
-	/**
-	 * @param {Node} anchor
-	 * @param {{ hash: string, code: string }} css
-	 */
-	function append_styles(anchor, css) {
-		// Use `queue_micro_task` to ensure `anchor` is in the DOM, otherwise getRootNode() will yield wrong results
-		effect(() => {
-			var root = anchor.getRootNode();
-
-			var target = /** @type {ShadowRoot} */ (root).host
-				? /** @type {ShadowRoot} */ (root)
-				: /** @type {Document} */ (root).head ?? /** @type {Document} */ (root.ownerDocument).head;
-
-			// Always querying the DOM is roughly the same perf as additionally checking for presence in a map first assuming
-			// that you'll get cache hits half of the time, so we just always query the dom for simplicity and code savings.
-			if (!target.querySelector('#' + css.hash)) {
-				const style = create_element('style');
-				style.id = css.hash;
-				style.textContent = css.code;
-
-				target.appendChild(style);
-			}
-		});
-	}
-
 	/** @import { ComponentContextLegacy } from '#client' */
 
 	/**
@@ -5308,6 +5333,154 @@
 		props();
 	}
 
+	/** @import { Derived, Effect, Source } from './types.js' */
+
+	/**
+	 * This function is responsible for synchronizing a possibly bound prop with the inner component state.
+	 * It is used whenever the compiler sees that the component writes to the prop, or when it has a default prop_value.
+	 * @template V
+	 * @param {Record<string, unknown>} props
+	 * @param {string} key
+	 * @param {number} flags
+	 * @param {V | (() => V)} [fallback]
+	 * @returns {(() => V | ((arg: V) => V) | ((arg: V, mutation: boolean) => V))}
+	 */
+	function prop(props, key, flags, fallback) {
+		var runes = !legacy_mode_flag || (flags & PROPS_IS_RUNES) !== 0;
+		var bindable = (flags & PROPS_IS_BINDABLE) !== 0;
+
+		var fallback_value = /** @type {V} */ (fallback);
+		var fallback_dirty = true;
+
+		var get_fallback = () => {
+
+			if (fallback_dirty) {
+				fallback_dirty = false;
+
+				fallback_value = /** @type {V} */ (fallback);
+			}
+
+			return fallback_value;
+		};
+
+		/** @type {((v: V) => void) | undefined} */
+		let setter;
+
+		{
+			// Can be the case when someone does `mount(Component, props)` with `let props = $state({...})`
+			// or `createClassComponent(Component, props)`
+			var is_entry_props = STATE_SYMBOL in props || LEGACY_PROPS in props;
+
+			setter =
+				get_descriptor(props, key)?.set ??
+				(is_entry_props && key in props ? (v) => (props[key] = v) : undefined);
+		}
+
+		/** @type {V} */
+		var initial_value;
+		var is_store_sub = false;
+
+		{
+			[initial_value, is_store_sub] = capture_store_binding(() => /** @type {V} */ (props[key]));
+		}
+
+		/** @type {() => V} */
+		var getter;
+
+		if (runes) {
+			getter = () => {
+				var value = /** @type {V} */ (props[key]);
+				if (value === undefined) return get_fallback();
+				fallback_dirty = true;
+				return value;
+			};
+		} else {
+			getter = () => {
+				var value = /** @type {V} */ (props[key]);
+
+				if (value !== undefined) {
+					// in legacy mode, we don't revert to the fallback value
+					// if the prop goes from defined to undefined. The easiest
+					// way to model this is to make the fallback undefined
+					// as soon as the prop has a value
+					fallback_value = /** @type {V} */ (undefined);
+				}
+
+				return value === undefined ? fallback_value : value;
+			};
+		}
+
+		// prop is never written to — we only need a getter
+		if (runes && (flags & PROPS_IS_UPDATED) === 0) {
+			return getter;
+		}
+
+		// prop is written to, but the parent component had `bind:foo` which
+		// means we can just call `$$props.foo = value` directly
+		if (setter) {
+			var legacy_parent = props.$$legacy;
+			return /** @type {() => V} */ (
+				function (/** @type {V} */ value, /** @type {boolean} */ mutation) {
+					if (arguments.length > 0) {
+						// We don't want to notify if the value was mutated and the parent is in runes mode.
+						// In that case the state proxy (if it exists) should take care of the notification.
+						// If the parent is not in runes mode, we need to notify on mutation, too, that the prop
+						// has changed because the parent will not be able to detect the change otherwise.
+						if (!runes || !mutation || legacy_parent || is_store_sub) {
+							/** @type {Function} */ (setter)(mutation ? getter() : value);
+						}
+
+						return value;
+					}
+
+					return getter();
+				}
+			);
+		}
+
+		// Either prop is written to, but there's no binding, which means we
+		// create a derived that we can write to locally.
+		// Or we are in legacy mode where we always create a derived to replicate that
+		// Svelte 4 did not trigger updates when a primitive value was updated to the same value.
+		var overridden = false;
+
+		var d = (derived_safe_equal)(() => {
+			overridden = false;
+			return getter();
+		});
+
+		// Capture the initial value if it's bindable
+		get(d);
+
+		var parent_effect = /** @type {Effect} */ (active_effect);
+
+		return /** @type {() => V} */ (
+			function (/** @type {any} */ value, /** @type {boolean} */ mutation) {
+				if (arguments.length > 0) {
+					const new_value = mutation ? get(d) : runes && bindable ? proxy(value) : value;
+
+					set(d, new_value);
+					overridden = true;
+
+					if (fallback_value !== undefined) {
+						fallback_value = new_value;
+					}
+
+					return value;
+				}
+
+				// special case — avoid recalculating the derived if we're in a
+				// teardown function and the prop was overridden locally, or the
+				// component was already destroyed (people could access props in a timeout)
+				if ((is_destroying_effect && overridden) || (parent_effect.f & DESTROYED) !== 0) {
+					return d.v;
+				}
+
+				return get(d);
+			}
+		);
+	}
+
 	// generated during release, do not modify
 
 	const PUBLIC_VERSION = '5';
@@ -5319,17 +5492,15 @@
 
 	enable_legacy_mode_flag();
 
-	var root = from_html(`<span class="vowel-save-message svelte-1gcxjh"> </span>`);
-	var root_1 = from_html(`<div class="vowel-save-widget svelte-1gcxjh"><button class="svelte-1gcxjh"> </button> <!></div>`);
-
-	const $$css = {
-		hash: 'svelte-1gcxjh',
-		code: '.vowel-save-widget.svelte-1gcxjh {position:fixed;bottom:1rem;right:1rem;display:flex;align-items:center;gap:0.5rem;font-family:system-ui, sans-serif;font-size:13px;background:white;color:#111;border:1px solid #ccc;border-radius:8px;padding:8px 12px;box-shadow:0 2px 10px rgba(0, 0, 0, 0.15);z-index:2147483647;}button.svelte-1gcxjh {cursor:pointer;border:1px solid #888;border-radius:6px;background:#f5f5f5;padding:4px 10px;font:inherit;}button.svelte-1gcxjh:disabled {cursor:default;opacity:0.6;}.vowel-save-message.svelte-1gcxjh {max-width:220px;overflow-wrap:break-word;}'
-	};
+	var root = from_html(`<span class="vowel-save-message"> </span>`);
+	var root_1 = from_html(`<div class="vowel-save-widget"><button> </button> <!></div>`);
 
 	function SaveButton($$anchor, $$props) {
 		push($$props, false);
-		append_styles($$anchor, $$css);
+
+		let f = prop($$props, 'f', 8);
+
+		f()();
 
 		let saving = mutable_source(false);
 		let message = mutable_source("");
@@ -5394,12 +5565,81 @@
 
 	delegate(['click']);
 
+	function openSocket() {
+	  console.info("Socket opened");
+	  const socket = new WebSocket(`ws://${window.location.host}`);
+	  socket.addEventListener('open', () => {
+	    socket.send('opened');
+	  });
+
+
+	  socket.addEventListener("close", () => {
+	    console.info("Socket closed");
+	    socket.close();
+	    setTimeout(() => {
+	      console.info("socket closed refresh");
+	      location.reload();
+
+	    }, 1000);
+	  });
+
+	  function isOpen() {
+	    return socket.readyState === 1
+	  }
+
+	  socket.addEventListener('message', e => {
+	    if (!isOpen()) return
+
+	    // Every "a target changed" message is the same shape: the target
+	    // itself (see TargetOutput in votive/lib/createDatabase.js), not a
+	    // bespoke per-content-type envelope - a plugin that wants to mutate
+	    // what's served does that via handlePreviewRequest, not by inventing
+	    // its own message shape here.
+	    const target = JSON.parse(e.data);
+
+	    // Nothing here knows what a non-html target should do on change yet -
+	    // that's each content type's own concern to add, same as html's own
+	    // diff/patch logic below isn't generic.
+	    if (target.extension !== ".html") return
+
+	    const regex = new RegExp(window.location.pathname + "(index)?(\\.html)");
+	    if (!("/" + target.path).match(regex)) return
+
+	    if (!target.data) {
+	      location.reload();
+	      return
+	    }
+
+	    const parser = new DOMParser();
+	    const oldHead = parser.parseFromString(document.documentElement.outerHTML, "text/html").head.innerHTML;
+	    const newHead = parser.parseFromString(target.data, "text/html").head.innerHTML;
+
+	    if (oldHead !== newHead) {
+	      location.reload();
+	    } else {
+	      const body = document.querySelector("body");
+	      const newBody = document.createElement("body");
+	      const content = target.data.match(/<body.*?>([\s\S]*)/);
+	      newBody.innerHTML = content[1];
+	      body.replaceWith(newBody);
+	    }
+	  });
+	}
+
+	openSocket();
+
+	function f() {
+	  console.log("hello");
+	}
+
 	// A container of its own, not document.body directly - the page being
 	// previewed owns its own body content, this widget just floats above it
 	// (see SaveButton.svelte's position: fixed).
 	const container = document.createElement("div");
 	document.body.appendChild(container);
 
-	mount(SaveButton, { target: container });
+	const mounted = mount(SaveButton, { target: container, props: { f } });
+
+	console.log({ mounted });
 
 })();

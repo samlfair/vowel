@@ -1,0 +1,30 @@
+
+/*
+  let saving = false
+  let message = ""
+  
+  async function save() {
+    saving = true
+    message = ""
+    const filePath = `${Date.now()}.txt`
+
+    try {
+      const response = await fetch("/", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          type: "file",
+          filePath,
+          data: `Saved from ${window.location.pathname} at ${new Date().toISOString()}`
+        })
+      })
+
+      const body = await response.json()
+      message = response.ok ? `Saved ${body.path}` : `Error: ${body.error}`
+    } catch (error) {
+      message = `Error: ${error.message}`
+    }
+
+    saving = false
+  }
+  */

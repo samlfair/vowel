@@ -1,5 +1,7 @@
 import svelte from "rollup-plugin-svelte"
 import resolve from "@rollup/plugin-node-resolve"
+import css from "rollup-plugin-import-css"
+import cleanup from "rollup-plugin-cleanup"
 
 // Compiles the dev-preview "save a timestamped file" widget into a
 // single inlineable bundle, committed at ../editorClient.js -
@@ -11,7 +13,7 @@ import resolve from "@rollup/plugin-node-resolve"
 export default {
   input: "main.js",
   output: {
-    file: "../editorClient.js",
+    file: "../bundle/index.js",
     format: "iife"
   },
   plugins: [
@@ -23,6 +25,8 @@ export default {
       browser: true,
       exportConditions: ["svelte"],
       extensions: [".svelte"]
-    })
+    }),
+    css(),
+    cleanup()
   ]
 }

@@ -1,6 +1,5 @@
 import path from "node:path"
 import { hash } from "node:crypto"
-import openSocket from "voot/client.js"
 import rehypeHighlight from "rehype-highlight"
 import rehypePresetMinify from "rehype-preset-minify"
 import rehypeStringify from "rehype-stringify"
@@ -35,7 +34,7 @@ const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
 // posts a timestamped file to voot's write endpoint, read once here and
 // inlined into every previewed page the same way openSocket's reload
 // client is below. See tasks/desktop-app-architecture.md, Part 3.
-const editorClientScript = readFileSync(path.join(import.meta.dirname, "editorClient.js"), "utf-8")
+const editorClientScript = readFileSync(path.join(import.meta.dirname, "bundle/index.js"), "utf-8")
 
 /**
  * @param {array} array
@@ -788,7 +787,7 @@ function writeFile(target, settings, api, config) {
 function handlePreviewRequest(body) {
   const html = body.toString("utf-8")
   const fileSplit = html.split("</body>")
-  fileSplit.splice(1, 0, `<script>${openSocket.toString()}\n\nopenSocket()</script><script>${editorClientScript}</script>`)
+  fileSplit.splice(1, 0, `<script type="module">${editorClientScript}</script>`)
   return fileSplit.join("")
 }
 

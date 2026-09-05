@@ -242,9 +242,9 @@ async function main() {
   await fs.mkdir(config.targetFolder, { recursive: true })
 
   if (!args.skip && !dbExists) {
-    const loading = votive({ ...config, verbose: false })
+    // const loading = votive({ ...config, verbose: false })
     await wizard()
-    await (loading)
+    // await (loading)
   }
 
 
