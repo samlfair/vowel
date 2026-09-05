@@ -23,17 +23,17 @@ import toc from "@jsdevtools/rehype-toc"
 import slug from "rehype-slug"
 import createDynamicImage from "./image.js"
 import { isExternalLinkParagraph } from "../urls/index.js"
+import { globClasses } from "./editor/directives.js"
 
 /** @import * as Votive from "votive" */
 /** @import * as Vowel from "./../../index.js" */
 
 const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
 
-// Compiled from ./editor/SaveButton.svelte via rollup.config.js (`npm run
-// build:editor` from vowel's root) - a small dev-preview widget that
-// posts a timestamped file to voot's write endpoint, read once here and
-// inlined into every previewed page the same way openSocket's reload
-// client is below. See tasks/desktop-app-architecture.md, Part 3.
+// Compiled from ./editor/main.js via rollup.config.js (`npm run
+// build:editor` from vowel's root) - the Svedit editor and reload client
+// for previewed pages, read once here and inlined into every previewed
+// page. See tasks/desktop-app-architecture.md, Part 3.
 const editorClientScript = readFileSync(path.join(import.meta.dirname, "bundle/index.js"), "utf-8")
 
 /**
@@ -503,7 +503,7 @@ function writeFile(target, settings, api, config) {
         const target = api.target(targetFilePath)
 
         if (target) {
-          const article = h('article', makeHeader(target.metadata, target.metadata.prettyURL, api, config))
+          const article = h('article.reference', makeHeader(target.metadata, target.metadata.prettyURL, api, config))
 
           p.children.splice(i, 1, article)
 
@@ -529,14 +529,12 @@ function writeFile(target, settings, api, config) {
           limit: count ? Number(count) : undefined
         })
 
-        const escapedDir = folder.replace("_", "--").replace(path.sep, "_")
-        const escapedDirs = escapedDir.split("_").filter(a => a).map((segment, index, array) => {
-          return "_" + array.slice(0, index + 1).join("_")
-        })
-        escapedDirs.unshift("_")
-        const dirClasses = escapedDirs.join(".")
+        // Every parameter of the directive is carried in the class list so
+        // the expansion can be collapsed back to "/blog/**?count=5" from
+        // the rendered HTML alone - see plugins/html/editor/directives.js.
+        const listClasses = globClasses({ folder, recursive, limit: count, tag })
 
-        const list = h(`ul.${dirClasses}`,
+        const list = h("ul", { class: listClasses },
           targets.map(target => {
             return h('li',
               h('article', makeHeader(target.metadata, target.metadata.prettyURL, api, config))
@@ -615,6 +613,9 @@ function writeFile(target, settings, api, config) {
         const metadata = api.url.get(node.value)
         if (metadata) {
           parent.tagName = "article"
+          // Marks this <article> as an expansion of a bare URL rather than
+          // authored content, so the editor collapses it back to the URL.
+          parent.properties = { ...parent.properties, className: ["link-preview"] }
           parent.children = [
             h("a", { href: node.value },
               h("h2", metadata.title)

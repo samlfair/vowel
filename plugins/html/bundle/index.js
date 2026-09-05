@@ -41,6 +41,7 @@
 	const BRANCH_EFFECT = 1 << 5;
 	const ROOT_EFFECT = 1 << 6;
 	const BOUNDARY_EFFECT = 1 << 7;
+	const PAUSED = 1 << 8;
 	const CONNECTED = 1 << 9;
 	const CLEAN = 1 << 10;
 	const DIRTY = 1 << 11;
@@ -60,6 +61,7 @@
 	const ASYNC = 1 << 22;
 	const ERROR_VALUE = 1 << 23;
 	const STATE_SYMBOL = Symbol('$state');
+	const COMPONENT_SYMBOL = Symbol('component');
 	const LEGACY_PROPS = Symbol('legacy props');
 	const LOADING_ATTR_SYMBOL = Symbol('');
 	const ATTRIBUTES_CACHE = Symbol('attributes');
@@ -73,6 +75,52 @@
 	const IS_XHTML =
 		!!globalThis.document?.contentType &&
 		 globalThis.document.contentType.includes('xml');
+
+	const EACH_ITEM_REACTIVE = 1;
+	const EACH_INDEX_REACTIVE = 1 << 1;
+	const EACH_IS_CONTROLLED = 1 << 2;
+	const EACH_IS_ANIMATED = 1 << 3;
+	const EACH_ITEM_IMMUTABLE = 1 << 4;
+	const PROPS_IS_IMMUTABLE = 1;
+	const PROPS_IS_RUNES = 1 << 1;
+	const PROPS_IS_UPDATED = 1 << 2;
+	const PROPS_IS_BINDABLE = 1 << 3;
+	const PROPS_IS_LAZY_INITIAL = 1 << 4;
+	const TEMPLATE_FRAGMENT = 1;
+	const TEMPLATE_USE_IMPORT_NODE = 1 << 1;
+	const UNINITIALIZED = Symbol('uninitialized');
+	const NAMESPACE_HTML = 'http://www.w3.org/1999/xhtml';
+	const NAMESPACE_SVG = 'http://www.w3.org/2000/svg';
+	const NAMESPACE_MATHML = 'http://www.w3.org/1998/Math/MathML';
+	const ATTACHMENT_KEY = '@attach';
+
+	function derived_inert() {
+		{
+			console.warn(`https://svelte.dev/e/derived_inert`);
+		}
+	}
+	function select_multiple_invalid_value() {
+		{
+			console.warn(`https://svelte.dev/e/select_multiple_invalid_value`);
+		}
+	}
+	function svelte_boundary_reset_noop() {
+		{
+			console.warn(`https://svelte.dev/e/svelte_boundary_reset_noop`);
+		}
+	}
+
+	function equals(value) {
+		return value === this.v;
+	}
+	function safe_not_equal(a, b) {
+		return a != a
+			? b == b
+			: a !== b || (a !== null && typeof a === 'object') || typeof a === 'function';
+	}
+	function safe_equals(value) {
+		return !safe_not_equal(value, this.v);
+	}
 
 	function lifecycle_outside_component(name) {
 		{
@@ -136,60 +184,15 @@
 		}
 	}
 
-	const EACH_ITEM_REACTIVE = 1;
-	const EACH_INDEX_REACTIVE = 1 << 1;
-	const EACH_IS_CONTROLLED = 1 << 2;
-	const EACH_IS_ANIMATED = 1 << 3;
-	const EACH_ITEM_IMMUTABLE = 1 << 4;
-	const PROPS_IS_IMMUTABLE = 1;
-	const PROPS_IS_RUNES = 1 << 1;
-	const PROPS_IS_UPDATED = 1 << 2;
-	const PROPS_IS_BINDABLE = 1 << 3;
-	const PROPS_IS_LAZY_INITIAL = 1 << 4;
-	const TEMPLATE_FRAGMENT = 1;
-	const TEMPLATE_USE_IMPORT_NODE = 1 << 1;
-	const UNINITIALIZED = Symbol('uninitialized');
-	const NAMESPACE_HTML = 'http://www.w3.org/1999/xhtml';
-	const NAMESPACE_SVG = 'http://www.w3.org/2000/svg';
-	const ATTACHMENT_KEY = '@attach';
-
-	function derived_inert() {
-		{
-			console.warn(`https://svelte.dev/e/derived_inert`);
-		}
-	}
-	function select_multiple_invalid_value() {
-		{
-			console.warn(`https://svelte.dev/e/select_multiple_invalid_value`);
-		}
-	}
-	function svelte_boundary_reset_noop() {
-		{
-			console.warn(`https://svelte.dev/e/svelte_boundary_reset_noop`);
-		}
-	}
-
-	function equals(value) {
-		return value === this.v;
-	}
-	function safe_not_equal(a, b) {
-		return a != a
-			? b == b
-			: a !== b || (a !== null && typeof a === 'object') || typeof a === 'function';
-	}
-	function safe_equals(value) {
-		return !safe_not_equal(value, this.v);
-	}
-
 	let legacy_mode_flag = false;
 	let tracing_mode_flag = false;
 	function enable_legacy_mode_flag() {
 		legacy_mode_flag = true;
 	}
 
-	const empty = [];
+	const empty$1 = [];
 	function snapshot(value, skip_warning = false, no_tojson = false) {
-		return clone(value, new Map(), '', empty, null, no_tojson);
+		return clone(value, new Map(), '', empty$1, null, no_tojson);
 	}
 	function clone(value, cloned, path, paths, original = null, no_tojson = false) {
 		if (typeof value === 'object' && value !== null) {
@@ -230,6 +233,7 @@
 				return copy;
 			}
 			if (value instanceof Date) {
+				value.getTime();
 				return  (structuredClone(value));
 			}
 			if (typeof ( (value).toJSON) === 'function' && !no_tojson) {
@@ -306,7 +310,11 @@
 		}
 		context.i = true;
 		component_context = context.p;
-		return component ??  ({});
+		return mark_as_component(component);
+	}
+	function mark_as_component(component = {}) {
+		define_property(component, COMPONENT_SYMBOL, { value: true });
+		return component;
 	}
 	function is_runes() {
 		return !legacy_mode_flag || (component_context !== null && component_context.l === null);
@@ -331,38 +339,6 @@
 		while (micro_tasks.length > 0) {
 			run_micro_tasks();
 		}
-	}
-
-	function handle_error(error) {
-		var effect = active_effect;
-		if (effect === null) {
-			 (active_reaction).f |= ERROR_VALUE;
-			return error;
-		}
-		if ((effect.f & REACTION_RAN) === 0 && (effect.f & EFFECT) === 0) {
-			throw error;
-		}
-		invoke_error_boundary(error, effect);
-	}
-	function invoke_error_boundary(error, effect) {
-		if (effect !== null && (effect.f & DESTROYED) !== 0) {
-			return;
-		}
-		while (effect !== null) {
-			if ((effect.f & BOUNDARY_EFFECT) !== 0) {
-				if ((effect.f & REACTION_RAN) === 0) {
-					throw error;
-				}
-				try {
-					 (effect.b).error(error);
-					return;
-				} catch (e) {
-					error = e;
-				}
-			}
-			effect = effect.parent;
-		}
-		throw error;
 	}
 
 	const STATUS_MASK = -7169;
@@ -430,318 +406,6 @@
 		} finally {
 			set_active_reaction(previous_reaction);
 			set_active_effect(previous_effect);
-		}
-	}
-
-	function createSubscriber(start) {
-		let subscribers = 0;
-		let version = source(0);
-		let stop;
-		return () => {
-			if (effect_tracking()) {
-				get$1(version);
-				render_effect(() => {
-					if (subscribers === 0) {
-						stop = untrack(() => start(() => increment(version)));
-					}
-					subscribers += 1;
-					return () => {
-						queue_micro_task(() => {
-							subscribers -= 1;
-							if (subscribers === 0) {
-								stop?.();
-								stop = undefined;
-								increment(version);
-							}
-						});
-					};
-				});
-			}
-		};
-	}
-
-	var flags = EFFECT_TRANSPARENT | EFFECT_PRESERVED;
-	function boundary(node, props, children, transform_error) {
-		new Boundary(node, props, children, transform_error);
-	}
-	class Boundary {
-		parent;
-		is_pending = false;
-		transform_error;
-		#anchor;
-		#hydrate_open = null;
-		#props;
-		#children;
-		#effect;
-		#main_effect = null;
-		#pending_effect = null;
-		#failed_effect = null;
-		#offscreen_fragment = null;
-		#local_pending_count = 0;
-		#pending_count = 0;
-		#pending_count_update_queued = false;
-		#dirty_effects = new Set();
-		#maybe_dirty_effects = new Set();
-		#effect_pending = null;
-		#effect_pending_subscriber = createSubscriber(() => {
-			this.#effect_pending = source(this.#local_pending_count);
-			return () => {
-				this.#effect_pending = null;
-			};
-		});
-		constructor(node, props, children, transform_error) {
-			this.#anchor = node;
-			this.#props = props;
-			this.#children = (anchor) => {
-				var effect =  (active_effect);
-				effect.b = this;
-				effect.f |= BOUNDARY_EFFECT;
-				children(anchor);
-			};
-			this.parent =  (active_effect).b;
-			this.transform_error = transform_error ?? this.parent?.transform_error ?? ((e) => e);
-			this.#effect = block(() => {
-				{
-					this.#render();
-				}
-			}, flags);
-		}
-		#hydrate_resolved_content() {
-			try {
-				this.#main_effect = branch(() => this.#children(this.#anchor));
-			} catch (error) {
-				this.error(error);
-			}
-		}
-		#hydrate_failed_content(error) {
-			const failed = this.#props.failed;
-			const { reset, invoke_onerror } = this.#create_reset(error);
-			queue_micro_task(invoke_onerror);
-			if (!failed) return;
-			this.#failed_effect = branch(() => {
-				failed(
-					this.#anchor,
-					() => error,
-					() => reset
-				);
-			});
-		}
-		#create_reset(error) {
-			var did_reset = false;
-			var calling_on_error = false;
-			const reset = () => {
-				if (did_reset) {
-					svelte_boundary_reset_noop();
-					return;
-				}
-				did_reset = true;
-				if (calling_on_error) {
-					svelte_boundary_reset_onerror();
-				}
-				if (this.#failed_effect !== null) {
-					pause_effect(this.#failed_effect, () => {
-						this.#failed_effect = null;
-					});
-				}
-				this.#run(() => {
-					this.#render();
-				});
-			};
-			const invoke_onerror = () => {
-				try {
-					calling_on_error = true;
-					this.#props.onerror?.(error, reset);
-					calling_on_error = false;
-				} catch (err) {
-					invoke_error_boundary(err, this.#effect && this.#effect.parent);
-				}
-			};
-			return { reset, invoke_onerror };
-		}
-		#hydrate_pending_content() {
-			const pending = this.#props.pending;
-			if (!pending) return;
-			this.is_pending = true;
-			this.#pending_effect = branch(() => pending(this.#anchor));
-			queue_micro_task(() => {
-				var fragment = (this.#offscreen_fragment = document.createDocumentFragment());
-				var anchor = create_text();
-				fragment.append(anchor);
-				this.#main_effect = this.#run(() => {
-					return branch(() => this.#children(anchor));
-				});
-				if (this.#pending_count === 0) {
-					this.#anchor.before(fragment);
-					this.#offscreen_fragment = null;
-					pause_effect( (this.#pending_effect), () => {
-						this.#pending_effect = null;
-					});
-					this.#resolve( (current_batch));
-				}
-			});
-		}
-		#render() {
-			try {
-				this.is_pending = this.has_pending_snippet();
-				this.#pending_count = 0;
-				this.#local_pending_count = 0;
-				this.#main_effect = branch(() => {
-					this.#children(this.#anchor);
-				});
-				if (this.#pending_count > 0) {
-					var fragment = (this.#offscreen_fragment = document.createDocumentFragment());
-					move_effect(this.#main_effect, fragment);
-					const pending =  (this.#props.pending);
-					this.#pending_effect = branch(() => pending(this.#anchor));
-				} else {
-					this.#resolve( (current_batch));
-				}
-			} catch (error) {
-				this.error(error);
-			}
-		}
-		#resolve(batch) {
-			this.is_pending = false;
-			batch.transfer_effects(this.#dirty_effects, this.#maybe_dirty_effects);
-		}
-		defer_effect(effect) {
-			defer_effect(effect, this.#dirty_effects, this.#maybe_dirty_effects);
-		}
-		is_rendered() {
-			return !this.is_pending && (!this.parent || this.parent.is_rendered());
-		}
-		has_pending_snippet() {
-			return !!this.#props.pending;
-		}
-		#run(fn) {
-			var previous_effect = active_effect;
-			var previous_reaction = active_reaction;
-			var previous_ctx = component_context;
-			set_active_effect(this.#effect);
-			set_active_reaction(this.#effect);
-			set_component_context(this.#effect.ctx);
-			try {
-				Batch.ensure();
-				return fn();
-			} catch (e) {
-				handle_error(e);
-				return null;
-			} finally {
-				set_active_effect(previous_effect);
-				set_active_reaction(previous_reaction);
-				set_component_context(previous_ctx);
-			}
-		}
-		#update_pending_count(d, batch) {
-			if (!this.has_pending_snippet()) {
-				if (this.parent) {
-					this.parent.#update_pending_count(d, batch);
-				}
-				return;
-			}
-			this.#pending_count += d;
-			if (this.#pending_count === 0) {
-				this.#resolve(batch);
-				if (this.#pending_effect) {
-					pause_effect(this.#pending_effect, () => {
-						this.#pending_effect = null;
-					});
-				}
-				if (this.#offscreen_fragment) {
-					this.#anchor.before(this.#offscreen_fragment);
-					this.#offscreen_fragment = null;
-				}
-			}
-		}
-		update_pending_count(d, batch) {
-			this.#update_pending_count(d, batch);
-			this.#local_pending_count += d;
-			if (!this.#effect_pending || this.#pending_count_update_queued) return;
-			this.#pending_count_update_queued = true;
-			queue_micro_task(() => {
-				this.#pending_count_update_queued = false;
-				if (this.#effect_pending) {
-					internal_set(this.#effect_pending, this.#local_pending_count);
-				}
-			});
-		}
-		get_effect_pending() {
-			this.#effect_pending_subscriber();
-			return get$1( (this.#effect_pending));
-		}
-		error(error) {
-			if (!this.#props.onerror && !this.#props.failed) {
-				throw error;
-			}
-			if (current_batch?.is_fork) {
-				if (this.#main_effect) current_batch.skip_effect(this.#main_effect);
-				if (this.#pending_effect) current_batch.skip_effect(this.#pending_effect);
-				if (this.#failed_effect) current_batch.skip_effect(this.#failed_effect);
-				current_batch.oncommit(() => {
-					this.#handle_error(error);
-				});
-			} else {
-				this.#handle_error(error);
-			}
-		}
-		#handle_error(error) {
-			if (this.#main_effect) {
-				destroy_effect(this.#main_effect);
-				this.#main_effect = null;
-			}
-			if (this.#pending_effect) {
-				destroy_effect(this.#pending_effect);
-				this.#pending_effect = null;
-			}
-			if (this.#failed_effect) {
-				destroy_effect(this.#failed_effect);
-				this.#failed_effect = null;
-			}
-			let failed = this.#props.failed;
-			const handle_error_result = (transformed_error) => {
-				const { reset, invoke_onerror } = this.#create_reset(transformed_error);
-				invoke_onerror();
-				if (failed) {
-					this.#failed_effect = this.#run(() => {
-						try {
-							return branch(() => {
-								var effect =  (active_effect);
-								effect.b = this;
-								effect.f |= BOUNDARY_EFFECT;
-								failed(
-									this.#anchor,
-									() => transformed_error,
-									() => reset
-								);
-							});
-						} catch (error) {
-							invoke_error_boundary(error,  (this.#effect.parent));
-							return null;
-						}
-					});
-				}
-			};
-			queue_micro_task(() => {
-				var result;
-				try {
-					result = this.transform_error(error);
-				} catch (e) {
-					invoke_error_boundary(e, this.#effect && this.#effect.parent);
-					return;
-				}
-				if (
-					result !== null &&
-					typeof result === 'object' &&
-					typeof ( (result).then) === 'function'
-				) {
-					 (result).then(
-						handle_error_result,
-						(e) => invoke_error_boundary(e, this.#effect && this.#effect.parent)
-					);
-				} else {
-					handle_error_result(result);
-				}
-			});
 		}
 	}
 
@@ -1806,7 +1470,12 @@
 	}
 
 	function proxy(value) {
-		if (typeof value !== 'object' || value === null || STATE_SYMBOL in value) {
+		if (
+			typeof value !== 'object' ||
+			value === null ||
+			STATE_SYMBOL in value ||
+			COMPONENT_SYMBOL in value
+		) {
 			return value;
 		}
 		const prototype = get_prototype_of(value);
@@ -2053,6 +1722,11 @@
 			return first;
 		}
 	}
+	function only_child(node, is_text = false) {
+		{
+			return get_first_child(node);
+		}
+	}
 	function sibling(node, count = 1, is_text = false) {
 		let next_sibling = node;
 		while (count--) {
@@ -2077,6 +1751,38 @@
 		return  (
 			is ? document.createElementNS(namespace, tag, { is }) : document.createElementNS(namespace, tag)
 		);
+	}
+
+	function handle_error(error) {
+		var effect = active_effect;
+		if (effect === null) {
+			 (active_reaction).f |= ERROR_VALUE;
+			return error;
+		}
+		if ((effect.f & REACTION_RAN) === 0 && (effect.f & EFFECT) === 0) {
+			throw error;
+		}
+		invoke_error_boundary(error, effect);
+	}
+	function invoke_error_boundary(error, effect) {
+		if (effect !== null && (effect.f & DESTROYED) !== 0) {
+			return;
+		}
+		while (effect !== null) {
+			if ((effect.f & BOUNDARY_EFFECT) !== 0 && (effect.f & (DESTROYED | DESTROYING)) === 0) {
+				if ((effect.f & REACTION_RAN) === 0) {
+					throw error;
+				}
+				try {
+					 (effect.b).error(error);
+					return;
+				} catch (e) {
+					error = e;
+				}
+			}
+			effect = effect.parent;
+		}
+		throw error;
 	}
 
 	function validate_effect(rune) {
@@ -2249,6 +1955,8 @@
 			set_active_reaction(null);
 			try {
 				teardown.call(null);
+			} catch (error) {
+				invoke_error_boundary(error, effect.parent);
 			} finally {
 				set_is_destroying_effect(previously_destroying_effect);
 				set_active_reaction(previous_reaction);
@@ -2341,6 +2049,7 @@
 	}
 	function pause_effect(effect, callback, destroy = true) {
 		var transitions = [];
+		effect.f |= PAUSED;
 		pause_children(effect, transitions, true);
 		var fn = () => {
 			if (destroy) destroy_effect(effect);
@@ -2380,9 +2089,11 @@
 		}
 	}
 	function resume_effect(effect) {
+		effect.f &= ~PAUSED;
 		resume_children(effect, true);
 	}
 	function resume_children(effect, local) {
+		if ((effect.f & PAUSED) !== 0) return;
 		if ((effect.f & INERT) === 0) return;
 		effect.f ^= INERT;
 		if ((effect.f & CLEAN) === 0) {
@@ -2529,30 +2240,7 @@
 			var fn =  (reaction.fn);
 			var result = fn();
 			reaction.f |= REACTION_RAN;
-			var deps = reaction.deps;
-			var is_fork = current_batch?.is_fork;
-			if (new_deps !== null) {
-				var i;
-				if (!is_fork) {
-					remove_reactions(reaction, skipped_deps);
-				}
-				if (deps !== null && skipped_deps > 0) {
-					deps.length = skipped_deps + new_deps.length;
-					for (i = 0; i < new_deps.length; i++) {
-						deps[skipped_deps + i] = new_deps[i];
-					}
-				} else {
-					reaction.deps = deps = new_deps;
-				}
-				if (effect_tracking() && (reaction.f & CONNECTED) !== 0) {
-					for (i = skipped_deps; i < deps.length; i++) {
-						(deps[i].reactions ??= []).push(reaction);
-					}
-				}
-			} else if (!is_fork && deps !== null && skipped_deps < deps.length) {
-				remove_reactions(reaction, skipped_deps);
-				deps.length = skipped_deps;
-			}
+			var deps = update_dependencies(reaction);
 			if (
 				is_runes() &&
 				untracked_writes !== null &&
@@ -2560,7 +2248,7 @@
 				deps !== null &&
 				(reaction.f & (DERIVED | MAYBE_DIRTY | DIRTY)) === 0
 			) {
-				for (i = 0; i <  (untracked_writes).length; i++) {
+				for (var i = 0; i <  (untracked_writes).length; i++) {
 					schedule_possible_effect_self_invalidation(
 						untracked_writes[i],
 						 (reaction)
@@ -2592,6 +2280,7 @@
 			}
 			return result;
 		} catch (error) {
+			update_dependencies(reaction);
 			return handle_error(error);
 		} finally {
 			reaction.f ^= REACTION_IS_UPDATING;
@@ -2604,6 +2293,33 @@
 			untracking = previous_untracking;
 			update_version = previous_update_version;
 		}
+	}
+	function update_dependencies(reaction) {
+		var deps = reaction.deps;
+		var is_fork = current_batch?.is_fork;
+		if (new_deps !== null) {
+			var i;
+			if (!is_fork) {
+				remove_reactions(reaction, skipped_deps);
+			}
+			if (deps !== null && skipped_deps > 0) {
+				deps.length = skipped_deps + new_deps.length;
+				for (i = 0; i < new_deps.length; i++) {
+					deps[skipped_deps + i] = new_deps[i];
+				}
+			} else {
+				reaction.deps = deps = new_deps;
+			}
+			if (effect_tracking() && (reaction.f & CONNECTED) !== 0) {
+				for (i = skipped_deps; i < deps.length; i++) {
+					(deps[i].reactions ??= []).push(reaction);
+				}
+			}
+		} else if (!is_fork && deps !== null && skipped_deps < deps.length) {
+			remove_reactions(reaction, skipped_deps);
+			deps.length = skipped_deps;
+		}
+		return deps;
 	}
 	function remove_reaction(signal, dependency) {
 		let reactions = dependency.reactions;
@@ -3079,7 +2795,7 @@
 			return clone;
 		};
 	}
-	function text(value = '') {
+	function text$1(value = '') {
 		{
 			var t = create_text(value + '');
 			assign_nodes(t, t);
@@ -3099,6 +2815,331 @@
 			return;
 		}
 		anchor.before( (dom));
+	}
+
+	function createSubscriber(start) {
+		let subscribers = 0;
+		let version = source(0);
+		let stop;
+		return () => {
+			if (effect_tracking()) {
+				get$1(version);
+				render_effect(() => {
+					if (subscribers === 0) {
+						stop = untrack(() => start(() => increment(version)));
+					}
+					subscribers += 1;
+					return () => {
+						queue_micro_task(() => {
+							subscribers -= 1;
+							if (subscribers === 0) {
+								stop?.();
+								stop = undefined;
+								increment(version);
+							}
+						});
+					};
+				});
+			}
+		};
+	}
+
+	var flags = EFFECT_TRANSPARENT | EFFECT_PRESERVED;
+	function boundary(node, props, children, transform_error) {
+		new Boundary(node, props, children, transform_error);
+	}
+	class Boundary {
+		parent;
+		is_pending = false;
+		transform_error;
+		#anchor;
+		#hydrate_open = null;
+		#props;
+		#children;
+		#effect;
+		#main_effect = null;
+		#pending_effect = null;
+		#failed_effect = null;
+		#offscreen_fragment = null;
+		#local_pending_count = 0;
+		#pending_count = 0;
+		#pending_count_update_queued = false;
+		#dirty_effects = new Set();
+		#maybe_dirty_effects = new Set();
+		#effect_pending = null;
+		#effect_pending_subscriber = createSubscriber(() => {
+			this.#effect_pending = source(this.#local_pending_count);
+			return () => {
+				this.#effect_pending = null;
+			};
+		});
+		constructor(node, props, children, transform_error) {
+			this.#anchor = node;
+			this.#props = props;
+			this.#children = (anchor) => {
+				var effect =  (active_effect);
+				effect.b = this;
+				effect.f |= BOUNDARY_EFFECT;
+				children(anchor);
+			};
+			this.parent =  (active_effect).b;
+			this.transform_error = transform_error ?? this.parent?.transform_error ?? ((e) => e);
+			this.#effect = block(() => {
+				{
+					this.#render();
+				}
+			}, flags);
+		}
+		#hydrate_resolved_content() {
+			try {
+				this.#main_effect = branch(() => this.#children(this.#anchor));
+			} catch (error) {
+				this.error(error);
+			}
+		}
+		#hydrate_failed_content(error) {
+			const failed = this.#props.failed;
+			const { reset, invoke_onerror } = this.#create_reset(error);
+			queue_micro_task(invoke_onerror);
+			if (!failed) return;
+			this.#failed_effect = branch(() => {
+				failed(
+					this.#anchor,
+					() => error,
+					() => reset
+				);
+			});
+		}
+		#create_reset(error) {
+			var did_reset = false;
+			var calling_on_error = false;
+			const reset = () => {
+				if (did_reset) {
+					svelte_boundary_reset_noop();
+					return;
+				}
+				did_reset = true;
+				if (calling_on_error) {
+					svelte_boundary_reset_onerror();
+				}
+				if (this.#failed_effect !== null) {
+					pause_effect(this.#failed_effect, () => {
+						this.#failed_effect = null;
+					});
+				}
+				this.#run(() => {
+					this.#render();
+				});
+			};
+			const invoke_onerror = () => {
+				try {
+					calling_on_error = true;
+					this.#props.onerror?.(error, reset);
+					calling_on_error = false;
+				} catch (err) {
+					invoke_error_boundary(err, this.#effect && this.#effect.parent);
+				}
+			};
+			return { reset, invoke_onerror };
+		}
+		#hydrate_pending_content() {
+			const pending = this.#props.pending;
+			if (!pending) return;
+			this.is_pending = true;
+			this.#pending_effect = branch(() => pending(this.#anchor));
+			queue_micro_task(() => {
+				var fragment = (this.#offscreen_fragment = document.createDocumentFragment());
+				var anchor = create_text();
+				var handled = false;
+				fragment.append(anchor);
+				this.#main_effect = this.#run(() => {
+					try {
+						return branch(() => this.#children(anchor));
+					} catch (error) {
+						try {
+							this.error(error);
+							handled = true;
+						} catch (error) {
+							invoke_error_boundary(error, this.#effect.parent);
+						}
+						return null;
+					}
+				});
+				if (this.#main_effect === null) {
+					this.#offscreen_fragment = null;
+					if (handled) this.#resolve( (current_batch));
+					return;
+				}
+				if (this.#pending_count === 0) {
+					this.#anchor.before(fragment);
+					this.#offscreen_fragment = null;
+					pause_effect( (this.#pending_effect), () => {
+						this.#pending_effect = null;
+					});
+					this.#resolve( (current_batch));
+				}
+			});
+		}
+		#render() {
+			try {
+				this.is_pending = this.has_pending_snippet();
+				this.#pending_count = 0;
+				this.#local_pending_count = 0;
+				this.#main_effect = branch(() => {
+					this.#children(this.#anchor);
+				});
+				if (this.#pending_count > 0) {
+					var fragment = (this.#offscreen_fragment = document.createDocumentFragment());
+					move_effect(this.#main_effect, fragment);
+					const pending =  (this.#props.pending);
+					this.#pending_effect = branch(() => pending(this.#anchor));
+				} else {
+					this.#resolve( (current_batch));
+				}
+			} catch (error) {
+				this.error(error);
+			}
+		}
+		#resolve(batch) {
+			this.is_pending = false;
+			batch.transfer_effects(this.#dirty_effects, this.#maybe_dirty_effects);
+		}
+		defer_effect(effect) {
+			defer_effect(effect, this.#dirty_effects, this.#maybe_dirty_effects);
+		}
+		is_rendered() {
+			return !this.is_pending && (!this.parent || this.parent.is_rendered());
+		}
+		has_pending_snippet() {
+			return !!this.#props.pending;
+		}
+		#run(fn) {
+			var previous_effect = active_effect;
+			var previous_reaction = active_reaction;
+			var previous_ctx = component_context;
+			set_active_effect(this.#effect);
+			set_active_reaction(this.#effect);
+			set_component_context(this.#effect.ctx);
+			try {
+				Batch.ensure();
+				return fn();
+			} finally {
+				set_active_effect(previous_effect);
+				set_active_reaction(previous_reaction);
+				set_component_context(previous_ctx);
+			}
+		}
+		#update_pending_count(d, batch) {
+			if (!this.has_pending_snippet()) {
+				if (this.parent) {
+					this.parent.#update_pending_count(d, batch);
+				}
+				return;
+			}
+			this.#pending_count += d;
+			if (this.#pending_count === 0) {
+				this.#resolve(batch);
+				if (this.#pending_effect) {
+					pause_effect(this.#pending_effect, () => {
+						this.#pending_effect = null;
+					});
+				}
+				if (this.#offscreen_fragment) {
+					this.#anchor.before(this.#offscreen_fragment);
+					this.#offscreen_fragment = null;
+				}
+			}
+		}
+		update_pending_count(d, batch) {
+			this.#update_pending_count(d, batch);
+			this.#local_pending_count += d;
+			if (!this.#effect_pending || this.#pending_count_update_queued) return;
+			this.#pending_count_update_queued = true;
+			queue_micro_task(() => {
+				this.#pending_count_update_queued = false;
+				if (this.#effect_pending) {
+					internal_set(this.#effect_pending, this.#local_pending_count);
+				}
+			});
+		}
+		get_effect_pending() {
+			this.#effect_pending_subscriber();
+			return get$1( (this.#effect_pending));
+		}
+		error(error) {
+			if (!this.#props.onerror && !this.#props.failed) {
+				throw error;
+			}
+			if (current_batch?.is_fork) {
+				if (this.#main_effect) current_batch.skip_effect(this.#main_effect);
+				if (this.#pending_effect) current_batch.skip_effect(this.#pending_effect);
+				if (this.#failed_effect) current_batch.skip_effect(this.#failed_effect);
+				current_batch.oncommit(() => {
+					this.#handle_error(error);
+				});
+			} else {
+				this.#handle_error(error);
+			}
+		}
+		#handle_error(error) {
+			if (this.#main_effect) {
+				destroy_effect(this.#main_effect);
+				this.#main_effect = null;
+			}
+			if (this.#pending_effect) {
+				destroy_effect(this.#pending_effect);
+				this.#pending_effect = null;
+			}
+			if (this.#failed_effect) {
+				destroy_effect(this.#failed_effect);
+				this.#failed_effect = null;
+			}
+			let failed = this.#props.failed;
+			const handle_error_result = (transformed_error) => {
+				const { reset, invoke_onerror } = this.#create_reset(transformed_error);
+				invoke_onerror();
+				if (failed) {
+					this.#failed_effect = this.#run(() => {
+						try {
+							return branch(() => {
+								var effect =  (active_effect);
+								effect.b = this;
+								effect.f |= BOUNDARY_EFFECT;
+								failed(
+									this.#anchor,
+									() => transformed_error,
+									() => reset
+								);
+							});
+						} catch (error) {
+							invoke_error_boundary(error,  (this.#effect.parent));
+							return null;
+						}
+					});
+				}
+			};
+			queue_micro_task(() => {
+				var result;
+				try {
+					result = this.transform_error(error);
+				} catch (e) {
+					invoke_error_boundary(e, this.#effect && this.#effect.parent);
+					return;
+				}
+				if (
+					result !== null &&
+					typeof result === 'object' &&
+					typeof ( (result).then) === 'function'
+				) {
+					 (result).then(
+						handle_error_result,
+						(e) => invoke_error_boundary(e, this.#effect && this.#effect.parent)
+					);
+				} else {
+					handle_error_result(result);
+				}
+			});
+		}
 	}
 
 	function set_text(text, value) {
@@ -3132,7 +3173,7 @@
 					if (events) {
 						 (props).$$events = events;
 					}
-					component = Component(anchor_node, props) || {};
+					component = Component(anchor_node, props) || mark_as_component();
 					pop();
 				},
 				transformError
@@ -3579,8 +3620,8 @@
 					}
 					if (effect.prev) effect.prev.next = effect.next;
 					if (effect.next) effect.next.prev = effect.prev;
-					link(state, prev, effect);
-					link(state, effect, next);
+					link$1(state, prev, effect);
+					link$1(state, effect, next);
 					move(effect, next, anchor);
 					prev = effect;
 					matched = [];
@@ -3603,9 +3644,9 @@
 						for (j = 0; j < stashed.length; j += 1) {
 							seen.delete(stashed[j]);
 						}
-						link(state, a.prev, b.next);
-						link(state, prev, a);
-						link(state, b, start);
+						link$1(state, a.prev, b.next);
+						link$1(state, prev, a);
+						link$1(state, b, start);
 						current = start;
 						prev = b;
 						i -= 1;
@@ -3614,9 +3655,9 @@
 					} else {
 						seen.delete(effect);
 						move(effect, current, anchor);
-						link(state, effect.prev, effect.next);
-						link(state, effect, prev === null ? state.effect.first : prev.next);
-						link(state, prev, effect);
+						link$1(state, effect.prev, effect.next);
+						link$1(state, effect, prev === null ? state.effect.first : prev.next);
+						link$1(state, prev, effect);
 						prev = effect;
 					}
 					continue;
@@ -3723,7 +3764,7 @@
 			node = next_node;
 		}
 	}
-	function link(state, prev, next) {
+	function link$1(state, prev, next) {
 		if (prev === null) {
 			state.effect.first = next;
 		} else {
@@ -3734,6 +3775,60 @@
 		} else {
 			next.prev = prev;
 		}
+	}
+
+	function html$1(
+		node,
+		get_value,
+		is_controlled = false,
+		svg = false,
+		mathml = false,
+		skip_warning = false
+	) {
+		var anchor = node;
+		var value = '';
+		if (is_controlled) {
+			var parent_node =  (node);
+		}
+		template_effect(() => {
+			var effect =  (active_effect);
+			if (value === (value = get_value() ?? '')) {
+				return;
+			}
+			if (is_controlled && true) {
+				effect.nodes = null;
+				parent_node.innerHTML =  (value);
+				if (value !== '') {
+					assign_nodes(
+						 (get_first_child(parent_node)),
+						 (parent_node.lastChild)
+					);
+				}
+				return;
+			}
+			if (effect.nodes !== null) {
+				remove_effect_dom(effect.nodes.start,  (effect.nodes.end));
+				effect.nodes = null;
+			}
+			if (value === '') return;
+			var ns = svg ? NAMESPACE_SVG : mathml ? NAMESPACE_MATHML : undefined;
+			var wrapper =  (
+				create_element(svg ? 'svg' : mathml ? 'math' : 'template', ns)
+			);
+			wrapper.innerHTML =  (value);
+			var node = svg || mathml ? wrapper :  (wrapper).content;
+			assign_nodes(
+				 (get_first_child(node)),
+				 (node.lastChild)
+			);
+			if (svg || mathml) {
+				while (get_first_child(node)) {
+					anchor.before( (get_first_child(node)));
+				}
+			} else {
+				anchor.before(node);
+			}
+		});
 	}
 
 	function snippet(node, get_snippet, ...args) {
@@ -3752,7 +3847,7 @@
 		}, EFFECT_TRANSPARENT);
 	}
 
-	function element(node, get_tag, is_svg, render_fn, get_namespace, location) {
+	function element$1(node, get_tag, is_svg, render_fn, get_namespace, location) {
 		var element = null;
 		var anchor =  (node);
 		var branches = new BranchManager(anchor, false);
@@ -4017,6 +4112,43 @@
 		return next_styles;
 	}
 
+	function set_selected(option, selected) {
+		if (selected) {
+			if (!option.hasAttribute('selected')) option.setAttribute('selected', '');
+		} else {
+			option.removeAttribute('selected');
+		}
+	}
+	function set_default_select_value(select, value) {
+		var mounting = !('__defaultValue' in select);
+		if (!mounting && select.__defaultValue === value) return;
+		select.__defaultValue = value;
+		apply_default_select_value(select, !mounting || '__value' in select);
+	}
+	function apply_default_select_value(select, preserve) {
+		var value = select.__defaultValue;
+		var multiple = select.multiple;
+		var values = multiple ? value ?? [] : null;
+		if (multiple && !is_array(values)) return;
+		var index = select.selectedIndex;
+		var selected = preserve && multiple ? new Set(select.selectedOptions) : null;
+		for (var option of select.options) {
+			var option_value = get_option_value(option);
+			set_selected(
+				option,
+				multiple ?  (values).includes(option_value) : is(option_value, value)
+			);
+		}
+		if (!preserve) return;
+		if (selected !== null) {
+			for (option of select.options) {
+				var was_selected = selected.has(option);
+				if (option.selected !== was_selected) option.selected = was_selected;
+			}
+		} else if (select.selectedIndex !== index) {
+			select.selectedIndex = index;
+		}
+	}
 	function select_option(select, value, mounting = false) {
 		if (select.multiple) {
 			if (value == undefined) {
@@ -4042,7 +4174,11 @@
 		}
 	}
 	function init_select(select) {
-		var observer = new MutationObserver(() => {
+		var observer = new MutationObserver((entries) => {
+			if (entries.every(is_selectedcontent_mutation)) return;
+			if ('__defaultValue' in select) {
+				apply_default_select_value(select, false);
+			}
 			if ('__value' in select) {
 				select_option(select, select.__value);
 			}
@@ -4064,6 +4200,16 @@
 			return option.value;
 		}
 	}
+	function is_selectedcontent_mutation(entry) {
+		if ( (entry.target).closest('selectedcontent') !== null) {
+			return true;
+		}
+		if (entry.type === 'childList') {
+			var nodes = [...entry.addedNodes, ...entry.removedNodes];
+			return nodes.length > 0 && nodes.every((node) => node.nodeName === 'SELECTEDCONTENT');
+		}
+		return false;
+	}
 
 	const CLASS = Symbol('class');
 	const STYLE = Symbol('style');
@@ -4072,15 +4218,6 @@
 	const INPUT_TAG = IS_XHTML ? 'input' : 'INPUT';
 	const OPTION_TAG = IS_XHTML ? 'option' : 'OPTION';
 	const SELECT_TAG = IS_XHTML ? 'select' : 'SELECT';
-	function set_selected(element, selected) {
-		if (selected) {
-			if (!element.hasAttribute('selected')) {
-				element.setAttribute('selected', '');
-			}
-		} else {
-			element.removeAttribute('selected');
-		}
-	}
 	function set_attribute(element, attribute, value, skip_warning) {
 		var attributes = get_attributes(element);
 		if (attributes[attribute] === (attributes[attribute] = value)) return;
@@ -4089,7 +4226,7 @@
 		}
 		if (value == null) {
 			element.removeAttribute(attribute);
-		} else if (typeof value !== 'string' && get_setters(element).includes(attribute)) {
+		} else if (typeof value !== 'string' && get_setters(element).has(attribute)) {
 			element[attribute] = value;
 		} else {
 			element.setAttribute(attribute, value);
@@ -4108,6 +4245,7 @@
 		var preserve_attribute_case = !attributes[IS_HTML];
 		var current = prev || {};
 		var is_option_element = element.nodeName === OPTION_TAG;
+		var is_select_element = element.nodeName === SELECT_TAG;
 		for (var key in prev) {
 			if (!(key in next) && key[0] + key[1] !== '$$') {
 				next[key] = null;
@@ -4193,6 +4331,7 @@
 					name = normalize_attribute(name);
 				}
 				var is_default = name === 'defaultValue' || name === 'defaultChecked';
+				if (is_select_element && name === 'defaultValue') continue;
 				if (value == null && !is_custom_element && !is_default) {
 					attributes[key] = null;
 					if (name === 'value' || name === 'checked') {
@@ -4214,7 +4353,7 @@
 					}
 				} else if (
 					is_default ||
-					(setters.includes(name) && (is_custom_element || typeof value !== 'string'))
+					((is_custom_element || typeof value !== 'string') && setters.has(name))
 				) {
 					element[name] = value;
 					if (name in attributes) attributes[name] = UNINITIALIZED;
@@ -4250,8 +4389,14 @@
 					should_remove_defaults,
 					skip_warning
 				);
-				if (inited && is_select && 'value' in next) {
-					select_option( (element), next.value);
+				if (inited && is_select) {
+					var select =  (element);
+					if ('defaultValue' in next) {
+						set_default_select_value(select, next.defaultValue);
+					}
+					if ('value' in next) {
+						select_option(select, next.value);
+					}
 				}
 				for (let symbol of Object.getOwnPropertySymbols(effects)) {
 					if (!next[symbol]) destroy_effect(effects[symbol]);
@@ -4269,7 +4414,11 @@
 			if (is_select) {
 				var select =  (element);
 				effect(() => {
-					select_option(select,  (prev).value, true);
+					var attrs =  (prev);
+					if ('defaultValue' in attrs) {
+						set_default_select_value(select, attrs.defaultValue);
+					}
+					select_option(select, attrs.value, true);
 					init_select(select);
 				});
 			}
@@ -4289,7 +4438,7 @@
 		var cache_key = element.getAttribute('is') || element.nodeName;
 		var setters = setters_cache.get(cache_key);
 		if (setters) return setters;
-		setters_cache.set(cache_key, (setters = []));
+		setters_cache.set(cache_key, (setters = new Set()));
 		var descriptors;
 		var proto = element;
 		var element_proto = Element.prototype;
@@ -4302,7 +4451,7 @@
 					key !== 'textContent' &&
 					key !== 'innerText'
 				) {
-					setters.push(key);
+					setters.add(key);
 				}
 			}
 			proto = get_prototype_of(proto);
@@ -4315,7 +4464,12 @@
 			bound_value === element_or_component || bound_value?.[STATE_SYMBOL] === element_or_component
 		);
 	}
-	function bind_this(element_or_component = {}, update, get_value, get_parts) {
+	function bind_this(
+		element_or_component = mark_as_component(),
+		update,
+		get_value,
+		get_parts
+	) {
 		var component_effect =  (component_context).r;
 		var parent =  (active_effect);
 		effect(() => {
@@ -5189,6 +5343,18 @@
 			get$1(s);
 			return super.get(key);
 		}
+		getOrInsert(key, value) {
+			if (!super.has(key)) {
+				this.set(key, value);
+			}
+			return  (this.get(key));
+		}
+		getOrInsertComputed(key, callbackFn) {
+			if (!super.has(key)) {
+				this.set(key, callbackFn(key));
+			}
+			return  (this.get(key));
+		}
 		set(key, value) {
 			var sources = this.#sources;
 			var s = sources.get(key);
@@ -5532,18 +5698,18 @@
 		return near.has(offset - 1) && near.has(offset);
 	}
 
-	var root$b = from_html(`<div class="selected-property-overlay svelte-ozckc"></div>`);
-	var root_1$6 = from_html(`<div class="selected-node-overlay svelte-ozckc"></div>`);
+	var root$l = from_html(`<div class="selected-property-overlay svelte-ozckc"></div>`);
+	var root_1$7 = from_html(`<div class="selected-node-overlay svelte-ozckc"></div>`);
 	var root_2$3 = from_html(`<!> <!>`, 1);
 
-	const $$css$9 = {
+	const $$css$a = {
 		hash: 'svelte-ozckc',
 		code: '.selected-node-overlay.svelte-ozckc,\n	.selected-property-overlay.svelte-ozckc {\n		/* Selection frame: a single 1px outline, offset -0.5px so the\n		   hairline centers on the node\'s edge and neighboring frames merge\n		   into one shared line. Alternatives tried and rejected:\n		   - Plain 1px border: adjacent selected nodes stack their borders\n		     into a 2px seam between them, which looks ugly.\n		   - Thick translucent frame (8px border) plus an inner hairline\n		     outline: multiple nested lines take more cognitive effort to\n		     parse than a single line.\n		   - Inset box-shadow rings (1px stroke + 8px translucent): same\n		     layered-frame look, same objection.\n		   Performance note: outlines don\'t participate in layout, so\n		   selection changes can\'t trigger reflows. */position:absolute;background:var(--editing-muted);outline:1px solid var(--editing);outline-offset:-0.5px;border-radius:1px;top:anchor(top);left:anchor(left);bottom:anchor(bottom);right:anchor(right);pointer-events:none;z-index:12;}'
 	};
 
 	function NodeSelectionMarkers($$anchor, $$props) {
 		push($$props, true);
-		append_styles$1($$anchor, $$css$9);
+		append_styles$1($$anchor, $$css$a);
 
 		const svedit = getContext('svedit');
 		let selected_node_paths = user_derived(get_selected_node_paths);
@@ -5570,7 +5736,7 @@
 
 		{
 			var consequent = ($$anchor) => {
-				var div = root$b();
+				var div = root$l();
 
 				template_effect(($0) => set_style(div, `position-anchor: --${$0 ?? ''};`), [() => serialize_path(svedit.session.selection.path)]);
 				append($$anchor, div);
@@ -5589,7 +5755,7 @@
 				var node_2 = first_child(fragment_1);
 
 				each(node_2, 17, () => get$1(selected_node_paths), (path) => serialize_path(path), ($$anchor, path) => {
-					var div_1 = root_1$6();
+					var div_1 = root_1$7();
 
 					template_effect(($0) => set_style(div_1, `position-anchor: --${$0 ?? ''};`), [() => serialize_path(get$1(path))]);
 					append($$anchor, div_1);
@@ -5607,16 +5773,16 @@
 		pop();
 	}
 
-	var root_1$5 = from_html(`<div><!> <!> <div><!></div></div>`);
+	var root_1$6 = from_html(`<div><!> <!> <div><!></div></div>`);
 
-	const $$css$8 = {
+	const $$css$9 = {
 		hash: 'svelte-1fkh1fs',
 		code: '.svedit-canvas.svelte-1fkh1fs {caret-color:var(--editing);caret-shape:bar;\n		/* Default to vertical/ column flow with: --row: 0; (the most common case)\n		Prevents silent failures when developers forget to set the row property in their top level node component.\n		TODO: Warn developers in dev mode via console if they forget to set the --row property and use a different flow.*/--row: 0;&:focus {outline:none;}}\n\n	/* Selection paint — wrapped in :where() so consumers can override with\n	   a plain `::selection` rule. Svelte still adds the scope hash inside\n	   the :where(), but the wrapper zeroes its specificity contribution.\n	   Final specificity is just (0,0,1), trivially beatable. */:where(.svedit-canvas.svelte-1fkh1fs) ::selection {background:var(--editing-muted);}\n\n	@media not (pointer: coarse) {.svedit-canvas.hide-selection.svelte-1fkh1fs {caret-color:transparent;}\n	}\n\n	/* When the caret is in a node gap we never want to see the caret */.svedit-canvas.node-caret.svelte-1fkh1fs,\n	.svedit-canvas.property-selection.svelte-1fkh1fs {caret-color:transparent;}\n\n	@media not (pointer: coarse) {\n		@supports (anchor-name: --test) {.svedit-canvas.hide-selection.svelte-1fkh1fs ::selection {background:transparent;}\n		}\n	}'
 	};
 
 	function Svedit($$anchor, $$props) {
 		push($$props, true);
-		append_styles$1($$anchor, $$css$8);
+		append_styles$1($$anchor, $$css$9);
 
 		let session = prop($$props, 'session', 7),
 			editable = prop($$props, 'editable', 15, false),
@@ -7241,7 +7407,7 @@ ${fallback_html}`;
 		});
 
 		var $$exports = { focus_canvas };
-		var div = root_1$5();
+		var div = root_1$6();
 
 		event('selectionchange', $document, onselectionchange);
 		event('cut', $document, oncut);
@@ -7332,7 +7498,7 @@ ${fallback_html}`;
 		return pop($$exports);
 	}
 
-	var rest_excludes$2 = new Set([
+	var rest_excludes$3 = new Set([
 		'$$slots',
 		'$$events',
 		'$$legacy',
@@ -7343,26 +7509,26 @@ ${fallback_html}`;
 		'style'
 	]);
 
-	var root$a = from_html(`<span class="selection-highlight svelte-14pr6a7" style="anchor-name: --selection-highlight;"> </span>`);
-	var root_1$4 = from_html(`<span> </span>`);
+	var root$k = from_html(`<span class="selection-highlight svelte-14pr6a7" style="anchor-name: --selection-highlight;"> </span>`);
+	var root_1$5 = from_html(`<span> </span>`);
 	var root_2$2 = from_html(`<br/>`);
 	var root_3$1 = from_html(`<!><!>`, 1);
 
-	const $$css$7 = {
+	const $$css$8 = {
 		hash: 'svelte-14pr6a7',
 		code: '\n	/* Editable text base layout; :where() allows easy override without specificity conflicts. */:where(.text.svelte-14pr6a7) {white-space:pre-wrap;overflow-wrap:anywhere;box-sizing:content-box;}\n\n	/* We switch from ::before to ::after when the element is focused. So the the caret is always before the placeholder. */[placeholder].empty.svelte-14pr6a7:not(.focused)::before,\n	[placeholder].empty.focused.svelte-14pr6a7::after {content:attr(placeholder);pointer-events:none;color:color-mix(in oklch, currentcolor 50%, transparent);}\n\n	/* A virtual caret: to fix the caret vertical alignment issue in Chrome and Firefox for empty focused contenteditable with placeholders */\n	/* Browser BUG: iOS Safari only considers the caret color set on the top contenteditable element, not on nested elements (e.g. the second selector doesn\'t work in iOS Safari) */.svedit.editable .svedit-canvas:has([placeholder].empty.focused),\n	.svedit.editable [placeholder].empty.focused.svelte-14pr6a7 {caret-color:transparent !important;}.svedit.editable [placeholder].empty.focused.svelte-14pr6a7::before {content:\'\';\n		/* we limit width & height to avoid layout shifts in case the text has a lower natural height */width:0px;height:1cap;display:inline-block;\n		/* we use box-shadow to draw the caret shape, matching the native caret */box-shadow:0 -0.4cap 0 0.65px var(--editing, AccentColor),\n			0 0 0 0.65px var(--editing, AccentColor),\n			0 0.4cap 0 0.65px var(--editing, AccentColor);\n		animation: var(\n			--node-caret-animation,\n			node-caret-blink var(--node-caret-blink-duration, 1.1s) ease-in-out infinite\n		);}\n\n	/* Hide flickering: in Chrome, the caret jumps from end of placeholder string to start of text property when we focus */.text.svelte-14pr6a7:not(.focused) {caret-color:transparent;}\n\n	/* Disable text-transform when editable and focused so users see original text */.svedit.editable .text.focused.svelte-14pr6a7 {text-transform:none !important;}\n\n	/* Dim the selection highlight when canvas loses native focus */.svedit-canvas:not(:focus-within) .selection-highlight.svelte-14pr6a7 {background:oklch(from var(--editing-muted) l 0 h / alpha);}\n\n	/* Make a collapsed caret visible */.svedit-canvas:not(:focus-within) .selection-highlight.svelte-14pr6a7:empty {background:none;outline:0.5px solid oklch(from var(--editing) l 0 h / alpha);}'
 	};
 
 	function TextProperty($$anchor, $$props) {
 		push($$props, true);
-		append_styles$1($$anchor, $$css$7);
+		append_styles$1($$anchor, $$css$8);
 
 		const svedit = getContext('svedit');
 
 		let placeholder = prop($$props, 'placeholder', 3, ''),
 			tag = prop($$props, 'tag', 3, 'div'),
 			style = prop($$props, 'style', 3, ''),
-			rest = rest_props($$props, rest_excludes$2);
+			rest = rest_props($$props, rest_excludes$3);
 
 		let path_str = user_derived(() => serialize_path($$props.path));
 
@@ -7441,7 +7607,7 @@ ${fallback_html}`;
 		var fragment_1 = comment();
 		var node_1 = first_child(fragment_1);
 
-		element(node_1, tag, false, ($$element, $$anchor) => {
+		element$1(node_1, tag, false, ($$element, $$anchor) => {
 			attribute_effect(
 				$$element,
 				() => ({
@@ -7468,15 +7634,16 @@ ${fallback_html}`;
 
 				{
 					var consequent = ($$anchor) => {
-						var text_1 = text();
+						var text_1 = text$1();
 
 						template_effect(() => set_text(text_1, get$1(fragment)));
 						append($$anchor, text_1);
 					};
 
 					var consequent_1 = ($$anchor) => {
-						var span = root$a();
-						var text_2 = child(span);
+						var span = root$k();
+						var text_2 = only_child(span, true);
+
 						template_effect(() => set_text(text_2, get$1(fragment).content));
 						append($$anchor, span);
 					};
@@ -7516,8 +7683,8 @@ ${fallback_html}`;
 							};
 
 							var alternate = ($$anchor) => {
-								var span_1 = root_1$4();
-								var text_3 = child(span_1);
+								var span_1 = root_1$5();
+								var text_3 = only_child(span_1, true);
 
 								template_effect(() => {
 									set_class(span_1, 1, `mark-${get$1(fragment).node.type ?? ''}`, 'svelte-14pr6a7');
@@ -7561,6 +7728,62 @@ ${fallback_html}`;
 		});
 
 		append($$anchor, fragment_1);
+		pop();
+	}
+
+	var rest_excludes$2 = new Set([
+		'$$slots',
+		'$$events',
+		'$$legacy',
+		'path',
+		'tag',
+		'class',
+		'children',
+		'style'
+	]);
+
+	var root$j = from_html(`<div class="property-selectable svelte-i5fmbv"><div class="svedit-selectable svelte-i5fmbv"><br/></div></div> <!>`, 1);
+
+	const $$css$7 = {
+		hash: 'svelte-i5fmbv',
+		code: '[data-type=\'property\'].svelte-i5fmbv {position:relative;}.property-selectable.svelte-i5fmbv {position:absolute;top:0;left:0;right:0;bottom:0;z-index:1;outline:none;\n		/* Position the hidden selectable element at the bottom so the\n		   browser\'s native scroll-to-caret ensures the full property\n		   is visible, not just the top edge. */display:none;align-items:flex-end;justify-content:center;}.svedit.editable .property-selectable.svelte-i5fmbv {display:flex;}.svedit-selectable.svelte-i5fmbv {caret-color:transparent;}'
+	};
+
+	function CustomProperty($$anchor, $$props) {
+		push($$props, true);
+		append_styles$1($$anchor, $$css$7);
+
+		let tag = prop($$props, 'tag', 3, 'div'),
+			rest = rest_props($$props, rest_excludes$2);
+
+		let path_str = user_derived(() => serialize_path($$props.path));
+		var fragment = comment();
+		var node = first_child(fragment);
+
+		element$1(node, tag, false, ($$element, $$anchor) => {
+			attribute_effect(
+				$$element,
+				() => ({
+					class: $$props.class,
+					'data-type': 'property',
+					'data-path': get$1(path_str),
+					style: `anchor-name: --${get$1(path_str) ?? ''};${$$props.style ? ` ${$$props.style}` : ''}`,
+					...rest
+				}),
+				void 0,
+				void 0,
+				void 0,
+				'svelte-i5fmbv'
+			);
+
+			var fragment_1 = root$j();
+			var node_1 = sibling(first_child(fragment_1), 2);
+
+			snippet(node_1, () => $$props.children);
+			append($$anchor, fragment_1);
+		});
+
+		append($$anchor, fragment);
 		pop();
 	}
 
@@ -7631,7 +7854,7 @@ ${fallback_html}`;
 		var fragment = comment();
 		var node_1 = first_child(fragment);
 
-		element(node_1, tag, false, ($$element, $$anchor) => {
+		element$1(node_1, tag, false, ($$element, $$anchor) => {
 			attach($$element, () => svedit.visibility_registry.track_node(get$1(path_str)));
 
 			attribute_effect(
@@ -7675,10 +7898,10 @@ ${fallback_html}`;
 
 			children: ($$anchor, $$slotProps) => {
 
-				var text$1 = text();
+				var text = text$1();
 
-				template_effect(() => set_text(text$1, `Unknown: ${get$1(node).type ?? ''}.`));
-				append($$anchor, text$1);
+				template_effect(() => set_text(text, `Unknown: ${get$1(node).type ?? ''}.`));
+				append($$anchor, text);
 			},
 			$$slots: { default: true }
 		});
@@ -7698,8 +7921,8 @@ ${fallback_html}`;
 		el.setAttribute('data-sent-to-back', '');
 	}
 
-	var root$9 = from_html(`<div><div class="svedit-selectable"><br/></div></div>`);
-	var root_1$3 = from_html(`<div class="node-gap svelte-1wyy3at"></div>`);
+	var root$i = from_html(`<div><div class="svedit-selectable"><br/></div></div>`);
+	var root_1$4 = from_html(`<div class="node-gap svelte-1wyy3at"></div>`);
 
 	const $$css$5 = {
 		hash: 'svelte-1wyy3at',
@@ -7796,9 +8019,9 @@ ${fallback_html}`;
 
 		{
 			var consequent = ($$anchor) => {
-				var div = root$9();
+				var div = root$i();
 				let classes;
-				var div_1 = child(div);
+				var div_1 = only_child(div);
 
 				template_effect(() => {
 					classes = set_class(div, 1, 'node-gap svelte-1wyy3at', null, classes, {
@@ -7821,7 +8044,7 @@ ${fallback_html}`;
 			};
 
 			var alternate = ($$anchor) => {
-				var div_2 = root_1$3();
+				var div_2 = root_1$4();
 
 				append($$anchor, div_2);
 			};
@@ -7837,7 +8060,7 @@ ${fallback_html}`;
 
 	delegate(['pointerdown']);
 
-	var root$8 = from_html(`<div class="caret svelte-mzpbhk" role="none"></div>`);
+	var root$h = from_html(`<div class="caret svelte-mzpbhk" role="none"></div>`);
 
 	const $$css$4 = {
 		hash: 'svelte-mzpbhk',
@@ -7854,13 +8077,13 @@ ${fallback_html}`;
 		 * color/shape/animation and switches orientation via var(--row, 1)
 		 * with the * 99999 multiplier trick — works in all browsers.
 		 */
-		div = root$8();
+		div = root$h();
 
 		append($$anchor, div);
 	}
 
-	var root$7 = from_html(`<!> <!>`, 1);
-	var root_1$2 = from_html(`<div contenteditable="false"><!></div>`);
+	var root$g = from_html(`<!> <!>`, 1);
+	var root_1$3 = from_html(`<div contenteditable="false"><!></div>`);
 
 	const $$css$3 = {
 		hash: 'svelte-fcy96a',
@@ -8033,13 +8256,13 @@ ${fallback_html}`;
 		var node = first_child(fragment);
 
 		each(node, 17, () => get$1(my_gaps), (gap) => gap.key, ($$anchor, gap) => {
-			var div = root_1$2();
+			var div = root_1$3();
 			let classes;
 			var node_1 = child(div);
 
 			{
 				var consequent_1 = ($$anchor) => {
-					var fragment_1 = root$7();
+					var fragment_1 = root$g();
 					var node_2 = first_child(fragment_1);
 
 					NodeCaret(node_2);
@@ -8117,8 +8340,8 @@ ${fallback_html}`;
 		'style'
 	]);
 
-	var root$6 = from_html(`<!> <!>`, 1);
-	var root_1$1 = from_html(`<div class="empty-node-placeholder svelte-1lsqwip" data-type="node"><!></div>`);
+	var root$f = from_html(`<!> <!>`, 1);
+	var root_1$2 = from_html(`<div class="empty-node-placeholder svelte-1lsqwip" data-type="node"><!></div>`);
 	var root_2$1 = from_html(`<!> <!> <!> <!>`, 1);
 
 	const $$css$2 = {
@@ -8243,7 +8466,7 @@ ${fallback_html}`;
 		var fragment_1 = comment();
 		var node_1 = first_child(fragment_1);
 
-		element(node_1, tag, false, ($$element, $$anchor) => {
+		element$1(node_1, tag, false, ($$element, $$anchor) => {
 			attach($$element, () => svedit.visibility_registry.track_array(get$1(path_str)));
 
 			attribute_effect(
@@ -8272,7 +8495,7 @@ ${fallback_html}`;
 					const mark = user_derived(() => get_mark(get$1(index)));
 					const annotations = user_derived(() => get_annotation_contexts(get$1(index)));
 					const Component = user_derived(() => svedit.session.config.node_components[get$1(node).type]);
-					var fragment_3 = root$6();
+					var fragment_3 = root$f();
 					var node_3 = first_child(fragment_3);
 
 					component(node_3, () => get$1(NodeGap$1), ($$anchor, NodeGap_1) => {
@@ -8349,7 +8572,7 @@ ${fallback_html}`;
 
 			{
 				var consequent_1 = ($$anchor) => {
-					var div = root_1$1();
+					var div = root_1$2();
 					var node_7 = child(div);
 
 					component(node_7, () => get$1(NodeGap$1), ($$anchor, NodeGap_2) => {
@@ -10489,91 +10712,263 @@ ${fallback_html}`;
 		// Node selection rendering is now handled by the library's NodeSelectionMarkers.
 	}
 
-	var root$5 = from_html(`<div><!></div>`);
-
-	function Text$1($$anchor, $$props) {
-		push($$props, true);
-
-		const svedit = getContext('svedit');
-		let node = user_derived(() => svedit.session.get($$props.path));
-		let layout = user_derived(() => get$1(node).layout || 1);
-		let text_style = user_derived(() => get_text_style_from_layout(get$1(layout)));
-		let readable_text_type = user_derived(() => get_readable_text_type_from_layout(get$1(layout)));
-
-		function get_text_style_from_layout(layout) {
-			switch (layout) {
-				case 1:
-					return 'body';
-
-				case 2:
-					return 'heading1';
-
-				case 3:
-					return 'heading2';
-
-				case 4:
-					return 'heading3';
-
-				default:
-					return 'body';
-			}
-		}
-
-		function get_readable_text_type_from_layout(layout) {
-			switch (layout) {
-				case 1:
-					return 'Paragraph';
-
-				case 2:
-					return 'Heading 1';
-
-				case 3:
-					return 'Heading 2';
-
-				case 4:
-					return 'Heading 3';
-
-				default:
-					return 'Paragraph';
-			}
-		}
-
-		Node$1($$anchor, {
-			get path() {
-				return $$props.path;
-			},
-
-			children: ($$anchor, $$slotProps) => {
-				var div = root$5();
-				var node_1 = child(div);
-
-				{
-					let $0 = user_derived(() => [...$$props.path, 'content']);
-
-					TextProperty(node_1, {
-						get class() {
-							return get$1(text_style);
-						},
-
-						get path() {
-							return get$1($0);
-						},
-
-						get placeholder() {
-							return get$1(readable_text_type);
-						}
-					});
-				}
-				template_effect(() => set_class(div, 1, `text layout-${get$1(layout) ?? ''} mx-auto w-full max-w-5xl py-4`));
-				append($$anchor, div);
-			},
-			$$slots: { default: true }
-		});
-
-		pop();
+	const SEGMENT_SEPARATOR = "_";
+	const ESCAPED_UNDERSCORE = "--";
+	function unescapeSegment(segment) {
+	  return segment.replaceAll(ESCAPED_UNDERSCORE, SEGMENT_SEPARATOR)
+	}
+	function folderFromClasses(classList) {
+	  const dirClassList = classList.filter(name => name.startsWith(SEGMENT_SEPARATOR));
+	  if (!dirClassList.length) return null
+	  const deepest = dirClassList.reduce((longest, name) => {
+	    return name.length > longest.length ? name : longest
+	  }, "");
+	  const segments = deepest.slice(1).split(SEGMENT_SEPARATOR).filter(Boolean);
+	  return segments.map(unescapeSegment).join("/")
+	}
+	function globParams(classList) {
+	  const folder = folderFromClasses(classList);
+	  if (folder === null) return null
+	  const limitClass = classList.find(name => name.startsWith("limit-"));
+	  const tagClass = classList.find(name => name.startsWith("tag-"));
+	  return {
+	    folder,
+	    recursive: classList.includes("recursive"),
+	    limit: limitClass ? limitClass.slice("limit-".length) : null,
+	    tag: tagClass ? tagClass.slice("tag-".length) : null
+	  }
+	}
+	function globDirective({ folder, recursive, limit, tag }) {
+	  const base = "/" + [folder, recursive ? "**" : "*"].filter(Boolean).join("/");
+	  const countParam = limit ? [`count=${limit}`] : [];
+	  const tagParam = tag ? [`tag=${tag}`] : [];
+	  const query = [...countParam, ...tagParam].join("&");
+	  return query ? `${base}?${query}` : base
 	}
 
-	var root$4 = from_html(`<div class="page"><!></div>`);
+	const TEXT_NODE = 3;
+	const ELEMENT_NODE = 1;
+	const MARK_TYPES = {
+	  STRONG: "strong",
+	  B: "strong",
+	  EM: "emphasis",
+	  I: "emphasis",
+	  CODE: "inline_code",
+	  MARK: "highlight",
+	  DEL: "strikethrough",
+	  S: "strikethrough",
+	  A: "link"
+	};
+	const HEADING_LEVELS = {
+	  H1: 1,
+	  H2: 2,
+	  H3: 3,
+	  H4: 4,
+	  H5: 5,
+	  H6: 6
+	};
+	function classList(element) {
+	  return [...element.classList]
+	}
+	function expansionDirective(element) {
+	  const classes = classList(element);
+	  if (element.tagName === "UL" && classes.some(name => name.startsWith("_"))) {
+	    const params = globParams(classes);
+	    return params && globDirective(params)
+	  }
+	  if (element.tagName === "ARTICLE" && classes.includes("reference")) {
+	    const link = element.querySelector("a[href]");
+	    return link && link.getAttribute("href")
+	  }
+	  if (element.tagName === "A" && classes.includes("link-preview")) {
+	    return element.getAttribute("href")
+	  }
+	  if (element.tagName === "ARTICLE" && classes.includes("link-preview")) {
+	    const link = element.querySelector("a[href]");
+	    return link && link.getAttribute("href")
+	  }
+	  return null
+	}
+	function inlineFrom$1(domNode, context, insideMark) {
+	  if (domNode.nodeType === TEXT_NODE) {
+	    return { content: domNode.nodeValue, marks: [] }
+	  }
+	  if (domNode.nodeType !== ELEMENT_NODE) {
+	    return { content: "", marks: [] }
+	  }
+	  if (domNode.tagName === "BR") {
+	    return { content: "\n", marks: [] }
+	  }
+	  const markType = insideMark ? null : MARK_TYPES[domNode.tagName];
+	  const children = [...domNode.childNodes].map(child => {
+	    return inlineFrom$1(child, context, insideMark || Boolean(markType))
+	  });
+	  const combined = children.reduce((accumulated, result) => {
+	    const shifted = result.marks.map(mark => ({
+	      ...mark,
+	      start_offset: mark.start_offset + accumulated.content.length,
+	      end_offset: mark.end_offset + accumulated.content.length
+	    }));
+	    return {
+	      content: accumulated.content + result.content,
+	      marks: [...accumulated.marks, ...shifted]
+	    }
+	  }, { content: "", marks: [] });
+	  if (!markType) return combined
+	  const markId = context.createMark(markType, domNode);
+	  return {
+	    content: combined.content,
+	    marks: [{ start_offset: 0, end_offset: combined.content.length, node_id: markId }]
+	  }
+	}
+	function trimValue({ content, marks }) {
+	  const leading = content.length - content.trimStart().length;
+	  const trimmed = content.trim();
+	  const clamped = marks
+	    .map(mark => ({
+	      ...mark,
+	      start_offset: Math.max(0, Math.min(mark.start_offset - leading, trimmed.length)),
+	      end_offset: Math.max(0, Math.min(mark.end_offset - leading, trimmed.length))
+	    }))
+	    .filter(mark => mark.end_offset > mark.start_offset);
+	  return { content: trimmed, marks: clamped, annotations: [] }
+	}
+	function textValue(element, context) {
+	  return trimValue(inlineFrom$1(element, context, false))
+	}
+	function pictureIn(element) {
+	  if (element.tagName === "PICTURE") return element
+	  return element.querySelector("picture")
+	}
+	function blockFrom$1(element, context) {
+	  const directive = expansionDirective(element);
+	  if (directive) {
+	    return context.create({
+	      type: "embed",
+	      directive,
+	      html: element.outerHTML
+	    })
+	  }
+	  const tag = element.tagName;
+	  if (tag === "P") {
+	    const picture = pictureIn(element);
+	    if (picture && !element.textContent.trim()) return imageFrom(picture, null, element, context)
+	    return context.create({
+	      type: "paragraph",
+	      content: textValue(element, context)
+	    })
+	  }
+	  if (HEADING_LEVELS[tag]) {
+	    return context.create({
+	      type: "heading",
+	      level: HEADING_LEVELS[tag],
+	      content: textValue(element, context)
+	    })
+	  }
+	  if (tag === "UL" || tag === "OL") {
+	    const items = [...element.children].map(child => {
+	      if (child.tagName !== "LI") return null
+	      return context.create({
+	        type: "list_item",
+	        content: textValue(child, context)
+	      })
+	    });
+	    if (items.some(id => !id)) return null
+	    return context.create({
+	      type: "list",
+	      ordered: tag === "OL",
+	      items: { nodes: items, marks: [], annotations: [] }
+	    })
+	  }
+	  if (tag === "ASIDE" && classList(element).includes("alert")) {
+	    const variant = classList(element).find(name => name !== "alert");
+	    const body = [...element.children]
+	      .filter(child => child.tagName !== "H2")
+	      .map(child => blockFrom$1(child, context));
+	    if (body.some(id => !id)) return null
+	    return context.create({
+	      type: "alert",
+	      variant: variant || "note",
+	      body: { nodes: body, marks: [], annotations: [] }
+	    })
+	  }
+	  if (tag === "BLOCKQUOTE") {
+	    const body = [...element.children].map(child => blockFrom$1(child, context));
+	    if (body.some(id => !id)) return null
+	    return context.create({
+	      type: "blockquote",
+	      body: { nodes: body, marks: [], annotations: [] }
+	    })
+	  }
+	  if (tag === "PRE") {
+	    const code = element.querySelector("code");
+	    const language = code
+	      ? (classList(code).find(name => name.startsWith("language-")) || "").slice("language-".length)
+	      : "";
+	    return context.create({
+	      type: "code_block",
+	      language,
+	      code: (code || element).textContent.replace(/\n+$/, "")
+	    })
+	  }
+	  if (tag === "HR") {
+	    return context.create({ type: "thematic_break" })
+	  }
+	  if (tag === "FIGURE") {
+	    const picture = pictureIn(element);
+	    const caption = element.querySelector("figcaption");
+	    if (picture) return imageFrom(picture, caption, element, context)
+	  }
+	  if (tag === "PICTURE") {
+	    return imageFrom(element, null, element, context)
+	  }
+	  context.unrecognised.push(tag.toLowerCase() + (element.className ? `.${element.className}` : ""));
+	  return null
+	}
+	function imageFrom(picture, caption, outer, context) {
+	  const img = picture.querySelector("img");
+	  const source = picture.getAttribute("data-original");
+	  if (!source) {
+	    context.unrecognised.push("picture (no data-original)");
+	    return null
+	  }
+	  return context.create({
+	    type: "image",
+	    source,
+	    alt: img ? (img.getAttribute("alt") || "") : "",
+	    caption: caption ? caption.textContent : "",
+	    html: outer.outerHTML
+	  })
+	}
+	function ingest(contentElement, generateId) {
+	  const nodes = {};
+	  const unrecognised = [];
+	  const context = {
+	    unrecognised,
+	    create(node) {
+	      const id = generateId();
+	      nodes[id] = { ...node, id };
+	      return id
+	    },
+	    createMark(type, element) {
+	      const properties = type === "link"
+	        ? { href: element.getAttribute("href") || "" }
+	        : {};
+	      return context.create({ type, ...properties })
+	    }
+	  };
+	  const body = [...contentElement.children].map(child => blockFrom$1(child, context));
+	  if (unrecognised.length) return { doc: null, unrecognised }
+	  const pageId = generateId();
+	  nodes[pageId] = {
+	    id: pageId,
+	    type: "page",
+	    body: { nodes: body.filter(Boolean), marks: [], annotations: [] }
+	  };
+	  return { doc: { document_id: pageId, nodes }, unrecognised: [] }
+	}
+
+	var root$e = from_html(`<div class="page"><!></div>`);
 
 	const $$css$1 = {
 		hash: 'svelte-xibch9',
@@ -10589,7 +10984,7 @@ ${fallback_html}`;
 			},
 
 			children: ($$anchor, $$slotProps) => {
-				var div = root$4();
+				var div = root$e();
 				var node = child(div);
 
 				{
@@ -10608,35 +11003,332 @@ ${fallback_html}`;
 		});
 	}
 
-	var root$3 = from_html(`<strong> </strong>`);
+	function Paragraph($$anchor, $$props) {
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
 
-	function Highlight($$anchor, $$props) {
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "content"]);
+
+					TextProperty($$anchor, {
+						tag: 'p',
+						get path() {
+							return get$1($0);
+						},
+						placeholder: 'Paragraph'
+					});
+				}
+			},
+			$$slots: { default: true }
+		});
+	}
+
+	function Heading($$anchor, $$props) {
 		push($$props, true);
 
-		const svedit = getContext('svedit');
-		let node = user_derived(() => svedit.session.get($$props.path));
-		var strong = root$3();
-		var text = child(strong);
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		const tag = user_derived(() => `h${get$1(node).level || 2}`);
 
-		template_effect(() => {
-			set_attribute(strong, 'id', get$1(node).id);
-			set_attribute(strong, 'data-node-id', get$1(node).id);
-			set_text(text, $$props.content);
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "content"]);
+
+					TextProperty($$anchor, {
+						get tag() {
+							return get$1(tag);
+						},
+
+						get path() {
+							return get$1($0);
+						},
+						placeholder: 'Heading'
+					});
+				}
+			},
+			$$slots: { default: true }
 		});
 
-		append($$anchor, strong);
 		pop();
 	}
 
-	var root$2 = from_html(`<strong> </strong>`);
+	function List($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		const tag = user_derived(() => get$1(node).ordered ? "ol" : "ul");
+
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "items"]);
+
+					NodeArrayProperty($$anchor, {
+						get tag() {
+							return get$1(tag);
+						},
+
+						get path() {
+							return get$1($0);
+						}
+					});
+				}
+			},
+			$$slots: { default: true }
+		});
+
+		pop();
+	}
+
+	function ListItem($$anchor, $$props) {
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "content"]);
+
+					TextProperty($$anchor, {
+						tag: 'li',
+						get path() {
+							return get$1($0);
+						},
+						placeholder: 'List item'
+					});
+				}
+			},
+			$$slots: { default: true }
+		});
+	}
+
+	function Blockquote($$anchor, $$props) {
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "body"]);
+
+					NodeArrayProperty($$anchor, {
+						tag: 'blockquote',
+						get path() {
+							return get$1($0);
+						}
+					});
+				}
+			},
+			$$slots: { default: true }
+		});
+	}
+
+	var root$d = from_html(`<aside><h2 contenteditable="false"> </h2> <!></aside>`);
+
+	function Alert($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		const variant = user_derived(() => get$1(node).variant || "note");
+		const label = user_derived(() => get$1(variant).charAt(0).toUpperCase() + get$1(variant).slice(1));
+
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				var aside = root$d();
+				var h2 = child(aside);
+				var text = only_child(h2, true);
+				var node_1 = sibling(h2, 2);
+
+				{
+					let $0 = user_derived(() => [...$$props.path, "body"]);
+
+					NodeArrayProperty(node_1, {
+						get path() {
+							return get$1($0);
+						}
+					});
+				}
+
+				template_effect(() => {
+					set_class(aside, 1, `alert ${get$1(variant) ?? ''}`);
+					set_text(text, get$1(label));
+				});
+
+				append($$anchor, aside);
+			},
+			$$slots: { default: true }
+		});
+
+		pop();
+	}
+
+	var root$c = from_html(`<code contenteditable="false"> </code>`);
+
+	function CodeBlock($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "code"]);
+
+					CustomProperty($$anchor, {
+						tag: 'pre',
+						get path() {
+							return get$1($0);
+						},
+
+						children: ($$anchor, $$slotProps) => {
+							var code = root$c();
+							var text = only_child(code, true);
+
+							template_effect(() => {
+								set_class(code, 1, clsx(get$1(node).language ? `language-${get$1(node).language}` : ""));
+								set_text(text, get$1(node).code);
+							});
+
+							append($$anchor, code);
+						},
+						$$slots: { default: true }
+					});
+				}
+			},
+			$$slots: { default: true }
+		});
+
+		pop();
+	}
+
+	var root$b = from_html(`<hr contenteditable="false"/>`);
+
+	function ThematicBreak($$anchor, $$props) {
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				var hr = root$b();
+
+				append($$anchor, hr);
+			},
+			$$slots: { default: true }
+		});
+	}
+
+	var root$a = from_html(`<div contenteditable="false"></div>`);
+
+	function Image($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "source"]);
+
+					CustomProperty($$anchor, {
+						get path() {
+							return get$1($0);
+						},
+
+						children: ($$anchor, $$slotProps) => {
+							var div = root$a();
+
+							html$1(div, () => get$1(node).html, true);
+							append($$anchor, div);
+						},
+						$$slots: { default: true }
+					});
+				}
+			},
+			$$slots: { default: true }
+		});
+
+		pop();
+	}
+
+	var root$9 = from_html(`<div contenteditable="false" class="embed"></div>`);
+
+	function Embed($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "directive"]);
+
+					CustomProperty($$anchor, {
+						get path() {
+							return get$1($0);
+						},
+
+						children: ($$anchor, $$slotProps) => {
+							var div = root$9();
+
+							html$1(div, () => get$1(node).html, true);
+							template_effect(() => set_attribute(div, 'title', get$1(node).directive));
+							append($$anchor, div);
+						},
+						$$slots: { default: true }
+					});
+				}
+			},
+			$$slots: { default: true }
+		});
+
+		pop();
+	}
+
+	var root$8 = from_html(`<strong> </strong>`);
 
 	function Strong($$anchor, $$props) {
 		push($$props, true);
 
-		const svedit = getContext('svedit');
-		let node = user_derived(() => svedit.session.get($$props.path));
-		var strong = root$2();
-		var text = child(strong);
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		var strong = root$8();
+		var text = only_child(strong, true);
 
 		template_effect(() => {
 			set_attribute(strong, 'id', get$1(node).id);
@@ -10648,67 +11340,234 @@ ${fallback_html}`;
 		pop();
 	}
 
+	var root$7 = from_html(`<em> </em>`);
+
+	function Emphasis($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		var em = root$7();
+		var text = only_child(em, true);
+
+		template_effect(() => {
+			set_attribute(em, 'id', get$1(node).id);
+			set_attribute(em, 'data-node-id', get$1(node).id);
+			set_text(text, $$props.content);
+		});
+
+		append($$anchor, em);
+		pop();
+	}
+
+	var root$6 = from_html(`<code> </code>`);
+
+	function InlineCode($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		var code = root$6();
+		var text = only_child(code, true);
+
+		template_effect(() => {
+			set_attribute(code, 'id', get$1(node).id);
+			set_attribute(code, 'data-node-id', get$1(node).id);
+			set_text(text, $$props.content);
+		});
+
+		append($$anchor, code);
+		pop();
+	}
+
+	var root$5 = from_html(`<mark> </mark>`);
+
+	function Highlight($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		var mark = root$5();
+		var text = only_child(mark, true);
+
+		template_effect(() => {
+			set_attribute(mark, 'id', get$1(node).id);
+			set_attribute(mark, 'data-node-id', get$1(node).id);
+			set_text(text, $$props.content);
+		});
+
+		append($$anchor, mark);
+		pop();
+	}
+
+	var root$4 = from_html(`<del> </del>`);
+
+	function Strikethrough($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		var del = root$4();
+		var text = only_child(del, true);
+
+		template_effect(() => {
+			set_attribute(del, 'id', get$1(node).id);
+			set_attribute(del, 'data-node-id', get$1(node).id);
+			set_text(text, $$props.content);
+		});
+
+		append($$anchor, del);
+		pop();
+	}
+
+	var root$3 = from_html(`<div class="link"> </div>`);
+	var root_1$1 = from_html(`<a> </a>`);
+
+	function Link($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		var fragment = comment();
+		var node_1 = first_child(fragment);
+
+		{
+			var consequent = ($$anchor) => {
+				var div = root$3();
+				var text = only_child(div, true);
+
+				template_effect(() => {
+					set_attribute(div, 'data-node-id', get$1(node).id);
+					set_attribute(div, 'data-href', get$1(node).href);
+					set_text(text, $$props.content);
+				});
+
+				append($$anchor, div);
+			};
+
+			var alternate = ($$anchor) => {
+				var a = root_1$1();
+				var text_1 = only_child(a, true);
+
+				template_effect(() => {
+					set_attribute(a, 'id', get$1(node).id);
+					set_attribute(a, 'data-node-id', get$1(node).id);
+					set_attribute(a, 'href', get$1(node).href);
+					set_text(text_1, $$props.content);
+				});
+
+				append($$anchor, a);
+			};
+
+			if_block(node_1, ($$render) => {
+				if (svedit.editable) $$render(consequent); else $$render(alternate, -1);
+			});
+		}
+
+		append($$anchor, fragment);
+		pop();
+	}
+
+	const INLINE_MARKS = ["strong", "emphasis", "inline_code", "highlight", "strikethrough", "link"];
+	const BLOCK_TYPES = [
+	  "paragraph",
+	  "heading",
+	  "list",
+	  "blockquote",
+	  "alert",
+	  "code_block",
+	  "thematic_break",
+	  "image",
+	  "embed"
+	];
 	const document_schema = define_document_schema({
 	  page: {
-	    kind: 'document',
+	    kind: "document",
 	    properties: {
 	      body: {
-	        type: 'node_array',
-	        node_types: ['paragraph'],
-	        default_node_type: 'paragraph'
+	        type: "node_array",
+	        node_types: BLOCK_TYPES,
+	        default_node_type: "paragraph"
 	      }
 	    }
 	  },
 	  paragraph: {
-	    kind: 'text',
+	    kind: "text",
 	    properties: {
-	      content: {
-	        type: 'text',
-	        mark_types: ["highlight", "strong"],
-	        allow_newlines: false
-	      }
+	      content: { type: "text", mark_types: INLINE_MARKS, allow_newlines: true }
 	    }
 	  },
-	  highlight: {
-	    kind: 'mark',
+	  heading: {
+	    kind: "text",
+	    properties: {
+	      content: { type: "text", mark_types: INLINE_MARKS, allow_newlines: false },
+	      level: { type: "integer", min: 1, max: 6, default: 2 }
+	    }
+	  },
+	  list: {
+	    kind: "block",
+	    properties: {
+	      items: { type: "node_array", node_types: ["list_item"], default_node_type: "list_item" },
+	      ordered: { type: "boolean", default: false }
+	    }
+	  },
+	  list_item: {
+	    kind: "text",
+	    properties: {
+	      content: { type: "text", mark_types: INLINE_MARKS, allow_newlines: false }
+	    }
+	  },
+	  blockquote: {
+	    kind: "block",
+	    properties: {
+	      body: { type: "node_array", node_types: BLOCK_TYPES, default_node_type: "paragraph" }
+	    }
+	  },
+	  alert: {
+	    kind: "block",
+	    properties: {
+	      variant: { type: "string", default: "note" },
+	      body: { type: "node_array", node_types: BLOCK_TYPES, default_node_type: "paragraph" }
+	    }
+	  },
+	  code_block: {
+	    kind: "block",
+	    properties: {
+	      code: { type: "string", default: "" },
+	      language: { type: "string", default: "" }
+	    }
+	  },
+	  thematic_break: {
+	    kind: "block",
 	    properties: {}
 	  },
-	  strong: {
-	    kind: "mark",
-	    properties: {}
-	  }
+	  image: {
+	    kind: "block",
+	    properties: {
+	      source: { type: "string", default: "" },
+	      alt: { type: "string", default: "" },
+	      caption: { type: "string", default: "" },
+	      html: { type: "string", default: "" }
+	    }
+	  },
+	  embed: {
+	    kind: "block",
+	    properties: {
+	      directive: { type: "string", default: "" },
+	      html: { type: "string", default: "" }
+	    }
+	  },
+	  strong: { kind: "mark", properties: {} },
+	  emphasis: { kind: "mark", properties: {} },
+	  inline_code: { kind: "mark", properties: {} },
+	  highlight: { kind: "mark", properties: {} },
+	  strikethrough: { kind: "mark", properties: {} },
+	  link: { kind: "mark", properties: { href: { type: "string", default: "" } } }
 	});
-	const doc = {
-	  document_id: 'page_a',
-	  nodes: {
-	    text_a: {
-	      id: 'text_a',
-	      type: 'paragraph',
-	      content: {
-	        content: 'Text and structured content in symbiosis',
-	        marks: [],
-	        annotations: []
-	      }
-	    },
-	    page_a: {
-	      id: 'page_a',
-	      type: 'page',
-	      body: {
-	        nodes: ['text_a'],
-	        marks: [],
-	        annotations: []
-	      }
-	    }
-	  }
-	};
 	function generate_id(length = 16) {
-	  const id_alphabet = 'abcdefghijklmnopqrstuvwxyz';
+	  const id_alphabet = "abcdefghijklmnopqrstuvwxyz";
 	  const random_values = crypto.getRandomValues(new Uint8Array(length));
-	  let id = '';
-	  for (const random_value of random_values) {
-	    id += id_alphabet[random_value % id_alphabet.length];
-	  }
-	  return id;
+	  return [...random_values].map(value => id_alphabet[value % id_alphabet.length]).join("")
 	}
 	const session_config = {
 	  generate_id,
@@ -10717,9 +11576,22 @@ ${fallback_html}`;
 	  },
 	  node_components: {
 	    page: Page,
-	    paragraph: Text$1,
+	    paragraph: Paragraph,
+	    heading: Heading,
+	    list: List,
+	    list_item: ListItem,
+	    blockquote: Blockquote,
+	    alert: Alert,
+	    code_block: CodeBlock,
+	    thematic_break: ThematicBreak,
+	    image: Image,
+	    embed: Embed,
+	    strong: Strong,
+	    emphasis: Emphasis,
+	    inline_code: InlineCode,
 	    highlight: Highlight,
-	    strong: Strong
+	    strikethrough: Strikethrough,
+	    link: Link
 	  },
 	  create_commands_and_keymap: (context) => {
 	    const commands = {
@@ -10730,32 +11602,36 @@ ${fallback_html}`;
 	      undo: new UndoCommand(context),
 	      redo: new RedoCommand(context),
 	      select_parent: new SelectParentCommand(context),
-	      toggle_strong: new ToggleMarkCommand('strong', context),
-	      toggle_highlight: new ToggleMarkCommand('highlight', context)
+	      toggle_strong: new ToggleMarkCommand("strong", context),
+	      toggle_emphasis: new ToggleMarkCommand("emphasis", context),
+	      toggle_inline_code: new ToggleMarkCommand("inline_code", context),
+	      toggle_highlight: new ToggleMarkCommand("highlight", context),
+	      toggle_strikethrough: new ToggleMarkCommand("strikethrough", context)
 	    };
 	    const keymap = define_keymap({
-	      'meta+a,ctrl+a': [commands.select_all],
+	      "meta+a,ctrl+a": [commands.select_all],
 	      enter: [commands.break_text_node, commands.insert_default_node],
-	      'shift+enter': [commands.add_new_line, commands.insert_default_node],
-	      'meta+z,ctrl+z': [commands.undo],
-	      'meta+shift+z,ctrl+shift+z': [commands.redo],
+	      "shift+enter": [commands.add_new_line, commands.insert_default_node],
+	      "meta+z,ctrl+z": [commands.undo],
+	      "meta+shift+z,ctrl+shift+z": [commands.redo],
 	      escape: [commands.select_parent],
-	      'meta+b,ctrl+b': [commands.toggle_strong]
+	      "meta+b,ctrl+b": [commands.toggle_strong],
+	      "meta+i,ctrl+i": [commands.toggle_emphasis]
 	    });
-	    return { commands, keymap };
+	    return { commands, keymap }
 	  },
 	  inserters: {
-	    paragraph: function(tr, content = { content: '', marks: [], annotations: [] }) {
+	    paragraph: function (tr, content = { content: "", marks: [], annotations: [] }) {
 	      const new_paragraph = {
 	        id: session_config.generate_id(),
-	        type: 'paragraph',
+	        type: "paragraph",
 	        content
 	      };
 	      tr.create(new_paragraph);
 	      tr.insert_nodes([new_paragraph.id]);
 	      tr.set_selection({
-	        type: 'text',
-	        path: [...tr.selection.path, tr.selection.focus_offset - 1, 'content'],
+	        type: "text",
+	        path: [...tr.selection.path, tr.selection.focus_offset - 1, "content"],
 	        anchor_offset: 0,
 	        focus_offset: 0
 	      });
@@ -10763,12 +11639,1936 @@ ${fallback_html}`;
 	  }
 	};
 	function create_session(element) {
-	  console.log("hey");
-	  const demo_doc = fill_document_defaults(doc, document_schema);
-	  console.log({ demo_doc });
-	  const session = new Session(document_schema, demo_doc, session_config);
-	  console.log({ session });
-	  return session;
+	  const { doc, unrecognised } = ingest(element, generate_id);
+	  if (!doc) return { session: null, unrecognised }
+	  const filled = fill_document_defaults(doc, document_schema);
+	  return { session: new Session(document_schema, filled, session_config), unrecognised: [] }
+	}
+
+	const own$1 = {}.hasOwnProperty;
+	function zwitch(key, options) {
+	  const settings = options || {};
+	  function one(value, ...parameters) {
+	    let fn = one.invalid;
+	    const handlers = one.handlers;
+	    if (value && own$1.call(value, key)) {
+	      const id = String(value[key]);
+	      fn = own$1.call(handlers, id) ? handlers[id] : one.unknown;
+	    }
+	    if (fn) {
+	      return fn.call(this, value, ...parameters)
+	    }
+	  }
+	  one.handlers = settings.handlers || {};
+	  one.invalid = settings.invalid;
+	  one.unknown = settings.unknown;
+	  return one
+	}
+
+	const own = {}.hasOwnProperty;
+	function configure(base, extension) {
+	  let index = -1;
+	  let key;
+	  if (extension.extensions) {
+	    while (++index < extension.extensions.length) {
+	      configure(base, extension.extensions[index]);
+	    }
+	  }
+	  for (key in extension) {
+	    if (own.call(extension, key)) {
+	      switch (key) {
+	        case 'extensions': {
+	          break
+	        }
+	        case 'unsafe': {
+	          list$1(base[key], extension[key]);
+	          break
+	        }
+	        case 'join': {
+	          list$1(base[key], extension[key]);
+	          break
+	        }
+	        case 'handlers': {
+	          map$2(base[key], extension[key]);
+	          break
+	        }
+	        default: {
+	          base.options[key] = extension[key];
+	        }
+	      }
+	    }
+	  }
+	  return base
+	}
+	function list$1(left, right) {
+	  if (right) {
+	    left.push(...right);
+	  }
+	}
+	function map$2(left, right) {
+	  if (right) {
+	    Object.assign(left, right);
+	  }
+	}
+
+	function blockquote(node, _, state, info) {
+	  const exit = state.enter('blockquote');
+	  const tracker = state.createTracker(info);
+	  tracker.move('> ');
+	  tracker.shift(2);
+	  const value = state.indentLines(
+	    state.containerFlow(node, tracker.current()),
+	    map$1
+	  );
+	  exit();
+	  return value
+	}
+	function map$1(line, _, blank) {
+	  return '>' + (blank ? '' : ' ') + line
+	}
+
+	function patternInScope(stack, pattern) {
+	  return (
+	    listInScope(stack, pattern.inConstruct, true) &&
+	    !listInScope(stack, pattern.notInConstruct, false)
+	  )
+	}
+	function listInScope(stack, list, none) {
+	  if (typeof list === 'string') {
+	    list = [list];
+	  }
+	  if (!list || list.length === 0) {
+	    return none
+	  }
+	  let index = -1;
+	  while (++index < list.length) {
+	    if (stack.includes(list[index])) {
+	      return true
+	    }
+	  }
+	  return false
+	}
+
+	function hardBreak(_, _1, state, info) {
+	  let index = -1;
+	  while (++index < state.unsafe.length) {
+	    if (
+	      state.unsafe[index].character === '\n' &&
+	      patternInScope(state.stack, state.unsafe[index])
+	    ) {
+	      return /[ \t]/.test(info.before) ? '' : ' '
+	    }
+	  }
+	  return '\\\n'
+	}
+
+	function longestStreak(value, substring) {
+	  const source = String(value);
+	  let index = source.indexOf(substring);
+	  let expected = index;
+	  let count = 0;
+	  let max = 0;
+	  if (typeof substring !== 'string') {
+	    throw new TypeError('Expected substring')
+	  }
+	  while (index !== -1) {
+	    if (index === expected) {
+	      if (++count > max) {
+	        max = count;
+	      }
+	    } else {
+	      count = 1;
+	    }
+	    expected = index + substring.length;
+	    index = source.indexOf(substring, expected);
+	  }
+	  return max
+	}
+
+	function formatCodeAsIndented(node, state) {
+	  return Boolean(
+	    state.options.fences === false &&
+	      node.value &&
+	      !node.lang &&
+	      /[^ \r\n]/.test(node.value) &&
+	      !/^[\t ]*(?:[\r\n]|$)|(?:^|[\r\n])[\t ]*$/.test(node.value)
+	  )
+	}
+
+	function checkFence(state) {
+	  const marker = state.options.fence || '`';
+	  if (marker !== '`' && marker !== '~') {
+	    throw new Error(
+	      'Cannot serialize code with `' +
+	        marker +
+	        '` for `options.fence`, expected `` ` `` or `~`'
+	    )
+	  }
+	  return marker
+	}
+
+	function code(node, _, state, info) {
+	  const marker = checkFence(state);
+	  const raw = node.value || '';
+	  const suffix = marker === '`' ? 'GraveAccent' : 'Tilde';
+	  if (formatCodeAsIndented(node, state)) {
+	    const exit = state.enter('codeIndented');
+	    const value = state.indentLines(raw, map);
+	    exit();
+	    return value
+	  }
+	  const tracker = state.createTracker(info);
+	  const sequence = marker.repeat(Math.max(longestStreak(raw, marker) + 1, 3));
+	  const exit = state.enter('codeFenced');
+	  let value = tracker.move(sequence);
+	  if (node.lang) {
+	    const subexit = state.enter(`codeFencedLang${suffix}`);
+	    value += tracker.move(
+	      state.safe(node.lang, {
+	        before: value,
+	        after: ' ',
+	        encode: ['`'],
+	        ...tracker.current()
+	      })
+	    );
+	    subexit();
+	  }
+	  if (node.lang && node.meta) {
+	    const subexit = state.enter(`codeFencedMeta${suffix}`);
+	    value += tracker.move(' ');
+	    value += tracker.move(
+	      state.safe(node.meta, {
+	        before: value,
+	        after: '\n',
+	        encode: ['`'],
+	        ...tracker.current()
+	      })
+	    );
+	    subexit();
+	  }
+	  value += tracker.move('\n');
+	  if (raw) {
+	    value += tracker.move(raw + '\n');
+	  }
+	  value += tracker.move(sequence);
+	  exit();
+	  return value
+	}
+	function map(line, _, blank) {
+	  return (blank ? '' : '    ') + line
+	}
+
+	function checkQuote(state) {
+	  const marker = state.options.quote || '"';
+	  if (marker !== '"' && marker !== "'") {
+	    throw new Error(
+	      'Cannot serialize title with `' +
+	        marker +
+	        '` for `options.quote`, expected `"`, or `\'`'
+	    )
+	  }
+	  return marker
+	}
+
+	function definition(node, _, state, info) {
+	  const quote = checkQuote(state);
+	  const suffix = quote === '"' ? 'Quote' : 'Apostrophe';
+	  const exit = state.enter('definition');
+	  let subexit = state.enter('label');
+	  const tracker = state.createTracker(info);
+	  let value = tracker.move('[');
+	  value += tracker.move(
+	    state.safe(state.associationId(node), {
+	      before: value,
+	      after: ']',
+	      ...tracker.current()
+	    })
+	  );
+	  value += tracker.move(']: ');
+	  subexit();
+	  if (
+	    !node.url ||
+	    /[\0- \u007F]/.test(node.url)
+	  ) {
+	    subexit = state.enter('destinationLiteral');
+	    value += tracker.move('<');
+	    value += tracker.move(
+	      state.safe(node.url, {before: value, after: '>', ...tracker.current()})
+	    );
+	    value += tracker.move('>');
+	  } else {
+	    subexit = state.enter('destinationRaw');
+	    value += tracker.move(
+	      state.safe(node.url, {
+	        before: value,
+	        after: node.title ? ' ' : '\n',
+	        ...tracker.current()
+	      })
+	    );
+	  }
+	  subexit();
+	  if (node.title) {
+	    subexit = state.enter(`title${suffix}`);
+	    value += tracker.move(' ' + quote);
+	    value += tracker.move(
+	      state.safe(node.title, {
+	        before: value,
+	        after: quote,
+	        ...tracker.current()
+	      })
+	    );
+	    value += tracker.move(quote);
+	    subexit();
+	  }
+	  exit();
+	  return value
+	}
+
+	function checkEmphasis(state) {
+	  const marker = state.options.emphasis || '*';
+	  if (marker !== '*' && marker !== '_') {
+	    throw new Error(
+	      'Cannot serialize emphasis with `' +
+	        marker +
+	        '` for `options.emphasis`, expected `*`, or `_`'
+	    )
+	  }
+	  return marker
+	}
+
+	function encodeCharacterReference(code) {
+	  return '&#x' + code.toString(16).toUpperCase() + ';'
+	}
+
+	function markdownLineEndingOrSpace(code) {
+	  return code !== null && (code < 0 || code === 32);
+	}
+	const unicodePunctuation = regexCheck(/\p{P}|\p{S}/u);
+	const unicodeWhitespace = regexCheck(/\s/);
+	function regexCheck(regex) {
+	  return check;
+	  function check(code) {
+	    return code !== null && code > -1 && regex.test(String.fromCharCode(code));
+	  }
+	}
+
+	function classifyCharacter(code) {
+	  if (code === null || markdownLineEndingOrSpace(code) || unicodeWhitespace(code)) {
+	    return 1;
+	  }
+	  if (unicodePunctuation(code)) {
+	    return 2;
+	  }
+	}
+
+	function encodeInfo(outside, inside, marker) {
+	  const outsideKind = classifyCharacter(outside);
+	  const insideKind = classifyCharacter(inside);
+	  if (outsideKind === undefined) {
+	    return insideKind === undefined
+	      ?
+	        marker === '_'
+	        ? {inside: true, outside: true}
+	        : {inside: false, outside: false}
+	      : insideKind === 1
+	        ?
+	          {inside: true, outside: true}
+	        :
+	          {inside: false, outside: true}
+	  }
+	  if (outsideKind === 1) {
+	    return insideKind === undefined
+	      ?
+	        {inside: false, outside: false}
+	      : insideKind === 1
+	        ?
+	          {inside: true, outside: true}
+	        :
+	          {inside: false, outside: false}
+	  }
+	  return insideKind === undefined
+	    ?
+	      {inside: false, outside: false}
+	    : insideKind === 1
+	      ?
+	        {inside: true, outside: false}
+	      :
+	        {inside: false, outside: false}
+	}
+
+	emphasis.peek = emphasisPeek;
+	function emphasis(node, _, state, info) {
+	  const marker = checkEmphasis(state);
+	  const exit = state.enter('emphasis');
+	  const tracker = state.createTracker(info);
+	  const before = tracker.move(marker);
+	  let between = tracker.move(
+	    state.containerPhrasing(node, {
+	      after: marker,
+	      before,
+	      ...tracker.current()
+	    })
+	  );
+	  const betweenHead = between.charCodeAt(0);
+	  const open = encodeInfo(
+	    info.before.charCodeAt(info.before.length - 1),
+	    betweenHead,
+	    marker
+	  );
+	  if (open.inside) {
+	    between = encodeCharacterReference(betweenHead) + between.slice(1);
+	  }
+	  const betweenTail = between.charCodeAt(between.length - 1);
+	  const close = encodeInfo(info.after.charCodeAt(0), betweenTail, marker);
+	  if (close.inside) {
+	    between = between.slice(0, -1) + encodeCharacterReference(betweenTail);
+	  }
+	  const after = tracker.move(marker);
+	  exit();
+	  state.attentionEncodeSurroundingInfo = {
+	    after: close.outside,
+	    before: open.outside
+	  };
+	  return before + between + after
+	}
+	function emphasisPeek(_, _1, state) {
+	  return state.options.emphasis || '*'
+	}
+
+	const convert =
+	  (
+	    function (test) {
+	      if (test === null || test === undefined) {
+	        return ok
+	      }
+	      if (typeof test === 'function') {
+	        return castFactory(test)
+	      }
+	      if (typeof test === 'object') {
+	        return Array.isArray(test)
+	          ? anyFactory(test)
+	          :
+	            propertiesFactory( (test))
+	      }
+	      if (typeof test === 'string') {
+	        return typeFactory(test)
+	      }
+	      throw new Error('Expected function, string, or object as test')
+	    }
+	  );
+	function anyFactory(tests) {
+	  const checks = [];
+	  let index = -1;
+	  while (++index < tests.length) {
+	    checks[index] = convert(tests[index]);
+	  }
+	  return castFactory(any)
+	  function any(...parameters) {
+	    let index = -1;
+	    while (++index < checks.length) {
+	      if (checks[index].apply(this, parameters)) return true
+	    }
+	    return false
+	  }
+	}
+	function propertiesFactory(check) {
+	  const checkAsRecord =  (check);
+	  return castFactory(all)
+	  function all(node) {
+	    const nodeAsRecord =  (
+	       (node)
+	    );
+	    let key;
+	    for (key in check) {
+	      if (nodeAsRecord[key] !== checkAsRecord[key]) return false
+	    }
+	    return true
+	  }
+	}
+	function typeFactory(check) {
+	  return castFactory(type)
+	  function type(node) {
+	    return node && node.type === check
+	  }
+	}
+	function castFactory(testFunction) {
+	  return check
+	  function check(value, index, parent) {
+	    return Boolean(
+	      looksLikeANode(value) &&
+	        testFunction.call(
+	          this,
+	          value,
+	          typeof index === 'number' ? index : undefined,
+	          parent || undefined
+	        )
+	    )
+	  }
+	}
+	function ok() {
+	  return true
+	}
+	function looksLikeANode(value) {
+	  return value !== null && typeof value === 'object' && 'type' in value
+	}
+
+	function color(d) {
+	  return d
+	}
+
+	const empty = [];
+	const CONTINUE = true;
+	const EXIT = false;
+	const SKIP = 'skip';
+	function visitParents(tree, test, visitor, reverse) {
+	  let check;
+	  if (typeof test === 'function' && typeof visitor !== 'function') {
+	    reverse = visitor;
+	    visitor = test;
+	  } else {
+	    check = test;
+	  }
+	  const is = convert(check);
+	  const step = reverse ? -1 : 1;
+	  factory(tree, undefined, [])();
+	  function factory(node, index, parents) {
+	    const value =  (
+	      node && typeof node === 'object' ? node : {}
+	    );
+	    if (typeof value.type === 'string') {
+	      const name =
+	        typeof value.tagName === 'string'
+	          ? value.tagName
+	          :
+	            typeof value.name === 'string'
+	            ? value.name
+	            : undefined;
+	      Object.defineProperty(visit, 'name', {
+	        value:
+	          'node (' + color(node.type + (name ? '<' + name + '>' : '')) + ')'
+	      });
+	    }
+	    return visit
+	    function visit() {
+	      let result = empty;
+	      let subresult;
+	      let offset;
+	      let grandparents;
+	      if (!test || is(node, index, parents[parents.length - 1] || undefined)) {
+	        result = toResult(visitor(node, parents));
+	        if (result[0] === EXIT) {
+	          return result
+	        }
+	      }
+	      if ('children' in node && node.children) {
+	        const nodeAsParent =  (node);
+	        if (nodeAsParent.children && result[0] !== SKIP) {
+	          offset = (reverse ? nodeAsParent.children.length : -1) + step;
+	          grandparents = parents.concat(nodeAsParent);
+	          while (offset > -1 && offset < nodeAsParent.children.length) {
+	            const child = nodeAsParent.children[offset];
+	            subresult = factory(child, offset, grandparents)();
+	            if (subresult[0] === EXIT) {
+	              return subresult
+	            }
+	            offset =
+	              typeof subresult[1] === 'number' ? subresult[1] : offset + step;
+	          }
+	        }
+	      }
+	      return result
+	    }
+	  }
+	}
+	function toResult(value) {
+	  if (Array.isArray(value)) {
+	    return value
+	  }
+	  if (typeof value === 'number') {
+	    return [CONTINUE, value]
+	  }
+	  return value === null || value === undefined ? empty : [value]
+	}
+
+	function visit(tree, testOrVisitor, visitorOrReverse, maybeReverse) {
+	  let reverse;
+	  let test;
+	  let visitor;
+	  if (
+	    typeof testOrVisitor === 'function' &&
+	    typeof visitorOrReverse !== 'function'
+	  ) {
+	    test = undefined;
+	    visitor = testOrVisitor;
+	    reverse = visitorOrReverse;
+	  } else {
+	    test = testOrVisitor;
+	    visitor = visitorOrReverse;
+	    reverse = maybeReverse;
+	  }
+	  visitParents(tree, test, overload, reverse);
+	  function overload(node, parents) {
+	    const parent = parents[parents.length - 1];
+	    const index = parent ? parent.children.indexOf(node) : undefined;
+	    return visitor(node, index, parent)
+	  }
+	}
+
+	const emptyOptions = {};
+	function toString(value, options) {
+	  const settings = emptyOptions;
+	  const includeImageAlt =
+	    typeof settings.includeImageAlt === 'boolean'
+	      ? settings.includeImageAlt
+	      : true;
+	  const includeHtml =
+	    typeof settings.includeHtml === 'boolean' ? settings.includeHtml : true;
+	  return one(value, includeImageAlt, includeHtml)
+	}
+	function one(value, includeImageAlt, includeHtml) {
+	  if (node(value)) {
+	    if ('value' in value) {
+	      return value.type === 'html' && !includeHtml ? '' : value.value
+	    }
+	    if (includeImageAlt && 'alt' in value && value.alt) {
+	      return value.alt
+	    }
+	    if ('children' in value) {
+	      return all(value.children, includeImageAlt, includeHtml)
+	    }
+	  }
+	  if (Array.isArray(value)) {
+	    return all(value, includeImageAlt, includeHtml)
+	  }
+	  return ''
+	}
+	function all(values, includeImageAlt, includeHtml) {
+	  const result = [];
+	  let index = -1;
+	  while (++index < values.length) {
+	    result[index] = one(values[index], includeImageAlt, includeHtml);
+	  }
+	  return result.join('')
+	}
+	function node(value) {
+	  return Boolean(value && typeof value === 'object')
+	}
+
+	function formatHeadingAsSetext(node, state) {
+	  let literalWithBreak = false;
+	  visit(node, function (node) {
+	    if (
+	      ('value' in node && /\r?\n|\r/.test(node.value)) ||
+	      node.type === 'break'
+	    ) {
+	      literalWithBreak = true;
+	      return EXIT
+	    }
+	  });
+	  return Boolean(
+	    (!node.depth || node.depth < 3) &&
+	      toString(node) &&
+	      (state.options.setext || literalWithBreak)
+	  )
+	}
+
+	function heading(node, _, state, info) {
+	  const rank = Math.max(Math.min(6, node.depth || 1), 1);
+	  const tracker = state.createTracker(info);
+	  if (formatHeadingAsSetext(node, state)) {
+	    const exit = state.enter('headingSetext');
+	    const subexit = state.enter('phrasing');
+	    const value = state.containerPhrasing(node, {
+	      ...tracker.current(),
+	      before: '\n',
+	      after: '\n'
+	    });
+	    subexit();
+	    exit();
+	    return (
+	      value +
+	      '\n' +
+	      (rank === 1 ? '=' : '-').repeat(
+	        value.length -
+	          (Math.max(value.lastIndexOf('\r'), value.lastIndexOf('\n')) + 1)
+	      )
+	    )
+	  }
+	  const sequence = '#'.repeat(rank);
+	  const exit = state.enter('headingAtx');
+	  const subexit = state.enter('phrasing');
+	  tracker.move(sequence + ' ');
+	  let value = state.containerPhrasing(node, {
+	    before: '# ',
+	    after: '\n',
+	    ...tracker.current()
+	  });
+	  if (/^[\t ]/.test(value)) {
+	    value = encodeCharacterReference(value.charCodeAt(0)) + value.slice(1);
+	  }
+	  value = value ? sequence + ' ' + value : sequence;
+	  if (state.options.closeAtx) {
+	    value += ' ' + sequence;
+	  }
+	  subexit();
+	  exit();
+	  return value
+	}
+
+	html.peek = htmlPeek;
+	function html(node) {
+	  return node.value || ''
+	}
+	function htmlPeek() {
+	  return '<'
+	}
+
+	image.peek = imagePeek;
+	function image(node, _, state, info) {
+	  const quote = checkQuote(state);
+	  const suffix = quote === '"' ? 'Quote' : 'Apostrophe';
+	  const exit = state.enter('image');
+	  let subexit = state.enter('label');
+	  const tracker = state.createTracker(info);
+	  let value = tracker.move('![');
+	  value += tracker.move(
+	    state.safe(node.alt, {before: value, after: ']', ...tracker.current()})
+	  );
+	  value += tracker.move('](');
+	  subexit();
+	  if (
+	    (!node.url && node.title) ||
+	    /[\0- \u007F]/.test(node.url)
+	  ) {
+	    subexit = state.enter('destinationLiteral');
+	    value += tracker.move('<');
+	    value += tracker.move(
+	      state.safe(node.url, {before: value, after: '>', ...tracker.current()})
+	    );
+	    value += tracker.move('>');
+	  } else {
+	    subexit = state.enter('destinationRaw');
+	    value += tracker.move(
+	      state.safe(node.url, {
+	        before: value,
+	        after: node.title ? ' ' : ')',
+	        ...tracker.current()
+	      })
+	    );
+	  }
+	  subexit();
+	  if (node.title) {
+	    subexit = state.enter(`title${suffix}`);
+	    value += tracker.move(' ' + quote);
+	    value += tracker.move(
+	      state.safe(node.title, {
+	        before: value,
+	        after: quote,
+	        ...tracker.current()
+	      })
+	    );
+	    value += tracker.move(quote);
+	    subexit();
+	  }
+	  value += tracker.move(')');
+	  exit();
+	  return value
+	}
+	function imagePeek() {
+	  return '!'
+	}
+
+	imageReference.peek = imageReferencePeek;
+	function imageReference(node, _, state, info) {
+	  const type = node.referenceType;
+	  const exit = state.enter('imageReference');
+	  let subexit = state.enter('label');
+	  const tracker = state.createTracker(info);
+	  let value = tracker.move('![');
+	  const alt = state.safe(node.alt, {
+	    before: value,
+	    after: ']',
+	    ...tracker.current()
+	  });
+	  value += tracker.move(alt + '][');
+	  subexit();
+	  const stack = state.stack;
+	  state.stack = [];
+	  subexit = state.enter('reference');
+	  const reference = state.safe(state.associationId(node), {
+	    before: value,
+	    after: ']',
+	    ...tracker.current()
+	  });
+	  subexit();
+	  state.stack = stack;
+	  exit();
+	  if (type === 'full' || !alt || alt !== reference) {
+	    value += tracker.move(reference + ']');
+	  } else if (type === 'shortcut') {
+	    value = value.slice(0, -1);
+	  } else {
+	    value += tracker.move(']');
+	  }
+	  return value
+	}
+	function imageReferencePeek() {
+	  return '!'
+	}
+
+	inlineCode.peek = inlineCodePeek;
+	function inlineCode(node, _, state) {
+	  let value = node.value || '';
+	  let sequence = '`';
+	  let index = -1;
+	  while (new RegExp('(^|[^`])' + sequence + '([^`]|$)').test(value)) {
+	    sequence += '`';
+	  }
+	  if (
+	    /[^ \r\n]/.test(value) &&
+	    ((/^[ \r\n]/.test(value) && /[ \r\n]$/.test(value)) || /^`|`$/.test(value))
+	  ) {
+	    value = ' ' + value + ' ';
+	  }
+	  while (++index < state.unsafe.length) {
+	    const pattern = state.unsafe[index];
+	    const expression = state.compilePattern(pattern);
+	    let match;
+	    if (!pattern.atBreak) continue
+	    while ((match = expression.exec(value))) {
+	      let position = match.index;
+	      if (
+	        value.charCodeAt(position) === 10  &&
+	        value.charCodeAt(position - 1) === 13
+	      ) {
+	        position--;
+	      }
+	      value = value.slice(0, position) + ' ' + value.slice(match.index + 1);
+	    }
+	  }
+	  return sequence + value + sequence
+	}
+	function inlineCodePeek() {
+	  return '`'
+	}
+
+	function formatLinkAsAutolink(node, state) {
+	  const raw = toString(node);
+	  return Boolean(
+	    !state.options.resourceLink &&
+	      node.url &&
+	      !node.title &&
+	      node.children &&
+	      node.children.length === 1 &&
+	      node.children[0].type === 'text' &&
+	      (raw === node.url || 'mailto:' + raw === node.url) &&
+	      /^[a-z][a-z+.-]+:/i.test(node.url) &&
+	      !/[\0- <>\u007F]/.test(node.url)
+	  )
+	}
+
+	link.peek = linkPeek;
+	function link(node, _, state, info) {
+	  const quote = checkQuote(state);
+	  const suffix = quote === '"' ? 'Quote' : 'Apostrophe';
+	  const tracker = state.createTracker(info);
+	  let exit;
+	  let subexit;
+	  if (formatLinkAsAutolink(node, state)) {
+	    const stack = state.stack;
+	    state.stack = [];
+	    exit = state.enter('autolink');
+	    let value = tracker.move('<');
+	    value += tracker.move(
+	      state.containerPhrasing(node, {
+	        before: value,
+	        after: '>',
+	        ...tracker.current()
+	      })
+	    );
+	    value += tracker.move('>');
+	    exit();
+	    state.stack = stack;
+	    return value
+	  }
+	  exit = state.enter('link');
+	  subexit = state.enter('label');
+	  let value = tracker.move('[');
+	  value += tracker.move(
+	    state.containerPhrasing(node, {
+	      before: value,
+	      after: '](',
+	      ...tracker.current()
+	    })
+	  );
+	  value += tracker.move('](');
+	  subexit();
+	  if (
+	    (!node.url && node.title) ||
+	    /[\0- \u007F]/.test(node.url)
+	  ) {
+	    subexit = state.enter('destinationLiteral');
+	    value += tracker.move('<');
+	    value += tracker.move(
+	      state.safe(node.url, {before: value, after: '>', ...tracker.current()})
+	    );
+	    value += tracker.move('>');
+	  } else {
+	    subexit = state.enter('destinationRaw');
+	    value += tracker.move(
+	      state.safe(node.url, {
+	        before: value,
+	        after: node.title ? ' ' : ')',
+	        ...tracker.current()
+	      })
+	    );
+	  }
+	  subexit();
+	  if (node.title) {
+	    subexit = state.enter(`title${suffix}`);
+	    value += tracker.move(' ' + quote);
+	    value += tracker.move(
+	      state.safe(node.title, {
+	        before: value,
+	        after: quote,
+	        ...tracker.current()
+	      })
+	    );
+	    value += tracker.move(quote);
+	    subexit();
+	  }
+	  value += tracker.move(')');
+	  exit();
+	  return value
+	}
+	function linkPeek(node, _, state) {
+	  return formatLinkAsAutolink(node, state) ? '<' : '['
+	}
+
+	linkReference.peek = linkReferencePeek;
+	function linkReference(node, _, state, info) {
+	  const type = node.referenceType;
+	  const exit = state.enter('linkReference');
+	  let subexit = state.enter('label');
+	  const tracker = state.createTracker(info);
+	  let value = tracker.move('[');
+	  const text = state.containerPhrasing(node, {
+	    before: value,
+	    after: ']',
+	    ...tracker.current()
+	  });
+	  value += tracker.move(text + '][');
+	  subexit();
+	  const stack = state.stack;
+	  state.stack = [];
+	  subexit = state.enter('reference');
+	  const reference = state.safe(state.associationId(node), {
+	    before: value,
+	    after: ']',
+	    ...tracker.current()
+	  });
+	  subexit();
+	  state.stack = stack;
+	  exit();
+	  if (type === 'full' || !text || text !== reference) {
+	    value += tracker.move(reference + ']');
+	  } else if (type === 'shortcut') {
+	    value = value.slice(0, -1);
+	  } else {
+	    value += tracker.move(']');
+	  }
+	  return value
+	}
+	function linkReferencePeek() {
+	  return '['
+	}
+
+	function checkBullet(state) {
+	  const marker = state.options.bullet || '*';
+	  if (marker !== '*' && marker !== '+' && marker !== '-') {
+	    throw new Error(
+	      'Cannot serialize items with `' +
+	        marker +
+	        '` for `options.bullet`, expected `*`, `+`, or `-`'
+	    )
+	  }
+	  return marker
+	}
+
+	function checkBulletOther(state) {
+	  const bullet = checkBullet(state);
+	  const bulletOther = state.options.bulletOther;
+	  if (!bulletOther) {
+	    return bullet === '*' ? '-' : '*'
+	  }
+	  if (bulletOther !== '*' && bulletOther !== '+' && bulletOther !== '-') {
+	    throw new Error(
+	      'Cannot serialize items with `' +
+	        bulletOther +
+	        '` for `options.bulletOther`, expected `*`, `+`, or `-`'
+	    )
+	  }
+	  if (bulletOther === bullet) {
+	    throw new Error(
+	      'Expected `bullet` (`' +
+	        bullet +
+	        '`) and `bulletOther` (`' +
+	        bulletOther +
+	        '`) to be different'
+	    )
+	  }
+	  return bulletOther
+	}
+
+	function checkBulletOrdered(state) {
+	  const marker = state.options.bulletOrdered || '.';
+	  if (marker !== '.' && marker !== ')') {
+	    throw new Error(
+	      'Cannot serialize items with `' +
+	        marker +
+	        '` for `options.bulletOrdered`, expected `.` or `)`'
+	    )
+	  }
+	  return marker
+	}
+
+	function checkRule(state) {
+	  const marker = state.options.rule || '*';
+	  if (marker !== '*' && marker !== '-' && marker !== '_') {
+	    throw new Error(
+	      'Cannot serialize rules with `' +
+	        marker +
+	        '` for `options.rule`, expected `*`, `-`, or `_`'
+	    )
+	  }
+	  return marker
+	}
+
+	function list(node, parent, state, info) {
+	  const exit = state.enter('list');
+	  const bulletCurrent = state.bulletCurrent;
+	  let bullet = node.ordered ? checkBulletOrdered(state) : checkBullet(state);
+	  const bulletOther = node.ordered
+	    ? bullet === '.'
+	      ? ')'
+	      : '.'
+	    : checkBulletOther(state);
+	  let useDifferentMarker =
+	    parent && state.bulletLastUsed ? bullet === state.bulletLastUsed : false;
+	  if (!node.ordered) {
+	    const firstListItem = node.children ? node.children[0] : undefined;
+	    if (
+	      (bullet === '*' || bullet === '-') &&
+	      firstListItem &&
+	      (!firstListItem.children || !firstListItem.children[0]) &&
+	      state.stack[state.stack.length - 1] === 'list' &&
+	      state.stack[state.stack.length - 2] === 'listItem' &&
+	      state.stack[state.stack.length - 3] === 'list' &&
+	      state.stack[state.stack.length - 4] === 'listItem' &&
+	      state.indexStack[state.indexStack.length - 1] === 0 &&
+	      state.indexStack[state.indexStack.length - 2] === 0 &&
+	      state.indexStack[state.indexStack.length - 3] === 0
+	    ) {
+	      useDifferentMarker = true;
+	    }
+	    if (checkRule(state) === bullet && firstListItem) {
+	      let index = -1;
+	      while (++index < node.children.length) {
+	        const item = node.children[index];
+	        if (
+	          item &&
+	          item.type === 'listItem' &&
+	          item.children &&
+	          item.children[0] &&
+	          item.children[0].type === 'thematicBreak'
+	        ) {
+	          useDifferentMarker = true;
+	          break
+	        }
+	      }
+	    }
+	  }
+	  if (useDifferentMarker) {
+	    bullet = bulletOther;
+	  }
+	  state.bulletCurrent = bullet;
+	  const value = state.containerFlow(node, info);
+	  state.bulletLastUsed = bullet;
+	  state.bulletCurrent = bulletCurrent;
+	  exit();
+	  return value
+	}
+
+	function checkListItemIndent(state) {
+	  const style = state.options.listItemIndent || 'one';
+	  if (style !== 'tab' && style !== 'one' && style !== 'mixed') {
+	    throw new Error(
+	      'Cannot serialize items with `' +
+	        style +
+	        '` for `options.listItemIndent`, expected `tab`, `one`, or `mixed`'
+	    )
+	  }
+	  return style
+	}
+
+	function listItem(node, parent, state, info) {
+	  const listItemIndent = checkListItemIndent(state);
+	  let bullet = state.bulletCurrent || checkBullet(state);
+	  if (parent && parent.type === 'list' && parent.ordered) {
+	    bullet =
+	      (typeof parent.start === 'number' && parent.start > -1
+	        ? parent.start
+	        : 1) +
+	      (state.options.incrementListMarker === false
+	        ? 0
+	        : parent.children.indexOf(node)) +
+	      bullet;
+	  }
+	  let size = bullet.length + 1;
+	  if (
+	    listItemIndent === 'tab' ||
+	    (listItemIndent === 'mixed' &&
+	      ((parent && parent.type === 'list' && parent.spread) || node.spread))
+	  ) {
+	    size = Math.ceil(size / 4) * 4;
+	  }
+	  const tracker = state.createTracker(info);
+	  tracker.move(bullet + ' '.repeat(size - bullet.length));
+	  tracker.shift(size);
+	  const exit = state.enter('listItem');
+	  const value = state.indentLines(
+	    state.containerFlow(node, tracker.current()),
+	    map
+	  );
+	  exit();
+	  return value
+	  function map(line, index, blank) {
+	    if (index) {
+	      return (blank ? '' : ' '.repeat(size)) + line
+	    }
+	    return (blank ? bullet : bullet + ' '.repeat(size - bullet.length)) + line
+	  }
+	}
+
+	function paragraph(node, _, state, info) {
+	  const exit = state.enter('paragraph');
+	  const subexit = state.enter('phrasing');
+	  const value = state.containerPhrasing(node, info);
+	  subexit();
+	  exit();
+	  return value
+	}
+
+	const phrasing =
+	  (
+	    convert([
+	      'break',
+	      'delete',
+	      'emphasis',
+	      'footnote',
+	      'footnoteReference',
+	      'image',
+	      'imageReference',
+	      'inlineCode',
+	      'inlineMath',
+	      'link',
+	      'linkReference',
+	      'mdxJsxTextElement',
+	      'mdxTextExpression',
+	      'strong',
+	      'text',
+	      'textDirective'
+	    ])
+	  );
+
+	function root$2(node, _, state, info) {
+	  const hasPhrasing = node.children.some(function (d) {
+	    return phrasing(d)
+	  });
+	  const container = hasPhrasing ? state.containerPhrasing : state.containerFlow;
+	  return container.call(state, node, info)
+	}
+
+	function checkStrong(state) {
+	  const marker = state.options.strong || '*';
+	  if (marker !== '*' && marker !== '_') {
+	    throw new Error(
+	      'Cannot serialize strong with `' +
+	        marker +
+	        '` for `options.strong`, expected `*`, or `_`'
+	    )
+	  }
+	  return marker
+	}
+
+	strong.peek = strongPeek;
+	function strong(node, _, state, info) {
+	  const marker = checkStrong(state);
+	  const exit = state.enter('strong');
+	  const tracker = state.createTracker(info);
+	  const before = tracker.move(marker + marker);
+	  let between = tracker.move(
+	    state.containerPhrasing(node, {
+	      after: marker,
+	      before,
+	      ...tracker.current()
+	    })
+	  );
+	  const betweenHead = between.charCodeAt(0);
+	  const open = encodeInfo(
+	    info.before.charCodeAt(info.before.length - 1),
+	    betweenHead,
+	    marker
+	  );
+	  if (open.inside) {
+	    between = encodeCharacterReference(betweenHead) + between.slice(1);
+	  }
+	  const betweenTail = between.charCodeAt(between.length - 1);
+	  const close = encodeInfo(info.after.charCodeAt(0), betweenTail, marker);
+	  if (close.inside) {
+	    between = between.slice(0, -1) + encodeCharacterReference(betweenTail);
+	  }
+	  const after = tracker.move(marker + marker);
+	  exit();
+	  state.attentionEncodeSurroundingInfo = {
+	    after: close.outside,
+	    before: open.outside
+	  };
+	  return before + between + after
+	}
+	function strongPeek(_, _1, state) {
+	  return state.options.strong || '*'
+	}
+
+	function text(node, _, state, info) {
+	  return state.safe(node.value, info)
+	}
+
+	function checkRuleRepetition(state) {
+	  const repetition = state.options.ruleRepetition || 3;
+	  if (repetition < 3) {
+	    throw new Error(
+	      'Cannot serialize rules with repetition `' +
+	        repetition +
+	        '` for `options.ruleRepetition`, expected `3` or more'
+	    )
+	  }
+	  return repetition
+	}
+
+	function thematicBreak(_, _1, state) {
+	  const value = (
+	    checkRule(state) + (state.options.ruleSpaces ? ' ' : '')
+	  ).repeat(checkRuleRepetition(state));
+	  return state.options.ruleSpaces ? value.slice(0, -1) : value
+	}
+
+	const handle = {
+	  blockquote,
+	  break: hardBreak,
+	  code,
+	  definition,
+	  emphasis,
+	  hardBreak,
+	  heading,
+	  html,
+	  image,
+	  imageReference,
+	  inlineCode,
+	  link,
+	  linkReference,
+	  list,
+	  listItem,
+	  paragraph,
+	  root: root$2,
+	  strong,
+	  text,
+	  thematicBreak
+	};
+
+	const join = [joinDefaults];
+	function joinDefaults(left, right, parent, state) {
+	  if (
+	    right.type === 'code' &&
+	    formatCodeAsIndented(right, state) &&
+	    (left.type === 'list' ||
+	      (left.type === right.type && formatCodeAsIndented(left, state)))
+	  ) {
+	    return false
+	  }
+	  if ('spread' in parent && typeof parent.spread === 'boolean') {
+	    if (
+	      left.type === 'paragraph' &&
+	      (left.type === right.type ||
+	        right.type === 'definition' ||
+	        (right.type === 'heading' && formatHeadingAsSetext(right, state)))
+	    ) {
+	      return
+	    }
+	    return parent.spread ? 1 : 0
+	  }
+	}
+
+	const fullPhrasingSpans = [
+	  'autolink',
+	  'destinationLiteral',
+	  'destinationRaw',
+	  'reference',
+	  'titleQuote',
+	  'titleApostrophe'
+	];
+	const unsafe = [
+	  {character: '\t', after: '[\\r\\n]', inConstruct: 'phrasing'},
+	  {character: '\t', before: '[\\r\\n]', inConstruct: 'phrasing'},
+	  {
+	    character: '\t',
+	    inConstruct: ['codeFencedLangGraveAccent', 'codeFencedLangTilde']
+	  },
+	  {
+	    character: '\r',
+	    inConstruct: [
+	      'codeFencedLangGraveAccent',
+	      'codeFencedLangTilde',
+	      'codeFencedMetaGraveAccent',
+	      'codeFencedMetaTilde',
+	      'destinationLiteral',
+	      'headingAtx'
+	    ]
+	  },
+	  {
+	    character: '\n',
+	    inConstruct: [
+	      'codeFencedLangGraveAccent',
+	      'codeFencedLangTilde',
+	      'codeFencedMetaGraveAccent',
+	      'codeFencedMetaTilde',
+	      'destinationLiteral',
+	      'headingAtx'
+	    ]
+	  },
+	  {character: ' ', after: '[\\r\\n]', inConstruct: 'phrasing'},
+	  {character: ' ', before: '[\\r\\n]', inConstruct: 'phrasing'},
+	  {
+	    character: ' ',
+	    inConstruct: ['codeFencedLangGraveAccent', 'codeFencedLangTilde']
+	  },
+	  {
+	    character: '!',
+	    after: '\\[',
+	    inConstruct: 'phrasing',
+	    notInConstruct: fullPhrasingSpans
+	  },
+	  {character: '"', inConstruct: 'titleQuote'},
+	  {atBreak: true, character: '#'},
+	  {character: '#', inConstruct: 'headingAtx', after: '(?:[\r\n]|$)'},
+	  {character: '&', after: '[#A-Za-z]', inConstruct: 'phrasing'},
+	  {character: "'", inConstruct: 'titleApostrophe'},
+	  {character: '(', inConstruct: 'destinationRaw'},
+	  {
+	    before: '\\]',
+	    character: '(',
+	    inConstruct: 'phrasing',
+	    notInConstruct: fullPhrasingSpans
+	  },
+	  {atBreak: true, before: '\\d+', character: ')'},
+	  {character: ')', inConstruct: 'destinationRaw'},
+	  {atBreak: true, character: '*', after: '(?:[ \t\r\n*])'},
+	  {character: '*', inConstruct: 'phrasing', notInConstruct: fullPhrasingSpans},
+	  {atBreak: true, character: '+', after: '(?:[ \t\r\n])'},
+	  {atBreak: true, character: '-', after: '(?:[ \t\r\n-])'},
+	  {atBreak: true, before: '\\d+', character: '.', after: '(?:[ \t\r\n]|$)'},
+	  {atBreak: true, character: '<', after: '[!/?A-Za-z]'},
+	  {
+	    character: '<',
+	    after: '[!/?A-Za-z]',
+	    inConstruct: 'phrasing',
+	    notInConstruct: fullPhrasingSpans
+	  },
+	  {character: '<', inConstruct: 'destinationLiteral'},
+	  {atBreak: true, character: '='},
+	  {atBreak: true, character: '>'},
+	  {character: '>', inConstruct: 'destinationLiteral'},
+	  {atBreak: true, character: '['},
+	  {character: '[', inConstruct: 'phrasing', notInConstruct: fullPhrasingSpans},
+	  {character: '[', inConstruct: ['label', 'reference']},
+	  {character: '\\', after: '[\\r\\n]', inConstruct: 'phrasing'},
+	  {character: ']', inConstruct: ['label', 'reference']},
+	  {atBreak: true, character: '_'},
+	  {character: '_', inConstruct: 'phrasing', notInConstruct: fullPhrasingSpans},
+	  {atBreak: true, character: '`'},
+	  {
+	    character: '`',
+	    inConstruct: ['codeFencedLangGraveAccent', 'codeFencedMetaGraveAccent']
+	  },
+	  {character: '`', inConstruct: 'phrasing', notInConstruct: fullPhrasingSpans},
+	  {atBreak: true, character: '~'}
+	];
+
+	const element = document.createElement('i');
+	function decodeNamedCharacterReference(value) {
+	  const characterReference = '&' + value + ';';
+	  element.innerHTML = characterReference;
+	  const character = element.textContent;
+	  if (
+	    character.charCodeAt(character.length - 1) === 59  &&
+	    value !== 'semi'
+	  ) {
+	    return false
+	  }
+	  return character === characterReference ? false : character
+	}
+
+	function decodeNumericCharacterReference(value, base) {
+	  const code = Number.parseInt(value, base);
+	  if (
+	  code < 9 || code === 11 || code > 13 && code < 32 ||
+	  code > 126 && code < 160 ||
+	  code > 55_295 && code < 57_344 ||
+	  code > 64_975 && code < 65_008 ||
+	  (code & 65_535) === 65_535 || (code & 65_535) === 65_534 ||
+	  code > 1_114_111) {
+	    return "\uFFFD";
+	  }
+	  return String.fromCodePoint(code);
+	}
+
+	const characterEscapeOrReference = /\\([!-/:-@[-`{-~])|&(#(?:\d{1,7}|x[\da-f]{1,6})|[\da-z]{1,31});/gi;
+	function decodeString(value) {
+	  return value.replace(characterEscapeOrReference, decode);
+	}
+	function decode($0, $1, $2) {
+	  if ($1) {
+	    return $1;
+	  }
+	  const head = $2.charCodeAt(0);
+	  if (head === 35) {
+	    const head = $2.charCodeAt(1);
+	    const hex = head === 120 || head === 88;
+	    return decodeNumericCharacterReference($2.slice(hex ? 2 : 1), hex ? 16 : 10);
+	  }
+	  return decodeNamedCharacterReference($2) || $0;
+	}
+
+	function association(node) {
+	  if (node.label || !node.identifier) {
+	    return node.label || ''
+	  }
+	  return decodeString(node.identifier)
+	}
+
+	function compilePattern(pattern) {
+	  if (!pattern._compiled) {
+	    const before =
+	      (pattern.atBreak ? '[\\r\\n][\\t ]*' : '') +
+	      (pattern.before ? '(?:' + pattern.before + ')' : '');
+	    pattern._compiled = new RegExp(
+	      (before ? '(' + before + ')' : '') +
+	        (/[|\\{}()[\]^$+*?.-]/.test(pattern.character) ? '\\' : '') +
+	        pattern.character +
+	        (pattern.after ? '(?:' + pattern.after + ')' : ''),
+	      'g'
+	    );
+	  }
+	  return pattern._compiled
+	}
+
+	function containerPhrasing(parent, state, info) {
+	  const indexStack = state.indexStack;
+	  const children = parent.children || [];
+	  const results = [];
+	  let index = -1;
+	  let before = info.before;
+	  let encodeAfter;
+	  indexStack.push(-1);
+	  let tracker = state.createTracker(info);
+	  while (++index < children.length) {
+	    const child = children[index];
+	    let after;
+	    indexStack[indexStack.length - 1] = index;
+	    if (index + 1 < children.length) {
+	      let handle = state.handle.handlers[children[index + 1].type];
+	      if (handle && handle.peek) handle = handle.peek;
+	      after = handle
+	        ? handle(children[index + 1], parent, state, {
+	            before: '',
+	            after: '',
+	            ...tracker.current()
+	          }).charAt(0)
+	        : '';
+	    } else {
+	      after = info.after;
+	    }
+	    if (
+	      results.length > 0 &&
+	      (before === '\r' || before === '\n') &&
+	      child.type === 'html'
+	    ) {
+	      results[results.length - 1] = results[results.length - 1].replace(
+	        /(\r?\n|\r)$/,
+	        ' '
+	      );
+	      before = ' ';
+	      tracker = state.createTracker(info);
+	      tracker.move(results.join(''));
+	    }
+	    let value = state.handle(child, parent, state, {
+	      ...tracker.current(),
+	      after,
+	      before
+	    });
+	    if (encodeAfter && encodeAfter === value.slice(0, 1)) {
+	      value =
+	        encodeCharacterReference(encodeAfter.charCodeAt(0)) + value.slice(1);
+	    }
+	    const encodingInfo = state.attentionEncodeSurroundingInfo;
+	    state.attentionEncodeSurroundingInfo = undefined;
+	    encodeAfter = undefined;
+	    if (encodingInfo) {
+	      if (
+	        results.length > 0 &&
+	        encodingInfo.before &&
+	        before === results[results.length - 1].slice(-1)
+	      ) {
+	        results[results.length - 1] =
+	          results[results.length - 1].slice(0, -1) +
+	          encodeCharacterReference(before.charCodeAt(0));
+	      }
+	      if (encodingInfo.after) encodeAfter = after;
+	    }
+	    tracker.move(value);
+	    results.push(value);
+	    before = value.slice(-1);
+	  }
+	  indexStack.pop();
+	  return results.join('')
+	}
+
+	function containerFlow(parent, state, info) {
+	  const indexStack = state.indexStack;
+	  const children = parent.children || [];
+	  const tracker = state.createTracker(info);
+	  const results = [];
+	  let index = -1;
+	  indexStack.push(-1);
+	  while (++index < children.length) {
+	    const child = children[index];
+	    indexStack[indexStack.length - 1] = index;
+	    results.push(
+	      tracker.move(
+	        state.handle(child, parent, state, {
+	          before: '\n',
+	          after: '\n',
+	          ...tracker.current()
+	        })
+	      )
+	    );
+	    if (child.type !== 'list') {
+	      state.bulletLastUsed = undefined;
+	    }
+	    if (index < children.length - 1) {
+	      results.push(
+	        tracker.move(between(child, children[index + 1], parent, state))
+	      );
+	    }
+	  }
+	  indexStack.pop();
+	  return results.join('')
+	}
+	function between(left, right, parent, state) {
+	  let index = state.join.length;
+	  while (index--) {
+	    const result = state.join[index](left, right, parent, state);
+	    if (result === true || result === 1) {
+	      break
+	    }
+	    if (typeof result === 'number') {
+	      return '\n'.repeat(1 + result)
+	    }
+	    if (result === false) {
+	      return '\n\n<!---->\n\n'
+	    }
+	  }
+	  return '\n\n'
+	}
+
+	const eol = /\r?\n|\r/g;
+	function indentLines(value, map) {
+	  const result = [];
+	  let start = 0;
+	  let line = 0;
+	  let match;
+	  while ((match = eol.exec(value))) {
+	    one(value.slice(start, match.index));
+	    result.push(match[0]);
+	    start = match.index + match[0].length;
+	    line++;
+	  }
+	  one(value.slice(start));
+	  return result.join('')
+	  function one(value) {
+	    result.push(map(value, line, !value));
+	  }
+	}
+
+	function safe(state, input, config) {
+	  const value = (config.before || '') + (input || '') + (config.after || '');
+	  const positions = [];
+	  const result = [];
+	  const infos = {};
+	  let index = -1;
+	  while (++index < state.unsafe.length) {
+	    const pattern = state.unsafe[index];
+	    if (!patternInScope(state.stack, pattern)) {
+	      continue
+	    }
+	    const expression = state.compilePattern(pattern);
+	    let match;
+	    while ((match = expression.exec(value))) {
+	      const before = 'before' in pattern || Boolean(pattern.atBreak);
+	      const after = 'after' in pattern;
+	      const position = match.index + (before ? match[1].length : 0);
+	      if (positions.includes(position)) {
+	        if (infos[position].before && !before) {
+	          infos[position].before = false;
+	        }
+	        if (infos[position].after && !after) {
+	          infos[position].after = false;
+	        }
+	      } else {
+	        positions.push(position);
+	        infos[position] = {before, after};
+	      }
+	    }
+	  }
+	  positions.sort(numerical);
+	  let start = config.before ? config.before.length : 0;
+	  const end = value.length - (config.after ? config.after.length : 0);
+	  index = -1;
+	  while (++index < positions.length) {
+	    const position = positions[index];
+	    if (position < start || position >= end) {
+	      continue
+	    }
+	    if (
+	      (position + 1 < end &&
+	        positions[index + 1] === position + 1 &&
+	        infos[position].after &&
+	        !infos[position + 1].before &&
+	        !infos[position + 1].after) ||
+	      (positions[index - 1] === position - 1 &&
+	        infos[position].before &&
+	        !infos[position - 1].before &&
+	        !infos[position - 1].after)
+	    ) {
+	      continue
+	    }
+	    if (start !== position) {
+	      result.push(escapeBackslashes(value.slice(start, position), '\\'));
+	    }
+	    start = position;
+	    if (
+	      /[!-/:-@[-`{-~]/.test(value.charAt(position)) &&
+	      (!config.encode || !config.encode.includes(value.charAt(position)))
+	    ) {
+	      result.push('\\');
+	    } else {
+	      result.push(encodeCharacterReference(value.charCodeAt(position)));
+	      start++;
+	    }
+	  }
+	  result.push(escapeBackslashes(value.slice(start, end), config.after));
+	  return result.join('')
+	}
+	function numerical(a, b) {
+	  return a - b
+	}
+	function escapeBackslashes(value, after) {
+	  const expression = /\\(?=[!-/:-@[-`{-~])/g;
+	  const positions = [];
+	  const results = [];
+	  const whole = value + after;
+	  let index = -1;
+	  let start = 0;
+	  let match;
+	  while ((match = expression.exec(whole))) {
+	    positions.push(match.index);
+	  }
+	  while (++index < positions.length) {
+	    if (start !== positions[index]) {
+	      results.push(value.slice(start, positions[index]));
+	    }
+	    results.push('\\');
+	    start = positions[index];
+	  }
+	  results.push(value.slice(start));
+	  return results.join('')
+	}
+
+	function track(config) {
+	  const options = config || {};
+	  const now = options.now || {};
+	  let lineShift = options.lineShift || 0;
+	  let line = now.line || 1;
+	  let column = now.column || 1;
+	  return {move, current, shift}
+	  function current() {
+	    return {now: {line, column}, lineShift}
+	  }
+	  function shift(value) {
+	    lineShift += value;
+	  }
+	  function move(input) {
+	    const value = input || '';
+	    const chunks = value.split(/\r?\n|\r/g);
+	    const tail = chunks[chunks.length - 1];
+	    line += chunks.length - 1;
+	    column =
+	      chunks.length === 1 ? column + tail.length : 1 + tail.length + lineShift;
+	    return value
+	  }
+	}
+
+	function toMarkdown(tree, options) {
+	  const settings = options || {};
+	  const state = {
+	    associationId: association,
+	    containerPhrasing: containerPhrasingBound,
+	    containerFlow: containerFlowBound,
+	    createTracker: track,
+	    compilePattern,
+	    enter,
+	    handlers: {...handle},
+	    handle: undefined,
+	    indentLines,
+	    indexStack: [],
+	    join: [...join],
+	    options: {},
+	    safe: safeBound,
+	    stack: [],
+	    unsafe: [...unsafe]
+	  };
+	  configure(state, settings);
+	  if (state.options.tightDefinitions) {
+	    state.join.push(joinDefinition);
+	  }
+	  state.handle = zwitch('type', {
+	    invalid,
+	    unknown,
+	    handlers: state.handlers
+	  });
+	  let result = state.handle(tree, undefined, state, {
+	    before: '\n',
+	    after: '\n',
+	    now: {line: 1, column: 1},
+	    lineShift: 0
+	  });
+	  if (
+	    result &&
+	    result.charCodeAt(result.length - 1) !== 10 &&
+	    result.charCodeAt(result.length - 1) !== 13
+	  ) {
+	    result += '\n';
+	  }
+	  return result
+	  function enter(name) {
+	    state.stack.push(name);
+	    return exit
+	    function exit() {
+	      state.stack.pop();
+	    }
+	  }
+	}
+	function invalid(value) {
+	  throw new Error('Cannot handle value `' + value + '`, expected node')
+	}
+	function unknown(value) {
+	  const node =  (value);
+	  throw new Error('Cannot handle unknown node `' + node.type + '`')
+	}
+	function joinDefinition(left, right) {
+	  if (left.type === 'definition' && left.type === right.type) {
+	    return 0
+	  }
+	}
+	function containerPhrasingBound(parent, info) {
+	  return containerPhrasing(parent, this, info)
+	}
+	function containerFlowBound(parent, info) {
+	  return containerFlow(parent, this, info)
+	}
+	function safeBound(value, config) {
+	  return safe(this, value, config)
+	}
+
+	const constructsWithoutStrikethrough = [
+	  'autolink',
+	  'destinationLiteral',
+	  'destinationRaw',
+	  'reference',
+	  'titleQuote',
+	  'titleApostrophe'
+	];
+	handleDelete.peek = peekDelete;
+	function gfmStrikethroughToMarkdown() {
+	  return {
+	    unsafe: [
+	      {
+	        character: '~',
+	        inConstruct: 'phrasing',
+	        notInConstruct: constructsWithoutStrikethrough
+	      }
+	    ],
+	    handlers: {delete: handleDelete}
+	  }
+	}
+	function handleDelete(node, _, state, info) {
+	  const tracker = state.createTracker(info);
+	  const exit = state.enter('strikethrough');
+	  let value = tracker.move('~~');
+	  value += state.containerPhrasing(node, {
+	    ...tracker.current(),
+	    before: value,
+	    after: '~'
+	  });
+	  value += tracker.move('~~');
+	  exit();
+	  return value
+	}
+	function peekDelete() {
+	  return '~'
+	}
+
+	handleMark.peek = peekMark;
+	var constructsWithoutHighlightMark = [
+	  "autolink",
+	  "destinationLiteral",
+	  "destinationRaw",
+	  "reference",
+	  "titleQuote",
+	  "titleApostrophe"
+	];
+	var highlightMarkToMarkdown = {
+	  unsafe: [
+	    {
+	      character: "=",
+	      inConstruct: "phrasing",
+	      notInConstruct: constructsWithoutHighlightMark
+	    }
+	  ],
+	  handlers: { highlight: handleMark }
+	};
+	function handleMark(node, _, state, info) {
+	  const marker = "=";
+	  const tracker = state.createTracker(info);
+	  const exit = state.enter("highlight");
+	  let value = tracker.move(marker + marker);
+	  value += tracker.move(
+	    state.containerPhrasing(node, {
+	      before: value,
+	      after: marker,
+	      ...tracker.current()
+	    })
+	  );
+	  value += tracker.move(marker + marker);
+	  exit();
+	  return value;
+	}
+	function peekMark() {
+	  return "=";
+	}
+
+	const MARK_BUILDERS = {
+	  strong: (children) => ({ type: "strong", children }),
+	  emphasis: (children) => ({ type: "emphasis", children }),
+	  highlight: (children) => ({ type: "highlight", children }),
+	  strikethrough: (children) => ({ type: "delete", children }),
+	  link: (children, node) => ({ type: "link", url: node.href || "", children }),
+	  inline_code: (children) => ({ type: "inlineCode", value: plainText(children) })
+	};
+	function plainText(children) {
+	  return children.map(child => child.value ?? plainText(child.children || [])).join("")
+	}
+	function inlineFrom(value, nodes) {
+	  const content = value.content || "";
+	  const marks = [...(value.marks || [])].sort((left, right) => {
+	    return left.start_offset - right.start_offset
+	  });
+	  const { children, cursor } = marks.reduce((accumulated, mark) => {
+	    const markNode = nodes[mark.node_id];
+	    const builder = markNode && MARK_BUILDERS[markNode.type];
+	    if (!builder) return accumulated
+	    const before = content.slice(accumulated.cursor, mark.start_offset);
+	    const inner = content.slice(mark.start_offset, mark.end_offset);
+	    const leading = before ? [{ type: "text", value: before }] : [];
+	    return {
+	      cursor: mark.end_offset,
+	      children: [
+	        ...accumulated.children,
+	        ...leading,
+	        builder([{ type: "text", value: inner }], markNode)
+	      ]
+	    }
+	  }, { children: [], cursor: 0 });
+	  const trailing = content.slice(cursor);
+	  return trailing ? [...children, { type: "text", value: trailing }] : children
+	}
+	function blockFrom(id, nodes) {
+	  const node = nodes[id];
+	  if (!node) return null
+	  if (node.type === "paragraph") {
+	    return { type: "paragraph", children: inlineFrom(node.content, nodes) }
+	  }
+	  if (node.type === "heading") {
+	    return { type: "heading", depth: node.level || 2, children: inlineFrom(node.content, nodes) }
+	  }
+	  if (node.type === "list") {
+	    const children = node.items.nodes.map(itemId => ({
+	      type: "listItem",
+	      spread: false,
+	      children: [{ type: "paragraph", children: inlineFrom(nodes[itemId].content, nodes) }]
+	    }));
+	    return { type: "list", ordered: Boolean(node.ordered), spread: false, children }
+	  }
+	  if (node.type === "blockquote") {
+	    return { type: "blockquote", children: node.body.nodes.map(child => blockFrom(child, nodes)) }
+	  }
+	  if (node.type === "alert") {
+	    const marker = {
+	      type: "html",
+	      value: `[!${(node.variant || "note").toUpperCase()}]`
+	    };
+	    const body = node.body.nodes.map(child => blockFrom(child, nodes));
+	    return { type: "blockquote", children: [marker, ...body] }
+	  }
+	  if (node.type === "code_block") {
+	    return { type: "code", lang: node.language || null, value: node.code || "" }
+	  }
+	  if (node.type === "thematic_break") {
+	    return { type: "thematicBreak" }
+	  }
+	  if (node.type === "image") {
+	    const image = { type: "image", url: node.source, alt: node.alt || "" };
+	    const caption = node.caption ? [{ type: "text", value: ` ${node.caption}` }] : [];
+	    return { type: "paragraph", children: [image, ...caption] }
+	  }
+	  if (node.type === "embed") {
+	    return { type: "html", value: node.directive }
+	  }
+	  return null
+	}
+	function serialize(doc) {
+	  const page = doc.nodes[doc.document_id];
+	  const children = page.body.nodes
+	    .map(id => blockFrom(id, doc.nodes))
+	    .filter(Boolean);
+	  return toMarkdown({ type: "root", children }, {
+	    extensions: [gfmStrikethroughToMarkdown(), highlightMarkToMarkdown],
+	    bullet: "-",
+	    emphasis: "_",
+	    strong: "*",
+	    fences: true,
+	    rule: "-"
+	  })
 	}
 
 	const divider = ($$anchor) => {
@@ -10780,16 +13580,20 @@ ${fallback_html}`;
 	var root$1 = from_html(`<span class="divider svelte-zh32e5" aria-hidden="true"></span>`);
 	var root_1 = from_html(`<span class="select-parent-group svelte-zh32e5"><button title="Select parent (Esc)" class="svelte-zh32e5">&#8598;</button> <!></span>`);
 	var root_2 = from_html(`<button title="Bold">B</button>`);
-	var root_3 = from_html(`<button title="Highlight">H</button>`);
-	var root_4 = from_html(`<!> <!>`, 1);
-	var root_5 = from_html(`<button title="Insert (↵)" class="svelte-zh32e5"><svg class="toolbar-icon svelte-zh32e5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M7.5 3V12M3 7.5H12" stroke="currentColor" stroke-linecap="square"></path></svg></button>`);
-	var root_6 = from_html(`<button title="Delete backwards (⌫)" class="svelte-zh32e5">&#9003;</button>`);
-	var root_7 = from_html(`<button title="Undo" class="svelte-zh32e5">&#8630;</button> <button title="Redo" class="svelte-zh32e5">&#8631;</button>`, 1);
-	var root_8 = from_html(`<div><div class="toolbar-scroller svelte-zh32e5"><!></div></div>`);
-	var root_9 = from_html(`<!> <!> <!>`, 1);
-	var root_10 = from_html(`<div class="contextual-tools svelte-zh32e5"><!> <!></div>`);
-	var root_11 = from_html(`<div class="contextual-tools svelte-zh32e5"><!></div> <!> <!>`, 1);
-	var root_12 = from_html(`<!> <div class="editor-toolbar bottom-toolbar svelte-zh32e5"><div class="toolbar-scroller svelte-zh32e5"><!> <div><!> <button class="toggle-editable svelte-zh32e5"> </button></div></div></div>`, 1);
+	var root_3 = from_html(`<button title="Italic">I</button>`);
+	var root_4 = from_html(`<button title="Code">&lt;&gt;</button>`);
+	var root_5 = from_html(`<button title="Highlight">H</button>`);
+	var root_6 = from_html(`<button title="Strikethrough">S</button>`);
+	var root_7 = from_html(`<!> <!> <!> <!> <!>`, 1);
+	var root_8 = from_html(`<button title="Insert (↵)" class="svelte-zh32e5"><svg class="toolbar-icon svelte-zh32e5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M7.5 3V12M3 7.5H12" stroke="currentColor" stroke-linecap="square"></path></svg></button>`);
+	var root_9 = from_html(`<button title="Delete backwards (⌫)" class="svelte-zh32e5">&#9003;</button>`);
+	var root_10 = from_html(`<button title="Undo" class="svelte-zh32e5">&#8630;</button> <button title="Redo" class="svelte-zh32e5">&#8631;</button>`, 1);
+	var root_11 = from_html(`<!> <!>`, 1);
+	var root_12 = from_html(`<div><div class="toolbar-scroller svelte-zh32e5"><!></div></div>`);
+	var root_13 = from_html(`<!> <!> <!>`, 1);
+	var root_14 = from_html(`<div class="contextual-tools svelte-zh32e5"><!> <!></div>`);
+	var root_15 = from_html(`<div class="contextual-tools svelte-zh32e5"><!></div> <!> <!>`, 1);
+	var root_16 = from_html(`<!> <div class="editor-toolbar bottom-toolbar svelte-zh32e5"><div class="toolbar-scroller svelte-zh32e5"><!> <div><!> <button class="toggle-editable svelte-zh32e5"> </button></div></div></div>`, 1);
 
 	const $$css = {
 		hash: 'svelte-zh32e5',
@@ -10856,7 +13660,7 @@ ${fallback_html}`;
 		};
 
 		const mark_buttons = ($$anchor) => {
-			var fragment_1 = root_4();
+			var fragment_1 = root_7();
 			var node_2 = first_child(fragment_1);
 
 			{
@@ -10890,20 +13694,95 @@ ${fallback_html}`;
 					let classes_1;
 
 					template_effect(() => {
-						classes_1 = set_class(button_2, 1, 'highlight svelte-zh32e5', null, classes_1, { active: session().commands.toggle_highlight.active });
-						button_2.disabled = session().commands.toggle_highlight.disabled;
+						classes_1 = set_class(button_2, 1, 'italic svelte-zh32e5', null, classes_1, { active: session().commands.toggle_emphasis.active });
+						button_2.disabled = session().commands.toggle_emphasis.disabled;
 					});
 
 					delegated('mousedown', button_2, (event) => {
 						event.preventDefault();
-						session().commands.toggle_highlight.execute();
+						session().commands.toggle_emphasis.execute();
 					});
 
 					append($$anchor, button_2);
 				};
 
 				if_block(node_3, ($$render) => {
-					if (session().commands.toggle_highlight) $$render(consequent_2);
+					if (session().commands.toggle_emphasis) $$render(consequent_2);
+				});
+			}
+
+			var node_4 = sibling(node_3, 2);
+
+			{
+				var consequent_3 = ($$anchor) => {
+					var button_3 = root_4();
+					let classes_2;
+
+					template_effect(() => {
+						classes_2 = set_class(button_3, 1, 'code svelte-zh32e5', null, classes_2, { active: session().commands.toggle_inline_code.active });
+						button_3.disabled = session().commands.toggle_inline_code.disabled;
+					});
+
+					delegated('mousedown', button_3, (event) => {
+						event.preventDefault();
+						session().commands.toggle_inline_code.execute();
+					});
+
+					append($$anchor, button_3);
+				};
+
+				if_block(node_4, ($$render) => {
+					if (session().commands.toggle_inline_code) $$render(consequent_3);
+				});
+			}
+
+			var node_5 = sibling(node_4, 2);
+
+			{
+				var consequent_4 = ($$anchor) => {
+					var button_4 = root_5();
+					let classes_3;
+
+					template_effect(() => {
+						classes_3 = set_class(button_4, 1, 'highlight svelte-zh32e5', null, classes_3, { active: session().commands.toggle_highlight.active });
+						button_4.disabled = session().commands.toggle_highlight.disabled;
+					});
+
+					delegated('mousedown', button_4, (event) => {
+						event.preventDefault();
+						session().commands.toggle_highlight.execute();
+					});
+
+					append($$anchor, button_4);
+				};
+
+				if_block(node_5, ($$render) => {
+					if (session().commands.toggle_highlight) $$render(consequent_4);
+				});
+			}
+
+			var node_6 = sibling(node_5, 2);
+
+			{
+				var consequent_5 = ($$anchor) => {
+					var button_5 = root_6();
+					let classes_4;
+
+					template_effect(() => {
+						classes_4 = set_class(button_5, 1, 'strikethrough svelte-zh32e5', null, classes_4, { active: session().commands.toggle_strikethrough.active });
+						button_5.disabled = session().commands.toggle_strikethrough.disabled;
+					});
+
+					delegated('mousedown', button_5, (event) => {
+						event.preventDefault();
+						session().commands.toggle_strikethrough.execute();
+					});
+
+					append($$anchor, button_5);
+				};
+
+				if_block(node_6, ($$render) => {
+					if (session().commands.toggle_strikethrough) $$render(consequent_5);
 				});
 			}
 
@@ -10911,37 +13790,37 @@ ${fallback_html}`;
 		};
 
 		const insert_button = ($$anchor) => {
-			var button_3 = root_5();
+			var button_6 = root_8();
 
-			template_effect(() => button_3.disabled = !get$1(can_insert_default));
-			delegated('mousedown', button_3, insert_default_node);
-			append($$anchor, button_3);
+			template_effect(() => button_6.disabled = !get$1(can_insert_default));
+			delegated('mousedown', button_6, insert_default_node);
+			append($$anchor, button_6);
 		};
 
 		const delete_button = ($$anchor) => {
-			var button_4 = root_6();
+			var button_7 = root_9();
 
-			template_effect(() => button_4.disabled = !get$1(can_delete));
-			delegated('mousedown', button_4, delete_node_selection);
-			append($$anchor, button_4);
+			template_effect(() => button_7.disabled = !get$1(can_delete));
+			delegated('mousedown', button_7, delete_node_selection);
+			append($$anchor, button_7);
 		};
 
 		const history_buttons = ($$anchor) => {
-			var fragment_2 = root_7();
-			var button_5 = first_child(fragment_2);
-			var button_6 = sibling(button_5, 2);
+			var fragment_2 = root_10();
+			var button_8 = first_child(fragment_2);
+			var button_9 = sibling(button_8, 2);
 
 			template_effect(() => {
-				button_5.disabled = session().commands.undo?.disabled ?? true;
-				button_6.disabled = session().commands.redo?.disabled ?? true;
+				button_8.disabled = session().commands.undo?.disabled ?? true;
+				button_9.disabled = session().commands.redo?.disabled ?? true;
 			});
 
-			delegated('mousedown', button_5, (event) => {
+			delegated('mousedown', button_8, (event) => {
 				event.preventDefault();
 				session().commands.undo?.execute();
 			});
 
-			delegated('mousedown', button_6, (event) => {
+			delegated('mousedown', button_9, (event) => {
 				event.preventDefault();
 				session().commands.redo?.execute();
 			});
@@ -10954,6 +13833,7 @@ ${fallback_html}`;
 
 		function toggle_editable() {
 			if (editable()) {
+				$$props.save();
 				session().selection = null;
 			}
 
@@ -11132,68 +14012,64 @@ ${fallback_html}`;
 			};
 		});
 
-		var fragment_3 = root_12();
+		var fragment_3 = root_16();
 
 		event('pointerdown', $window, handle_window_pointerdown);
 		event('pointerup', $window, handle_window_pointerup);
 		event('pointercancel', $window, handle_window_pointerup);
 
-		var node_4 = first_child(fragment_3);
+		var node_7 = first_child(fragment_3);
 
 		{
-			var consequent_5 = ($$anchor) => {
+			var consequent_8 = ($$anchor) => {
 				var fragment_4 = comment();
-				var node_5 = first_child(fragment_4);
+				var node_8 = first_child(fragment_4);
 
-				key(node_5, () => get$1(floating_anchor).name, ($$anchor) => {
-					var div = root_8();
-					let classes_2;
+				key(node_8, () => get$1(floating_anchor).name, ($$anchor) => {
+					var div = root_12();
+					let classes_5;
 					var div_1 = child(div);
-					var node_6 = child(div_1);
+					var node_9 = child(div_1);
 
 					{
-						var consequent_3 = ($$anchor) => {
-							var fragment_5 = root_4();
-							var node_7 = first_child(fragment_5);
+						var consequent_6 = ($$anchor) => {
+							var fragment_5 = root_11();
+							var node_10 = first_child(fragment_5);
 
-							select_parent_button(node_7);
+							select_parent_button(node_10);
 
-							var node_8 = sibling(node_7, 2);
+							var node_11 = sibling(node_10, 2);
 
-							mark_buttons(node_8);
+							mark_buttons(node_11);
 							append($$anchor, fragment_5);
 						};
 
-						var consequent_4 = ($$anchor) => {
-							var fragment_6 = root_4();
-							var node_9 = first_child(fragment_6);
+						var consequent_7 = ($$anchor) => {
+							var fragment_6 = root_11();
+							var node_12 = first_child(fragment_6);
 
-							select_parent_button(node_9);
+							select_parent_button(node_12);
 
-							var node_10 = sibling(node_9, 2);
+							var node_13 = sibling(node_12, 2);
 
-							delete_button(node_10);
+							delete_button(node_13);
 							append($$anchor, fragment_6);
 						};
 
-						if_block(node_6, ($$render) => {
-							if (get$1(selection_type) === 'text') $$render(consequent_3); else if (get$1(selection_type) === 'node' || get$1(selection_type) === 'property') $$render(consequent_4, 1);
+						if_block(node_9, ($$render) => {
+							if (get$1(selection_type) === 'text') $$render(consequent_6); else if (get$1(selection_type) === 'node' || get$1(selection_type) === 'property') $$render(consequent_7, 1);
 						});
 					}
 
 					template_effect(
 						($0) => {
-							classes_2 = set_class(div, 1, 'editor-toolbar floating-toolbar svelte-zh32e5', null, classes_2, $0);
+							classes_5 = set_class(div, 1, 'editor-toolbar floating-toolbar svelte-zh32e5', null, classes_5, { 'has-last-node-anchor': $0 });
 
 							set_style(div, `position-anchor: --${get$1(floating_anchor).name ?? ''};${get$1(floating_anchor).last_node_anchor
 							? ` --last-selected-node-anchor: --${get$1(floating_anchor).last_node_anchor};`
 							: ''}`);
 						},
-						[
-							() => ({
-								'has-last-node-anchor': Boolean(get$1(floating_anchor).last_node_anchor)
-							})
-						]
+						[() => Boolean(get$1(floating_anchor).last_node_anchor)]
 					);
 
 					append($$anchor, div);
@@ -11202,137 +14078,137 @@ ${fallback_html}`;
 				append($$anchor, fragment_4);
 			};
 
-			if_block(node_4, ($$render) => {
-				if (get$1(floating_anchor) && !get$1(is_dragging)) $$render(consequent_5);
+			if_block(node_7, ($$render) => {
+				if (get$1(floating_anchor) && !get$1(is_dragging)) $$render(consequent_8);
 			});
 		}
 
-		var div_2 = sibling(node_4, 2);
+		var div_2 = sibling(node_7, 2);
 		let styles;
 		var div_3 = child(div_2);
-		var node_11 = child(div_3);
+		var node_14 = child(div_3);
 
 		{
-			var consequent_11 = ($$anchor) => {
-				var fragment_7 = root_11();
+			var consequent_14 = ($$anchor) => {
+				var fragment_7 = root_15();
 				var div_4 = first_child(fragment_7);
-				var node_12 = child(div_4);
+				var node_15 = child(div_4);
 
 				{
-					var consequent_6 = ($$anchor) => {
-						var fragment_8 = root_9();
-						var node_13 = first_child(fragment_8);
+					var consequent_9 = ($$anchor) => {
+						var fragment_8 = root_13();
+						var node_16 = first_child(fragment_8);
 
-						select_parent_button(node_13);
+						select_parent_button(node_16);
 
-						var node_14 = sibling(node_13, 2);
+						var node_17 = sibling(node_16, 2);
 
-						mark_buttons(node_14);
+						mark_buttons(node_17);
 
-						var node_15 = sibling(node_14, 2);
+						var node_18 = sibling(node_17, 2);
 
-						divider(node_15);
+						divider(node_18);
 						append($$anchor, fragment_8);
 					};
 
-					var consequent_8 = ($$anchor) => {
+					var consequent_11 = ($$anchor) => {
 						var fragment_9 = comment();
-						var node_16 = first_child(fragment_9);
+						var node_19 = first_child(fragment_9);
 
 						{
-							var consequent_7 = ($$anchor) => {
-								var fragment_10 = root_4();
-								var node_17 = first_child(fragment_10);
+							var consequent_10 = ($$anchor) => {
+								var fragment_10 = root_11();
+								var node_20 = first_child(fragment_10);
 
-								insert_button(node_17);
+								insert_button(node_20);
 
-								var node_18 = sibling(node_17, 2);
+								var node_21 = sibling(node_20, 2);
 
-								divider(node_18);
+								divider(node_21);
 								append($$anchor, fragment_10);
 							};
 
-							if_block(node_16, ($$render) => {
-								if (get$1(can_insert_default)) $$render(consequent_7);
+							if_block(node_19, ($$render) => {
+								if (get$1(can_insert_default)) $$render(consequent_10);
 							});
 						}
 
 						append($$anchor, fragment_9);
 					};
 
-					var consequent_9 = ($$anchor) => {
-						var fragment_11 = root_4();
-						var node_19 = first_child(fragment_11);
+					var consequent_12 = ($$anchor) => {
+						var fragment_11 = root_11();
+						var node_22 = first_child(fragment_11);
 
-						select_parent_button(node_19);
+						select_parent_button(node_22);
 
-						var node_20 = sibling(node_19, 2);
+						var node_23 = sibling(node_22, 2);
 
-						divider(node_20);
+						divider(node_23);
 						append($$anchor, fragment_11);
 					};
 
-					if_block(node_12, ($$render) => {
-						if (get$1(selection_type) === 'text') $$render(consequent_6); else if (get$1(is_node_caret)) $$render(consequent_8, 1); else if (get$1(selection_type) === 'node' || get$1(selection_type) === 'property') $$render(consequent_9, 2);
+					if_block(node_15, ($$render) => {
+						if (get$1(selection_type) === 'text') $$render(consequent_9); else if (get$1(is_node_caret)) $$render(consequent_11, 1); else if (get$1(selection_type) === 'node' || get$1(selection_type) === 'property') $$render(consequent_12, 2);
 					});
 				}
 
-				var node_21 = sibling(div_4, 2);
+				var node_24 = sibling(div_4, 2);
 
-				history_buttons(node_21);
+				history_buttons(node_24);
 
-				var node_22 = sibling(node_21, 2);
+				var node_25 = sibling(node_24, 2);
 
 				{
-					var consequent_10 = ($$anchor) => {
-						var div_5 = root_10();
-						var node_23 = child(div_5);
+					var consequent_13 = ($$anchor) => {
+						var div_5 = root_14();
+						var node_26 = child(div_5);
 
-						divider(node_23);
+						divider(node_26);
 
-						var node_24 = sibling(node_23, 2);
+						var node_27 = sibling(node_26, 2);
 
-						delete_button(node_24);
+						delete_button(node_27);
 						append($$anchor, div_5);
 					};
 
-					if_block(node_22, ($$render) => {
-						if (get$1(can_delete)) $$render(consequent_10);
+					if_block(node_25, ($$render) => {
+						if (get$1(can_delete)) $$render(consequent_13);
 					});
 				}
 
 				append($$anchor, fragment_7);
 			};
 
-			if_block(node_11, ($$render) => {
-				if (editable()) $$render(consequent_11);
+			if_block(node_14, ($$render) => {
+				if (editable()) $$render(consequent_14);
 			});
 		}
 
-		var div_6 = sibling(node_11, 2);
-		let classes_3;
-		var node_25 = child(div_6);
+		var div_6 = sibling(node_14, 2);
+		let classes_6;
+		var node_28 = child(div_6);
 
 		{
-			var consequent_12 = ($$anchor) => {
+			var consequent_15 = ($$anchor) => {
 				divider($$anchor);
 			};
 
-			if_block(node_25, ($$render) => {
-				if (editable()) $$render(consequent_12);
+			if_block(node_28, ($$render) => {
+				if (editable()) $$render(consequent_15);
 			});
 		}
 
-		var button_7 = sibling(node_25, 2);
-		var text = child(button_7);
+		var button_10 = sibling(node_28, 2);
+		var text = only_child(button_10, true);
 
 		template_effect(() => {
 			styles = set_style(div_2, '', styles, { '--keyboard-inset': `${get$1(keyboard_inset) ?? ''}px` });
-			classes_3 = set_class(div_6, 1, 'save-group svelte-zh32e5', null, classes_3, { 'has-leading-tools': editable() });
+			classes_6 = set_class(div_6, 1, 'save-group svelte-zh32e5', null, classes_6, { 'has-leading-tools': editable() });
 			set_text(text, editable() ? 'Save' : 'Edit');
 		});
 
-		delegated('click', button_7, toggle_editable);
+		delegated('click', button_10, toggle_editable);
 		append($$anchor, fragment_3);
 		pop();
 	}
@@ -11345,15 +14221,43 @@ ${fallback_html}`;
 		push($$props, false);
 
 		let element = prop($$props, 'element', 8);
-		let session = mutable_source();
-		let editable = mutable_source(true);
+		let session = mutable_source(null);
+		let unrecognised = [];
+		let editable = mutable_source(false);
 		const key_mapper = new KeyMapper();
 
 		setContext("key_mapper", key_mapper);
 
 		onMount(() => {
-			set(session, create_session(element()));
+			// Ingest reads the server-rendered DOM, so it has to run before
+			// anything clears it.
+			const result = create_session(element());
+
+			unrecognised = result.unrecognised;
+
+			if (!result.session) {
+				console.warn("[vowel] editor stayed read-only: #content holds elements the ingest allowlist " + "does not recognise:", unrecognised);
+
+				return;
+			}
+
+			// Svedit renders the document itself rather than hydrating over the
+			// server output, so the original children go before it mounts.
+			element().replaceChildren();
+
+			set(session, result.session);
 		});
+
+		// Experimental: the markdown is logged, not written. Wiring this to
+		// voot's write endpoint needs a body-only write mode first, or saving
+		// would drop the file's front matter.
+		function save() {
+			const markdown = serialize(get$1(session).doc);
+
+			console.info("[vowel] markdown for %s\n\n%s", window.location.pathname, markdown);
+
+			return markdown;
+		}
 
 		init();
 
@@ -11403,7 +14307,7 @@ ${fallback_html}`;
 					get session() {
 						return get$1(session);
 					},
-
+					save,
 					get editable() {
 						return get$1(editable);
 					},
@@ -11470,7 +14374,8 @@ ${fallback_html}`;
 
 	openSocket();
 	const content = document.getElementById("content");
-	console.log({ content });
-	mount(Editor, { target: content, props: { element: content }});
+	if (content) {
+	  mount(Editor, { target: content, props: { element: content } });
+	}
 
 })();

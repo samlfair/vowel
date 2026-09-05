@@ -46,7 +46,10 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
         })
       })
 
-      return h("picture", { itemprop: itemprop && "image" }, sources)
+      // The derivative paths in srcset are uuid-based, so the original asset
+  // path cannot be recovered from them. Carried here rather than as a
+  // <source>, which is a loading candidate a browser could select.
+  return h("picture", { itemprop: itemprop && "image", "data-original": imagePath }, sources)
     }
   }
 
@@ -72,7 +75,10 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
     })
   })
 
-  return h("picture", { itemprop: itemprop && "image" }, sources)
+  // The derivative paths in srcset are uuid-based, so the original asset
+  // path cannot be recovered from them. Carried here rather than as a
+  // <source>, which is a loading candidate a browser could select.
+  return h("picture", { itemprop: itemprop && "image", "data-original": imagePath }, sources)
 }
 
 export default createDynamicImage

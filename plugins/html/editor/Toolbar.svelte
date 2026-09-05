@@ -8,11 +8,13 @@
 	// select-parent, delete). Buttons use plain-text glyphs instead of icons.
 	let {
 		session,
+		save,
 		editable = $bindable(false)
 	} = $props();
 
 	function toggle_editable() {
 		if (editable) {
+			save();
 			session.selection = null;
 		}
 		editable = !editable;
@@ -211,6 +213,34 @@
 			B
 		</button>
 	{/if}
+	{#if session.commands.toggle_emphasis}
+		<button
+			title="Italic"
+			class="italic"
+			onmousedown={(event) => {
+				event.preventDefault();
+				session.commands.toggle_emphasis.execute();
+			}}
+			disabled={session.commands.toggle_emphasis.disabled}
+			class:active={session.commands.toggle_emphasis.active}
+		>
+			I
+		</button>
+	{/if}
+	{#if session.commands.toggle_inline_code}
+		<button
+			title="Code"
+			class="code"
+			onmousedown={(event) => {
+				event.preventDefault();
+				session.commands.toggle_inline_code.execute();
+			}}
+			disabled={session.commands.toggle_inline_code.disabled}
+			class:active={session.commands.toggle_inline_code.active}
+		>
+			&lt;&gt;
+		</button>
+	{/if}
 	{#if session.commands.toggle_highlight}
 		<button
 			title="Highlight"
@@ -223,6 +253,20 @@
 			class:active={session.commands.toggle_highlight.active}
 		>
 			H
+		</button>
+	{/if}
+	{#if session.commands.toggle_strikethrough}
+		<button
+			title="Strikethrough"
+			class="strikethrough"
+			onmousedown={(event) => {
+				event.preventDefault();
+				session.commands.toggle_strikethrough.execute();
+			}}
+			disabled={session.commands.toggle_strikethrough.disabled}
+			class:active={session.commands.toggle_strikethrough.active}
+		>
+			S
 		</button>
 	{/if}
 {/snippet}

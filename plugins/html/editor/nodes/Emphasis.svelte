@@ -8,4 +8,4 @@
   const node = $derived(svedit.session.get(path))
 </script>
 
-<strong id={node.id} data-node-id={node.id}>{content}</strong>
+<em id={node.id} data-node-id={node.id}>{content}</em>

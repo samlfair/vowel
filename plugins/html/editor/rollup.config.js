@@ -3,8 +3,8 @@ import resolve from "@rollup/plugin-node-resolve"
 import css from "rollup-plugin-import-css"
 import cleanup from "rollup-plugin-cleanup"
 
-// Compiles the dev-preview "save a timestamped file" widget into a
-// single inlineable bundle, committed at ../editorClient.js -
+// Compiles the Svedit editor into a single inlineable bundle,
+// committed at ../bundle/index.js -
 // vowel/plugins/html/index.js reads that file's contents once at plugin
 // load time and injects it into every previewed page's
 // handlePreviewRequest, the same way it already inlines voot's
@@ -24,7 +24,10 @@ export default {
     resolve({
       browser: true,
       exportConditions: ["svelte"],
-      extensions: [".svelte"]
+      // The default extensions must be listed alongside .svelte: passing
+      // only .svelte overrides them, and bare package imports (e.g.
+      // mdast-util-to-markdown) then silently resolve to nothing.
+      extensions: [".svelte", ".mjs", ".js", ".json", ".node"]
     }),
     css(),
     cleanup()
