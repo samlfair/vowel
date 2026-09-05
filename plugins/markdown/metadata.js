@@ -54,6 +54,20 @@ export function normalizeHeadingLevels(tree) {
 }
 
 /**
+ * Dates reach metadata in whatever shape they were written - a Date from
+ * extractDate, "2026-03-04" or "January 5, 1000" from frontmatter. They are
+ * stored as ISO so the column holds one format: it sorts lexically, which is
+ * what orderBy relies on, and toISOString pads the year to four digits, so
+ * 0999 still sorts before 1000. Anything that is not a date is left alone.
+ * @param {unknown} value
+ */
+function normalizeDate(value) {
+  const parsed = value instanceof Date ? value : extractDate(String(value))
+  if (!parsed || isNaN(parsed)) return value
+  return parsed.toISOString()
+}
+
+/**
  * Marks a recognized date in place so it renders as <time> without moving
  * out of the content. The editor reads the element's text back, so the
  * author's own wording survives the round trip and the markup is simply
@@ -106,7 +120,7 @@ function recognizeData(block, metadata) {
   const date = extractDate(text)
   if (!date) return false
 
-  metadata.inferred_date = date
+  metadata.inferred_date = normalizeDate(date)
   markAsTime(block, date)
   return true
 }
@@ -120,7 +134,7 @@ function readFrontmatter(node, metadata) {
 
   for (const key in frontmatter) {
     const name = reservedProperties.includes(key) ? key : "fm_" + key
-    metadata[name] = frontmatter[key]
+    metadata[name] = key === "date" ? normalizeDate(frontmatter[key]) : frontmatter[key]
   }
 
   // Recorded because presence alone cannot distinguish a property the

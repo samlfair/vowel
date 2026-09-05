@@ -1,3 +1,18 @@
+const MONTH_INDEXES = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+}
+
+/**
+ * Months arrive either as a name ("January", "Sept") or as a number.
+ * @param {string} month
+ */
+function monthIndex(month) {
+  const named = MONTH_INDEXES[String(month).slice(0, 3).toLowerCase()]
+  if (named !== undefined) return named
+  return Number(month) - 1
+}
+
 /**
  * @param {string} text
  */
@@ -73,10 +88,47 @@ function extractDate(text) {
     data.timezone = groups.Z
   }
 
-  const time = groups.time ? `${data.hours}:${data.minutes}:${data.seconds}${data.timezone || ""}` : null
-  const dateString = `${data.year} ${data.month} ${data.day}${time ? " " + time : ""}`
+  // A bare "YYYY M D" string is parsed as local time, which shifts the
+  // date by a day in any timezone east of UTC and by an odd LMT offset
+  // before standardization (Amsterdam in the year 1000 is +00:17:30). The
+  // date an author writes has no timezone, so build it as UTC and only
+  // honour an offset when one was written explicitly.
+  const year = Number(data.year)
+  const month = monthIndex(data.month)
+  const day = parseInt(data.day, 10)
 
-  return new Date(dateString)
+  const hours = data.hours ? Number(data.hours) : 0
+  const minutes = data.minutes ? Number(data.minutes) : 0
+  const seconds = data.seconds ? Number(data.seconds) : 0
+
+  // Date.UTC rolls out-of-range parts over into neighbouring months and
+  // years, so an ISBN's segments would silently become a real date. The
+  // string parse this replaced rejected them, and callers still rely on
+  // that: the frontmatter renderer only treats a value as a date when the
+  // result is valid.
+  const partsAreSane =
+    Number.isInteger(year) &&
+    Number.isInteger(month) && month >= 0 && month <= 11 &&
+    Number.isInteger(day) && day >= 1 && day <= 31
+
+  if (!partsAreSane) return new Date(NaN)
+
+  if (data.timezone) {
+    const pad = (value, width = 2) => String(value).padStart(width, "0")
+    const stamp = `${pad(year, 4)}-${pad(month + 1)}-${pad(day)}` +
+      `T${pad(hours)}:${pad(minutes)}:${pad(seconds)}${data.timezone}`
+    return new Date(stamp)
+  }
+
+  const result = new Date(Date.UTC(year, month, day, hours, minutes, seconds))
+
+  // Catches the rollover that survives the range check - 31 February.
+  const rolled =
+    result.getUTCFullYear() !== year ||
+    result.getUTCMonth() !== month ||
+    result.getUTCDate() !== day
+
+  return rolled ? new Date(NaN) : result
 }
 
 export default extractDate
