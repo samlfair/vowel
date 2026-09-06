@@ -1,4 +1,4 @@
-import { parseURLMetadata } from "votive/internals"
+import { default as parseURLMetadata } from "./urlMetadata.js"
 
 /** @import * as Votive from "votive" */
 

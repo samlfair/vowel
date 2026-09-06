@@ -1,5 +1,5 @@
 import path from "node:path"
-import { systemDirectoryFor, resolveProjectFolder } from "votive/internals"
+import { systemDirectoryFor, resolveProjectFolder } from "votive"
 import vowelImagesPlugin from "./plugins/images/index.js"
 import vowelStylesPlugin from "./plugins/styles/index.js"
 import vowelReadMarkdownPlugin from "./plugins/markdown/index.js"
