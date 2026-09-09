@@ -1,47 +1,26 @@
 <script>
-  import { setContext, onMount } from "svelte"
+  import { setContext } from "svelte"
   import { Svedit, KeyMapper } from "svedit"
-  import create_session from "./create-session.js"
   import serialize from "./serialize.js"
-  import readFrontmatter from "./frontmatter.js"
   import Toolbar from "./Toolbar.svelte"
 
-  export let element
+  // Both props are read off the rendered page before this mounts, by
+  // main.js's startEditing: the session from section#content, the title
+  // and frontmatter from the <main> around it. Ingesting has to happen
+  // while the server output is still there, and section#content has to be
+  // emptied before this component is mounted into it - which is why
+  // neither belongs here.
+  //
+  // The frontmatter round trips unchanged for now; carrying it is what
+  // lets a save reproduce the whole file rather than just the body.
+  let { session, frontmatter } = $props()
 
-  let session = null
-  let unrecognised = []
-  let editable = false
-
-  // The title and frontmatter live in <main>, alongside section#content
-  // rather than inside it. They round trip unchanged for now - reading
-  // them is what lets a save reproduce the whole file.
-  let frontmatter = { title: null, properties: {} }
+  // The button that mounted this said Edit, so editing is already on and
+  // the toolbar's own toggle reads Save.
+  let editable = $state(true)
 
   const key_mapper = new KeyMapper()
   setContext("key_mapper", key_mapper)
-
-  onMount(() => {
-    // Ingest reads the server-rendered DOM, so it has to run before
-    // anything clears it.
-    const main = element.closest("main")
-    if (main) frontmatter = readFrontmatter(main)
-
-    const result = create_session(element)
-    unrecognised = result.unrecognised
-
-    if (!result.session) {
-      console.warn(
-        "[vowel] editor stayed read-only: #content holds elements the ingest allowlist " +
-        "does not recognise:", unrecognised
-      )
-      return
-    }
-
-    // Svedit renders the document itself rather than hydrating over the
-    // server output, so the original children go before it mounts.
-    element.replaceChildren()
-    session = result.session
-  })
 
   // Experimental: the markdown is logged, not written. The whole file is
   // reproduced - frontmatter, title and body - so wiring this to voot's
@@ -56,7 +35,5 @@
 
 <svelte:window onkeydown={key_mapper.handle_keydown.bind(key_mapper)} />
 
-{#if session}
-  <Svedit {session} bind:editable path={[session.doc.document_id]} />
-  <Toolbar {session} {save} bind:editable />
-{/if}
+<Svedit {session} bind:editable path={[session.doc.document_id]} />
+<Toolbar {session} {save} bind:editable />

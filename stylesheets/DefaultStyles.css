@@ -3,7 +3,7 @@
 			Barebones, Basic.css, Pico, Typeplate, Simple.css, and more
 		*/
 
-@layer reset, typography, default;
+@layer reset, typography, default, dynamic-typography;
 
 body {
 	border: 4px solid var(--success-13);

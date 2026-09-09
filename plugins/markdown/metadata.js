@@ -1,5 +1,5 @@
 import { toString as mdastToString } from 'mdast-util-to-string'
-import extractDate from "./../../extractDate.js"
+import extractDate, { dateSpan } from "./../../extractDate.js"
 import { testURL, toTitleCase } from "./../../utils.js"
 import yaml from 'yaml'
 import path from "node:path"
@@ -116,6 +116,20 @@ function recognizeData(block, metadata) {
     }
     return true
   }
+
+  // A date is a property of the page only when the author wrote it as
+  // the whole paragraph and nothing else: one unmarked text node. Bold,
+  // italic, a link, or code around it makes it prose that happens to
+  // contain a date - the paragraph is saying something, not declaring a
+  // field. (Siblings are already excluded by the single-child check
+  // above.)
+  if (child.type !== "text") return false
+
+  // And it has to *be* the date, not mention one. mdast hands back
+  // "Published on 2026-03-04 by us." as a single text node, so the
+  // single-child check above cannot tell that apart from a bare date.
+  const span = dateSpan(text)
+  if (!span || span.trim() !== text.trim()) return false
 
   const date = extractDate(text)
   if (!date) return false

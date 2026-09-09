@@ -13,6 +13,8 @@ import { gfmTable } from 'micromark-extension-gfm-table'
 import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
 import { normalizeHeadingLevels } from './metadata.js'
 import { readFileSync } from "fs"
+import { themeColorSchemeCSS } from "./colorScheme.js"
+import { typographyCSS } from "./typography.js"
 import { testURL, testHashtags, createHashtagPage, toTitleCase, hashtagRegexSingle } from "./../../utils.js"
 import { toHast } from 'mdast-util-to-hast'
 import { toString as hastToString } from 'hast-util-to-string'
@@ -28,8 +30,13 @@ const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
 /** @import * as Votive from "votive" */
 /** @import * as Vowel from "./../../index.js" */
 
-/** @type {Votive.ReadText} */
-function readFile(string, filePath, targetPath, api, config) {
+/** @type {Votive.ProcessorRead} */
+function readFile(source, api, config) {
+  // Both project-relative (see SourceInput in votive/lib/bundle.js), so
+  // filePath answers routing-shaped questions directly: `=== "settings.md"`
+  // means the project's root settings file, and pathInfo.dir is a folder
+  // within the site rather than somewhere on this machine.
+  const { path: filePath, target: targetPath, text: string } = source
   const urls = []
 
   const mdast = fromMarkdown(string, {
@@ -65,7 +72,11 @@ function readFile(string, filePath, targetPath, api, config) {
 
   if (metadata.fm_published === false) return
 
-  const secretFileName = metadata.secret_key && hash("MD5", filePath + metadata.secret_key)
+  // Hashed over the *routed target* path - the page's identity as
+  // published, so renaming the source file without changing where it
+  // routes leaves the secret URL alone. Project-relative either way, so
+  // the URL no longer changes when the project moves.
+  const secretFileName = metadata.secret_key && hash("MD5", targetPath + metadata.secret_key)
   const secretFileInfo = secretFileName && router({ name: secretFileName, dir: pathInfo.dir.split(path.sep), ext: ".html" })
   const secretFilePath = secretFileInfo && path.format({ name: secretFileInfo.name, dir: secretFileInfo.dir.join(path.sep), ext: secretFileInfo.ext })
   if(secretFilePath) {
@@ -219,18 +230,76 @@ function readFile(string, filePath, targetPath, api, config) {
 
 
   const hast = toHast(mdast, {
-    unknownHandler: (_, n, p) => {
-      if (n.type === "highlight") return h("mark", n.children)
-      if (n.type === "time") return h("time", { datetime: n.datetime }, n.children)
+    // `state.all(node)` converts the children to hast; handing over
+    // `node.children` gives the HTML compiler raw *mdast* instead. Plain
+    // text survives that by coincidence - mdast and hast spell a text
+    // node identically - so it only shows up when a marked-up date or
+    // highlight contains anything else: `**March 4, 2026**` threw
+    // "Cannot compile unknown node `strong`", and a link, emphasis or
+    // inline code in the same position threw on their own types.
+    unknownHandler: (state, node) => {
+      if (node.type === "highlight") return h("mark", state.all(node))
+      if (node.type === "time") return h("time", { datetime: node.datetime }, state.all(node))
     }
   })
 
+  const targetMetadata = { ...metadata, hastAbstract: hast }
+
+  // A secret page lives only at its hashed path. readFile can't move its
+  // own target any more, so it creates the real page as a separate
+  // target here and leaves the routed one virtual (write: false below) -
+  // nothing lands at the public URL at all. Deliberately not a redirect
+  // from the public path: that would hand the secret to anyone who
+  // visited it, which is the one thing this feature exists to prevent.
+  if (secretFilePath) {
+    api.createTarget({
+      path: secretFilePath,
+      abstract: hast,
+      metadata: targetMetadata,
+      // Attributed to the same source file the routed target has, so
+      // this behaves exactly as it did when readFile relocated its own
+      // target: relative-link resolution and targetBySource() lookups
+      // both still find a page with a real source behind it.
+      source: filePath
+    })
+  }
+
+  // settings.md is routed nowhere (router() returns false for it), so
+  // its own text is emitted as a target here instead. That is what puts
+  // it on the served site, where the settings panel can GET it, edit the
+  // frontmatter and POST the result back to voot's write endpoint - a
+  // read path without a new endpoint. See writeMarkdown below for what
+  // actually writes it.
+  if (pathInfo.base === "settings.md") {
+    // Mirrors the source path rather than hardcoding the root one: every
+    // folder can carry its own settings.md, and they would otherwise all
+    // collide on a single target, leaving whichever was read last.
+    api.createTarget({
+      path: filePath,
+      abstract: { text: string },
+      metadata: {}
+    })
+  }
+
   return {
     abstract: hast,
-    filePath: secretFilePath,
-    write: metadata.html_file ?? true,
-    metadata: { ...metadata, hastAbstract: hast },
+    write: secretFilePath ? false : (metadata.html_file ?? true),
+    metadata: targetMetadata,
     settings: pathInfo.base === "settings.md" ? metadata : undefined
+  }
+}
+
+/**
+ * The only markdown target vowel produces is settings.md itself (every
+ * other .md file is routed to .html), so this passes its source text
+ * through untouched - the panel edits the real file, not a rendering of
+ * it.
+ * @type {Votive.ProcessorWrite}
+ */
+function writeMarkdown(target) {
+  return {
+    data: target.abstract.text,
+    encoding: "utf-8"
   }
 }
 
@@ -339,7 +408,24 @@ function readFolder(folder, settings, api, config, isRoot) {
 
   if (isRoot) {
     const themes = ["reset", "typography", "default"]
-    const existingTheme = settings.fm_theme?.[0]?.at(-1)
+
+    // A theme is either a bare name ("default") or an object carrying
+    // its own configuration ({name: "default", colors: [...]}) - which
+    // is what `theme.colors` means as a path. Both forms are accepted;
+    // the object form is the only way to seed a color scheme.
+    // `theme` is a reserved property (see metadata.js's
+    // reservedProperties), so it is stored under its own name rather
+    // than the "fm_" prefix the other frontmatter keys get. This read
+    // was `settings.fm_theme`, a label nothing has ever written, so a
+    // configured theme had never once been seen here - the fallthrough
+    // happens to also produce "default", which is what hid it.
+    const themeSetting = settings.theme?.[0]?.at(-1)
+    const themeIsConfig = themeSetting && typeof themeSetting === "object" && !Array.isArray(themeSetting)
+    const themeConfig = themeIsConfig ? themeSetting : { name: themeSetting }
+
+    // Compared case-insensitively: settings.md is written by hand, and
+    // "Default" is the name a person would reasonably type.
+    const existingTheme = themeConfig.name && String(themeConfig.name).toLowerCase()
 
     if (!existingTheme || themes.includes(existingTheme)) {
       if (!existingTheme) newSettings.theme = "default"
@@ -372,7 +458,57 @@ function readFolder(folder, settings, api, config, isRoot) {
             extension: "css"
           })
 
+          // theme.font and its companions. Emitted after typography.css
+          // and into a later cascade layer, so it overrides the static
+          // sheet without either file referring to the other. Only the
+          // chosen family's faces are emitted - a site that picked one
+          // font ships one font.
+          const dynamicType = typographyCSS(themeConfig)
+
+          if (dynamicType) {
+            newSettings.stylesheets.push("type.css")
+
+            api.createTarget({
+              path: "type.css",
+              abstract: { css: dynamicType.css },
+              metadata: {},
+              extension: "css"
+            })
+
+            const fontFiles = dynamicType.files
+
+            for (const file of fontFiles) {
+              // Named, not resolved: the fonts processor knows where
+              // vowel's bundled fonts live and reads the bytes at write
+              // time, so no machine-specific path is stored.
+              api.createTarget({
+                path: file,
+                abstract: { bundled: file },
+                metadata: {}
+              })
+            }
+          }
+
           if (theme !== "typography") {
+            // Tokens before the stylesheet that consumes them.
+            // DefaultStyles.css reads --<role>-00..11 (see
+            // stylesheets/brand-colors.css for the same shape written by
+            // hand) and nothing else defines those, so this is emitted
+            // unconditionally - a site that configured no colors gets
+            // Vowel's brand pair rather than no variables at all.
+            const colorScheme = themeColorSchemeCSS(themeConfig.colors, error => (
+              console.warn(`${styleText("dim", "build: ")}${styleText("yellow", `ignoring theme.colors - ${error.message}`)}`)
+            ))
+
+            newSettings.stylesheets.push("colors.css")
+
+            api.createTarget({
+              path: "colors.css",
+              abstract: { css: colorScheme },
+              metadata: {},
+              extension: "css"
+            })
+
             newSettings.stylesheets.push("default.css")
 
             const defaultStylesPath = path.join(VOWEL_DIR, "stylesheets", "DefaultStyles.css")
@@ -463,6 +599,7 @@ const readMarkdown = {
   extensions: [".md"],
   format: "text",
   readFile,
+  writeFile: writeMarkdown,
   transformFile,
   readFolder,
 }

@@ -51,13 +51,15 @@ async function writeImage(target, settings, api, config) {
 }
 
 /** @type {Votive.ProcessorRead} */
-function readImagePath(string) {
-  const uuid =randomUUID()
+function readImagePath(source) {
+  const uuid = randomUUID()
 
   const data = {
     metadata: {},
     abstract: {
-      sourcePath: string,
+      // Project-relative, like everything else stored - only ever read
+      // back for its extension below.
+      sourcePath: source.path,
       uuid
     }
   }

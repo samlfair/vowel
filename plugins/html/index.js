@@ -25,6 +25,7 @@ import slug from "rehype-slug"
 import createDynamicImage from "./image.js"
 import { isExternalLinkParagraph } from "../urls/index.js"
 import { globClasses } from "./editor/directives.js"
+import { listTargets } from "./../../utils.js"
 
 /** @import * as Votive from "votive" */
 /** @import * as Vowel from "./../../index.js" */
@@ -186,6 +187,10 @@ function writeFile(target, settings, api, config) {
 
   /** @param {string} relativePath */
   function resolvePath(relativePath) {
+    // A target created via api.createTarget() has no backing source file
+    // (target.source is null), so there's no directory to resolve a
+    // "./" link against - leave the href as the author wrote it.
+    if (!target.source) return
     if (relativePath.startsWith("./")) {
       const dir = path.dirname(target.source)
       const sourcePath = path.normalize(path.join(dir, relativePath))
@@ -205,7 +210,7 @@ function writeFile(target, settings, api, config) {
   if (target.metadata.type === "tag") {
     if (!target.metadata.tag) return false
 
-    const pages = api.targets({
+    const pages = listTargets(api, {
       recursive: true,
       query: {
         tags: target.metadata.tag
@@ -255,7 +260,7 @@ function writeFile(target, settings, api, config) {
 
   const family = [...ancestorFolders, targetAsDir].flatMap(folder => {
     // FIXME typing
-    return api.targets({
+    return listTargets(api, {
       folder: Array.isArray(folder) ? path.join(...folder) : folder,
       recursive: false,
       query: {
@@ -600,7 +605,7 @@ function writeFile(target, settings, api, config) {
           ? { tags: tag }
           : {}
 
-        const targets = api.targets({
+        const targets = listTargets(api, {
           folder,
           recursive,
           query,
@@ -731,7 +736,7 @@ function writeFile(target, settings, api, config) {
     }
   })
 
-  const everything = api.targets({
+  const everything = listTargets(api, {
     folder: "",
     recursive: true,
   }).filter(target => target.path
@@ -841,6 +846,8 @@ function writeFile(target, settings, api, config) {
     ]
   )
 
+  try {
+    
   const data = unified()
     .use(rehypePresetMinify)
     .use(rehypeStringify)
@@ -850,6 +857,9 @@ function writeFile(target, settings, api, config) {
     data
   }
 
+  } catch(e) {
+    console.log({ tree, target, e })
+  }
 }
 
 /**

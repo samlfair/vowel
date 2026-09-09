@@ -15,9 +15,6 @@
 	var get_prototype_of = Object.getPrototypeOf;
 	var is_extensible = Object.isExtensible;
 	const noop = () => {};
-	function run(fn) {
-		return fn();
-	}
 	function run_all(arr) {
 		for (var i = 0; i < arr.length; i++) {
 			arr[i]();
@@ -31,6 +28,20 @@
 			reject = rej;
 		});
 		return { promise, resolve, reject };
+	}
+	function to_array(value, n) {
+		if (Array.isArray(value)) {
+			return value;
+		}
+		if (!(Symbol.iterator in value)) {
+			return Array.from(value);
+		}
+		const array = [];
+		for (const element of value) {
+			array.push(element);
+			if (array.length === n) break;
+		}
+		return array;
 	}
 
 	const DERIVED = 1 << 1;
@@ -1898,10 +1909,6 @@
 	function create_user_effect(fn) {
 		return create_effect(EFFECT | USER_EFFECT, fn);
 	}
-	function user_pre_effect(fn) {
-		validate_effect();
-		return create_effect(RENDER_EFFECT | USER_EFFECT, fn);
-	}
 	function component_root(fn) {
 		Batch.ensure();
 		const effect = create_effect(ROOT_EFFECT | EFFECT_PRESERVED, fn);
@@ -2500,59 +2507,6 @@
 			return fn();
 		} finally {
 			untracking = previous_untracking;
-		}
-	}
-	function deep_read_state(value) {
-		if (typeof value !== 'object' || !value || value instanceof EventTarget) {
-			return;
-		}
-		if (STATE_SYMBOL in value) {
-			deep_read(value);
-		} else if (!Array.isArray(value)) {
-			for (let key in value) {
-				const prop = value[key];
-				if (typeof prop === 'object' && prop && STATE_SYMBOL in prop) {
-					deep_read(prop);
-				}
-			}
-		}
-	}
-	function deep_read(value, visited = new Set()) {
-		if (
-			typeof value === 'object' &&
-			value !== null &&
-			!(value instanceof EventTarget) &&
-			!visited.has(value)
-		) {
-			visited.add(value);
-			if (value instanceof Date) {
-				value.getTime();
-			}
-			for (let key in value) {
-				try {
-					deep_read(value[key], visited);
-				} catch (e) {
-				}
-			}
-			const proto = get_prototype_of(value);
-			if (
-				proto !== Object.prototype &&
-				proto !== Array.prototype &&
-				proto !== Map.prototype &&
-				proto !== Set.prototype &&
-				proto !== Date.prototype
-			) {
-				const descriptors = get_descriptors(proto);
-				for (let key in descriptors) {
-					const get = descriptors[key].get;
-					if (get) {
-						try {
-							get.call(value);
-						} catch (e) {
-						}
-					}
-				}
-			}
 		}
 	}
 
@@ -3229,6 +3183,14 @@
 		return component;
 	}
 	let mounted_components = new WeakMap();
+	function unmount(component, options) {
+		const fn = mounted_components.get(component);
+		if (fn) {
+			mounted_components.delete(component);
+			return fn(options);
+		}
+		return Promise.resolve();
+	}
 
 	class BranchManager {
 		anchor;
@@ -4218,6 +4180,30 @@
 	const INPUT_TAG = IS_XHTML ? 'input' : 'INPUT';
 	const OPTION_TAG = IS_XHTML ? 'option' : 'OPTION';
 	const SELECT_TAG = IS_XHTML ? 'select' : 'SELECT';
+	const PROGRESS_TAG = IS_XHTML ? 'progress' : 'PROGRESS';
+	function set_value(element, value) {
+		var attributes = get_attributes(element);
+		if (
+			attributes.value ===
+				(attributes.value =
+					value ?? undefined) ||
+			(element.value === value && (value !== 0 || element.nodeName !== PROGRESS_TAG))
+		) {
+			return;
+		}
+		element.value = value ?? '';
+	}
+	function set_checked(element, checked) {
+		var attributes = get_attributes(element);
+		if (
+			attributes.checked ===
+			(attributes.checked =
+				checked ?? undefined)
+		) {
+			return;
+		}
+		element.checked = checked;
+	}
 	function set_attribute(element, attribute, value, skip_warning) {
 		var attributes = get_attributes(element);
 		if (attributes[attribute] === (attributes[attribute] = value)) return;
@@ -4507,58 +4493,6 @@
 		return element_or_component;
 	}
 
-	function init(immutable = false) {
-		const context =  (component_context);
-		const callbacks = context.l.u;
-		if (!callbacks) return;
-		let props = () => deep_read_state(context.s);
-		if (immutable) {
-			let version = 0;
-			let prev =  ({});
-			const d = derived(() => {
-				let changed = false;
-				const props = context.s;
-				for (const key in props) {
-					if (props[key] !== prev[key]) {
-						prev[key] = props[key];
-						changed = true;
-					}
-				}
-				if (changed) version++;
-				return version;
-			});
-			props = () => get$1(d);
-		}
-		if (callbacks.b.length) {
-			user_pre_effect(() => {
-				observe_all(context, props);
-				run_all(callbacks.b);
-			});
-		}
-		user_effect(() => {
-			const fns = untrack(() => callbacks.m.map(run));
-			return () => {
-				for (const fn of fns) {
-					if (typeof fn === 'function') {
-						fn();
-					}
-				}
-			};
-		});
-		if (callbacks.a.length) {
-			user_effect(() => {
-				observe_all(context, props);
-				run_all(callbacks.a);
-			});
-		}
-	}
-	function observe_all(context, props) {
-		if (context.l.s) {
-			for (const signal of context.l.s) get$1(signal);
-		}
-		props();
-	}
-
 	const rest_props_handler = {
 		get(target, key) {
 			if (target.exclude.has(key)) return;
@@ -4689,31 +4623,11 @@
 		);
 	}
 
-	function onMount(fn) {
-		if (component_context === null) {
-			lifecycle_outside_component();
-		}
-		if (legacy_mode_flag && component_context.l !== null) {
-			init_update_callbacks(component_context).m.push(fn);
-		} else {
-			user_effect(() => {
-				const cleanup = untrack(fn);
-				if (typeof cleanup === 'function') return  (cleanup);
-			});
-		}
-	}
-	function init_update_callbacks(context) {
-		var l =  (context).l;
-		return (l.u ??= { a: [], b: [], m: [] });
-	}
-
 	const PUBLIC_VERSION = '5';
 
 	if (typeof window !== 'undefined') {
 		((window.__svelte ??= {}).v ??= new Set()).add(PUBLIC_VERSION);
 	}
-
-	enable_legacy_mode_flag();
 
 	const SEGMENTER = new Intl.Segmenter('en', { granularity: 'grapheme' });
 	const VIRTUAL_KEYBOARD_MIN_HEIGHT = 50;
@@ -5698,18 +5612,18 @@
 		return near.has(offset - 1) && near.has(offset);
 	}
 
-	var root$l = from_html(`<div class="selected-property-overlay svelte-ozckc"></div>`);
-	var root_1$7 = from_html(`<div class="selected-node-overlay svelte-ozckc"></div>`);
-	var root_2$3 = from_html(`<!> <!>`, 1);
+	var root$m = from_html(`<div class="selected-property-overlay svelte-ozckc"></div>`);
+	var root_1$8 = from_html(`<div class="selected-node-overlay svelte-ozckc"></div>`);
+	var root_2$4 = from_html(`<!> <!>`, 1);
 
-	const $$css$a = {
+	const $$css$c = {
 		hash: 'svelte-ozckc',
 		code: '.selected-node-overlay.svelte-ozckc,\n	.selected-property-overlay.svelte-ozckc {\n		/* Selection frame: a single 1px outline, offset -0.5px so the\n		   hairline centers on the node\'s edge and neighboring frames merge\n		   into one shared line. Alternatives tried and rejected:\n		   - Plain 1px border: adjacent selected nodes stack their borders\n		     into a 2px seam between them, which looks ugly.\n		   - Thick translucent frame (8px border) plus an inner hairline\n		     outline: multiple nested lines take more cognitive effort to\n		     parse than a single line.\n		   - Inset box-shadow rings (1px stroke + 8px translucent): same\n		     layered-frame look, same objection.\n		   Performance note: outlines don\'t participate in layout, so\n		   selection changes can\'t trigger reflows. */position:absolute;background:var(--editing-muted);outline:1px solid var(--editing);outline-offset:-0.5px;border-radius:1px;top:anchor(top);left:anchor(left);bottom:anchor(bottom);right:anchor(right);pointer-events:none;z-index:12;}'
 	};
 
 	function NodeSelectionMarkers($$anchor, $$props) {
 		push($$props, true);
-		append_styles$1($$anchor, $$css$a);
+		append_styles$1($$anchor, $$css$c);
 
 		const svedit = getContext('svedit');
 		let selected_node_paths = user_derived(get_selected_node_paths);
@@ -5731,12 +5645,12 @@
 			return paths;
 		}
 
-		var fragment = root_2$3();
+		var fragment = root_2$4();
 		var node = first_child(fragment);
 
 		{
 			var consequent = ($$anchor) => {
-				var div = root$l();
+				var div = root$m();
 
 				template_effect(($0) => set_style(div, `position-anchor: --${$0 ?? ''};`), [() => serialize_path(svedit.session.selection.path)]);
 				append($$anchor, div);
@@ -5755,7 +5669,7 @@
 				var node_2 = first_child(fragment_1);
 
 				each(node_2, 17, () => get$1(selected_node_paths), (path) => serialize_path(path), ($$anchor, path) => {
-					var div_1 = root_1$7();
+					var div_1 = root_1$8();
 
 					template_effect(($0) => set_style(div_1, `position-anchor: --${$0 ?? ''};`), [() => serialize_path(get$1(path))]);
 					append($$anchor, div_1);
@@ -5773,16 +5687,16 @@
 		pop();
 	}
 
-	var root_1$6 = from_html(`<div><!> <!> <div><!></div></div>`);
+	var root_1$7 = from_html(`<div><!> <!> <div><!></div></div>`);
 
-	const $$css$9 = {
+	const $$css$b = {
 		hash: 'svelte-1fkh1fs',
 		code: '.svedit-canvas.svelte-1fkh1fs {caret-color:var(--editing);caret-shape:bar;\n		/* Default to vertical/ column flow with: --row: 0; (the most common case)\n		Prevents silent failures when developers forget to set the row property in their top level node component.\n		TODO: Warn developers in dev mode via console if they forget to set the --row property and use a different flow.*/--row: 0;&:focus {outline:none;}}\n\n	/* Selection paint — wrapped in :where() so consumers can override with\n	   a plain `::selection` rule. Svelte still adds the scope hash inside\n	   the :where(), but the wrapper zeroes its specificity contribution.\n	   Final specificity is just (0,0,1), trivially beatable. */:where(.svedit-canvas.svelte-1fkh1fs) ::selection {background:var(--editing-muted);}\n\n	@media not (pointer: coarse) {.svedit-canvas.hide-selection.svelte-1fkh1fs {caret-color:transparent;}\n	}\n\n	/* When the caret is in a node gap we never want to see the caret */.svedit-canvas.node-caret.svelte-1fkh1fs,\n	.svedit-canvas.property-selection.svelte-1fkh1fs {caret-color:transparent;}\n\n	@media not (pointer: coarse) {\n		@supports (anchor-name: --test) {.svedit-canvas.hide-selection.svelte-1fkh1fs ::selection {background:transparent;}\n		}\n	}'
 	};
 
 	function Svedit($$anchor, $$props) {
 		push($$props, true);
-		append_styles$1($$anchor, $$css$9);
+		append_styles$1($$anchor, $$css$b);
 
 		let session = prop($$props, 'session', 7),
 			editable = prop($$props, 'editable', 15, false),
@@ -7407,7 +7321,7 @@ ${fallback_html}`;
 		});
 
 		var $$exports = { focus_canvas };
-		var div = root_1$6();
+		var div = root_1$7();
 
 		event('selectionchange', $document, onselectionchange);
 		event('cut', $document, oncut);
@@ -7509,19 +7423,19 @@ ${fallback_html}`;
 		'style'
 	]);
 
-	var root$k = from_html(`<span class="selection-highlight svelte-14pr6a7" style="anchor-name: --selection-highlight;"> </span>`);
-	var root_1$5 = from_html(`<span> </span>`);
-	var root_2$2 = from_html(`<br/>`);
-	var root_3$1 = from_html(`<!><!>`, 1);
+	var root$l = from_html(`<span class="selection-highlight svelte-14pr6a7" style="anchor-name: --selection-highlight;"> </span>`);
+	var root_1$6 = from_html(`<span> </span>`);
+	var root_2$3 = from_html(`<br/>`);
+	var root_3$2 = from_html(`<!><!>`, 1);
 
-	const $$css$8 = {
+	const $$css$a = {
 		hash: 'svelte-14pr6a7',
 		code: '\n	/* Editable text base layout; :where() allows easy override without specificity conflicts. */:where(.text.svelte-14pr6a7) {white-space:pre-wrap;overflow-wrap:anywhere;box-sizing:content-box;}\n\n	/* We switch from ::before to ::after when the element is focused. So the the caret is always before the placeholder. */[placeholder].empty.svelte-14pr6a7:not(.focused)::before,\n	[placeholder].empty.focused.svelte-14pr6a7::after {content:attr(placeholder);pointer-events:none;color:color-mix(in oklch, currentcolor 50%, transparent);}\n\n	/* A virtual caret: to fix the caret vertical alignment issue in Chrome and Firefox for empty focused contenteditable with placeholders */\n	/* Browser BUG: iOS Safari only considers the caret color set on the top contenteditable element, not on nested elements (e.g. the second selector doesn\'t work in iOS Safari) */.svedit.editable .svedit-canvas:has([placeholder].empty.focused),\n	.svedit.editable [placeholder].empty.focused.svelte-14pr6a7 {caret-color:transparent !important;}.svedit.editable [placeholder].empty.focused.svelte-14pr6a7::before {content:\'\';\n		/* we limit width & height to avoid layout shifts in case the text has a lower natural height */width:0px;height:1cap;display:inline-block;\n		/* we use box-shadow to draw the caret shape, matching the native caret */box-shadow:0 -0.4cap 0 0.65px var(--editing, AccentColor),\n			0 0 0 0.65px var(--editing, AccentColor),\n			0 0.4cap 0 0.65px var(--editing, AccentColor);\n		animation: var(\n			--node-caret-animation,\n			node-caret-blink var(--node-caret-blink-duration, 1.1s) ease-in-out infinite\n		);}\n\n	/* Hide flickering: in Chrome, the caret jumps from end of placeholder string to start of text property when we focus */.text.svelte-14pr6a7:not(.focused) {caret-color:transparent;}\n\n	/* Disable text-transform when editable and focused so users see original text */.svedit.editable .text.focused.svelte-14pr6a7 {text-transform:none !important;}\n\n	/* Dim the selection highlight when canvas loses native focus */.svedit-canvas:not(:focus-within) .selection-highlight.svelte-14pr6a7 {background:oklch(from var(--editing-muted) l 0 h / alpha);}\n\n	/* Make a collapsed caret visible */.svedit-canvas:not(:focus-within) .selection-highlight.svelte-14pr6a7:empty {background:none;outline:0.5px solid oklch(from var(--editing) l 0 h / alpha);}'
 	};
 
 	function TextProperty($$anchor, $$props) {
 		push($$props, true);
-		append_styles$1($$anchor, $$css$8);
+		append_styles$1($$anchor, $$css$a);
 
 		const svedit = getContext('svedit');
 
@@ -7625,7 +7539,7 @@ ${fallback_html}`;
 				'svelte-14pr6a7'
 			);
 
-			var fragment_2 = root_3$1();
+			var fragment_2 = root_3$2();
 			var node_2 = first_child(fragment_2);
 
 			each(node_2, 17, () => get$1(fragments), index, ($$anchor, fragment) => {
@@ -7641,7 +7555,7 @@ ${fallback_html}`;
 					};
 
 					var consequent_1 = ($$anchor) => {
-						var span = root$k();
+						var span = root$l();
 						var text_2 = only_child(span, true);
 
 						template_effect(() => set_text(text_2, get$1(fragment).content));
@@ -7683,7 +7597,7 @@ ${fallback_html}`;
 							};
 
 							var alternate = ($$anchor) => {
-								var span_1 = root_1$5();
+								var span_1 = root_1$6();
 								var text_3 = only_child(span_1, true);
 
 								template_effect(() => {
@@ -7714,7 +7628,7 @@ ${fallback_html}`;
 
 			{
 				var consequent_4 = ($$anchor) => {
-					var br = root_2$2();
+					var br = root_2$3();
 
 					append($$anchor, br);
 				};
@@ -7742,16 +7656,16 @@ ${fallback_html}`;
 		'style'
 	]);
 
-	var root$j = from_html(`<div class="property-selectable svelte-i5fmbv"><div class="svedit-selectable svelte-i5fmbv"><br/></div></div> <!>`, 1);
+	var root$k = from_html(`<div class="property-selectable svelte-i5fmbv"><div class="svedit-selectable svelte-i5fmbv"><br/></div></div> <!>`, 1);
 
-	const $$css$7 = {
+	const $$css$9 = {
 		hash: 'svelte-i5fmbv',
 		code: '[data-type=\'property\'].svelte-i5fmbv {position:relative;}.property-selectable.svelte-i5fmbv {position:absolute;top:0;left:0;right:0;bottom:0;z-index:1;outline:none;\n		/* Position the hidden selectable element at the bottom so the\n		   browser\'s native scroll-to-caret ensures the full property\n		   is visible, not just the top edge. */display:none;align-items:flex-end;justify-content:center;}.svedit.editable .property-selectable.svelte-i5fmbv {display:flex;}.svedit-selectable.svelte-i5fmbv {caret-color:transparent;}'
 	};
 
 	function CustomProperty($$anchor, $$props) {
 		push($$props, true);
-		append_styles$1($$anchor, $$css$7);
+		append_styles$1($$anchor, $$css$9);
 
 		let tag = prop($$props, 'tag', 3, 'div'),
 			rest = rest_props($$props, rest_excludes$2);
@@ -7776,7 +7690,7 @@ ${fallback_html}`;
 				'svelte-i5fmbv'
 			);
 
-			var fragment_1 = root$j();
+			var fragment_1 = root$k();
 			var node_1 = sibling(first_child(fragment_1), 2);
 
 			snippet(node_1, () => $$props.children);
@@ -7798,14 +7712,14 @@ ${fallback_html}`;
 		'style'
 	]);
 
-	const $$css$6 = {
+	const $$css$8 = {
 		hash: 'svelte-k0ibrx',
 		code: '[data-type=\'node\'].svelte-k0ibrx {\n		/** any other position than static will break the anchor positioning of node gaps and node gap-marker */\n		/* For developers who need to position their node with `position: absolute` or `position: relative`, they need to wrap their node in a div */position:static !important;}'
 	};
 
 	function Node$1($$anchor, $$props) {
 		push($$props, true);
-		append_styles$1($$anchor, $$css$6);
+		append_styles$1($$anchor, $$css$8);
 
 		const svedit = getContext('svedit');
 
@@ -7921,17 +7835,17 @@ ${fallback_html}`;
 		el.setAttribute('data-sent-to-back', '');
 	}
 
-	var root$i = from_html(`<div><div class="svedit-selectable"><br/></div></div>`);
-	var root_1$4 = from_html(`<div class="node-gap svelte-1wyy3at"></div>`);
+	var root$j = from_html(`<div><div class="svedit-selectable"><br/></div></div>`);
+	var root_1$5 = from_html(`<div class="node-gap svelte-1wyy3at"></div>`);
 
-	const $$css$5 = {
+	const $$css$7 = {
 		hash: 'svelte-1wyy3at',
 		code: '.node-gap.svelte-1wyy3at {display:contents;\n		/* The native browser caret briefly appears inside .svedit-selectable for one frame \n		before the model-driven NodeCaret renders at the correct edge position. \n		Suppressing it here avoids a flash of the native caret. */caret-color:transparent;}\n\n	/* ------------------------------------------------------------------ */\n	/* Un-positioned: no layout box at all                                 */\n	/* ------------------------------------------------------------------ */\n\n	/*\n	 * display: none is load-bearing for large documents. A zero-size\n	 * absolutely-positioned selectable still belongs to the containing\n	 * block\'s out-of-flow list, and the browser lays out EVERY such box\n	 * on EVERY layout pass — measured ~430ms per pass at 2000 nodes\n	 * (~3500 gaps) in Chrome vs ~23ms with the boxes removed. That cost\n	 * hits every keystroke (the per-change reconcile reads a rect for\n	 * every node, and selection rendering forces layout), every window\n	 * resize frame, and every scroll-triggered layout.\n	 *\n	 * Off-screen gaps therefore contribute no layout box. DOM structure\n	 * stays stable (the .node-gap wrapper and selectable elements remain),\n	 * and DOM Ranges may still point into display:none elements, so\n	 * programmatic node selections targeting off-screen gaps keep working.\n	 * Empty-array gaps are excluded: they must stay clickable/visible even\n	 * before reconcile positions them.\n	 */.node-gap:not(.positioned):not(.empty) .svedit-selectable {display:none;}.node-gap:not(.positioned) .svedit-selectable {position:absolute;pointer-events:none;width:0;height:0;overflow:clip;}\n\n	/* ------------------------------------------------------------------ */\n	/* Positioned: full anchor layout                                      */\n	/* ------------------------------------------------------------------ */\n\n	/*\n	 * Anchor references resolved from CSS variable names passed via\n	 * inline style (--_pa = parent anchor, --_next, --_container).\n	 * Same pattern as NodeGapMarkers — keeps JS minimal and anchor() in CSS.\n	 *\n	 * --_pa references the anchor-name of the node this gap belongs to,\n	 * allowing us to position relative to that node\'s edges.\n	 *\n	 * Edge gaps extend outward and clamp to the containing block edge\n	 * (0px floor). This can overlap neighboring elements when the node\n	 * array isn\'t alone in its parent. anchor() only sees the border\n	 * box, so it can\'t detect margin, gap, or parent padding around\n	 * the container. --node-caret-boundary lets consumers set an\n	 * explicit clamp target (a parent element\'s anchor-name) so edge\n	 * gaps stop at that boundary instead. --node-caret-boundary-x and\n	 * --node-caret-boundary-y override per-axis, falling back to\n	 * --node-caret-boundary when unset.\n	 */.node-gap.positioned {\n		/* Fallback 9999999px: when --_pa is orphan (node briefly missing during\n		   edits), anchor() without a fallback invalidates the custom property\n		   and `top` falls back to 0, placing the gap at viewport top as a\n		   giant overlay. 9999999px ensures orphan anchors produce huge values\n		   that min() excludes instead.\n		   LIMIT: documents taller or wider than 9999999px will re-surface\n		   the reported giant-overlay bug — the fallback must exceed the\n		   containing block\'s dimensions to land off-screen. If you need to\n		   support larger documents, bump this value here and in the matching\n		   `* 9999999px` branch-disable trick throughout this file (and in\n		   NodeGapMarkers.svelte). Stay below ~33M px to avoid Blink\'s\n		   LayoutUnit ceiling. */--_s-t: anchor(var(--_pa) top, 9999999px);--_s-b: anchor(var(--_pa) bottom, 9999999px);--_s-l: anchor(var(--_pa) left, 9999999px);--_s-r: anchor(var(--_pa) right, 9999999px);}.node-gap.positioned.gap-before:not(.empty) {--_b-t: anchor(\n			var(--node-caret-boundary-y, var(--node-caret-boundary, --_no-boundary)) top,\n			0px\n		);--_b-l: anchor(\n			var(--node-caret-boundary-x, var(--node-caret-boundary, --_no-boundary)) left,\n			0px\n		);}.node-gap.positioned.gap-after:not(.last) {--_n-t: anchor(var(--_next) top);--_n-l: anchor(var(--_next) left);--_c-r: anchor(var(--_container) right);}.node-gap.positioned.gap-after.last,\n	.node-gap.positioned.gap-before.empty {--_c-t: anchor(var(--_container) top);--_c-b: anchor(var(--_container) bottom);--_c-l: anchor(var(--_container) left);--_c-r: anchor(var(--_container) right);--_b-b: anchor(\n			var(--node-caret-boundary-y, var(--node-caret-boundary, --_no-boundary)) bottom,\n			0px\n		);--_b-r: anchor(\n			var(--node-caret-boundary-x, var(--node-caret-boundary, --_no-boundary)) right,\n			0px\n		);--_b-bt: anchor(\n			var(--node-caret-boundary-y, var(--node-caret-boundary, --_no-boundary)) bottom,\n			9999999px\n		);--_b-rl: anchor(\n			var(--node-caret-boundary-x, var(--node-caret-boundary, --_no-boundary)) right,\n			9999999px\n		);}.node-gap.positioned .svedit-selectable {--_eg: var(--node-caret-edge-gap, 24px);--_gm: var(--node-caret-gap-min-size, 16px);--_R: var(--row, 1);--_C: calc(1 - var(--row, 1));user-select:none;pointer-events:auto;position:absolute;position-anchor:var(--_pa);position-visibility:anchors-visible;z-index:var(--node-caret-gap-z-index, 1);cursor:pointer;}.node-gap.positioned .svedit-selectable[data-sent-to-back] {z-index:0;}\n\n	/* ------------------------------------------------------------------ */\n	/* Merged column / row layout positioning                              */\n	/*                                                                    */\n	/* Uses var(--row, 1) with the * 99999 multiplier trick:              */\n	/*   --_R = var(--row, 1)          → 1 in row, 0 in column           */\n	/*   --_C = calc(1 - var(--row, 1))→ 1 in column, 0 in row           */\n	/* Inside min(), + var(--_R) * 9999999px disables a col branch in row,  */\n	/* + var(--_C) * 9999999px disables a row branch in column.             */\n	/* ------------------------------------------------------------------ */\n\n	/* Between two siblings: col centers vertically, row centers horizontally */.node-gap.positioned.gap-after:not(.last) .svedit-selectable {--_mid: calc((var(--_s-b) + var(--_n-t)) / 2 - var(--_gm) / 2);top:min(\n			calc(var(--_s-b) + var(--_R) * 9999999px),\n			calc(var(--_mid) + var(--_R) * 9999999px),\n			calc(var(--_s-t) + var(--_C) * 9999999px)\n		);bottom:min(\n			calc(var(--_n-t) + var(--_R) * 9999999px),\n			calc(var(--_mid) + var(--_R) * 9999999px),\n			calc(var(--_s-b) + var(--_C) * 9999999px)\n		);left:min(\n			calc(var(--_s-l) + var(--_R) * 9999999px),\n			calc(var(--_s-r) + var(--_C) * 9999999px),\n			calc(\n				(var(--_s-r) + var(--_n-l)) / 2 - var(--_gm) / 2 + max(0px, var(--_s-r) - var(--_n-l)) *\n					999 + var(--_C) * 9999999px\n			),\n			/* Safety clamp for wrap: pins gap inside CB when current/next\n			   wrap across rows. Disabled in nowrap/horizontal-scroll where\n			   next is side-by-side on the same row (n-l > s-r) — there\n			   the other branches position correctly and this clamp would\n			   wrongly force the gap to CB right minus eg. */\n			calc(\n					100% - var(--_eg) + max(0px, var(--_n-l) - var(--_s-r) + 0.5px) * 9999 + var(--_C) *\n						9999999px\n				)\n		);right:min(\n			calc(var(--_s-r) + var(--_R) * 9999999px),\n			calc(\n				max(\n						0px,\n						min(\n							var(--_n-l),\n							calc((var(--_s-r) + var(--_n-l)) / 2 - var(--_gm) / 2),\n							max(\n								min(calc(var(--_c-r) - var(--_eg)), calc(var(--_s-r) - var(--_eg))),\n								calc(var(--_s-r) - (var(--_n-l) - var(--_s-r)) * 999)\n							)\n						)\n					) +\n					var(--_C) * 9999999px\n			)\n		);min-height:calc(var(--_gm) * var(--_C));min-width:calc(var(--_gm) * var(--_R));\n		/* min-height: max(calc(var(--_gm) * var(--_C)), calc(anchor-size(var(--_pa) height, 100%) * var(--_R)));\n		min-width: max(calc(var(--_gm) * var(--_R)), calc(anchor-size(var(--_pa) width, 100%) * var(--_C))); */}\n\n	/* After last node: col extends down, row extends right.\n	   top also clamps to boundary_bottom - eg so that min-height\n	   (which wins over bottom in overconstrained abs-pos) cannot\n	   push the element past the boundary.\n\n	   left\'s third branch (100% - --_eg + max(0, --_s-r - 100% + 0.5px) * 9999)\n	   is the wrap-layout safety clamp: in column or row+wrap layouts\n	   where the last node sits WITHIN the CB (--_s-r < 100%), it pins\n	   the gap inside the CB so it doesn\'t extend past the right edge.\n	   The * 9999 multiplier disables this branch in nowrap horizontal-\n	   scroll (where --_s-r > 100% — the trailing node has overflowed\n	   the CB and the gap is expected to follow it).\n\n	   right\'s `min(--_c-r - --_eg, --_s-r - --_eg)` is what fills the\n	   gap into the whitespace between the last node and the container\n	   in non-overflow layouts. In non-overflow, --_c-r < --_s-r in the\n	   `right` axis (container right is further left than node right\n	   from the CB right edge), so min picks --_c-r - --_eg and the gap\n	   ends at container.right + --_eg (the MUST-RULE overshoot). In\n	   overflow, --_s-r < --_c-r and min picks --_s-r - --_eg — the gap\n	   follows the node out past the container. */.node-gap.positioned.gap-after.last .svedit-selectable {top:min(\n			calc(min(var(--_s-b), calc(var(--_b-bt) - var(--_eg))) + var(--_R) * 9999999px),\n			calc(var(--_s-t) + var(--_C) * 9999999px)\n		);bottom:min(\n			calc(max(var(--_b-b), var(--_s-b) - var(--_eg)) + var(--_R) * 9999999px),\n			calc(var(--_s-b) + var(--_C) * 9999999px)\n		);left:min(\n			calc(var(--_s-l) + var(--_R) * 9999999px),\n			calc(min(var(--_s-r), calc(var(--_b-rl) - var(--_eg))) + var(--_C) * 9999999px),\n			calc(100% - var(--_eg) + max(0px, var(--_s-r) - 100% + 0.5px) * 9999 + var(--_C) * 9999999px)\n		);right:min(\n			calc(var(--_s-r) + var(--_R) * 9999999px),\n			calc(\n				max(var(--_b-r), min(calc(var(--_c-r) - var(--_eg)), calc(var(--_s-r) - var(--_eg)))) +\n					var(--_C) * 9999999px\n			)\n		);min-height:calc(var(--_eg) * var(--_C));min-width:calc(var(--_eg) * var(--_R));}\n\n	/* Before first node: col extends up, row extends left */.node-gap.positioned.gap-before:not(.empty) .svedit-selectable {top:min(\n			calc(max(var(--_b-t), var(--_s-t) - var(--_eg)) + var(--_R) * 9999999px),\n			calc(var(--_s-t) + var(--_C) * 9999999px)\n		);bottom:min(\n			calc(var(--_s-t) + var(--_R) * 9999999px),\n			calc(var(--_s-b) + var(--_C) * 9999999px)\n		);left:min(\n			calc(var(--_s-l) + var(--_R) * 9999999px),\n			calc(max(var(--_b-l), var(--_s-l) - var(--_eg)) + var(--_C) * 9999999px)\n		);right:min(\n			calc(var(--_s-r) + var(--_R) * 9999999px),\n			calc(var(--_s-l) + var(--_C) * 9999999px)\n		);min-height:calc(var(--_eg) * var(--_C));min-width:calc(var(--_eg) * var(--_R));}\n\n	/* Empty array: the gap fills its placeholder, which is this\n	   selectable\'s containing block (NodeArrayProperty sets it\n	   position: relative). inset:0 fills it with no anchor() — so no\n	   .positioned gating and no anchor cost. The width:auto, height:auto\n	   and pointer-events:auto override the :not(.positioned) 0×0\n	   collapse; position-visibility:always overrides the .positioned\n	   rule\'s anchors-visible, so a transient positioned toggle can\'t\n	   hide the gap. */.node-gap.gap-before.empty .svedit-selectable {position:absolute;inset:0;width:auto;height:auto;pointer-events:auto;position-visibility:always;}\n\n	/* Debugging styles - DO NOT CHANGE OR REMOVE */\n	/* :global(.node-gap.positioned .svedit-selectable) {\n		outline: 2px solid rgba(238, 0, 255, 0.5);\n		background-color: rgba(238, 0, 255, 0.5);\n		outline-offset: -0.5px;\n	} */'
 	};
 
 	function NodeGap($$anchor, $$props) {
 		push($$props, true);
-		append_styles$1($$anchor, $$css$5);
+		append_styles$1($$anchor, $$css$7);
 
 		/**
 		 * ┌─────────────────────────────────────────────────────────────────┐
@@ -8019,7 +7933,7 @@ ${fallback_html}`;
 
 		{
 			var consequent = ($$anchor) => {
-				var div = root$i();
+				var div = root$j();
 				let classes;
 				var div_1 = only_child(div);
 
@@ -8044,7 +7958,7 @@ ${fallback_html}`;
 			};
 
 			var alternate = ($$anchor) => {
-				var div_2 = root_1$4();
+				var div_2 = root_1$5();
 
 				append($$anchor, div_2);
 			};
@@ -8060,15 +7974,17 @@ ${fallback_html}`;
 
 	delegate(['pointerdown']);
 
-	var root$h = from_html(`<div class="caret svelte-mzpbhk" role="none"></div>`);
+	enable_legacy_mode_flag();
 
-	const $$css$4 = {
+	var root$i = from_html(`<div class="caret svelte-mzpbhk" role="none"></div>`);
+
+	const $$css$6 = {
 		hash: 'svelte-mzpbhk',
 		code: '.caret.svelte-mzpbhk {--_R: var(--row, 1);--_C: calc(1 - var(--row, 1));position:absolute;inset:0;pointer-events:none;z-index:var(--node-caret-z-index, 20);\n		animation: var(\n			--node-caret-animation,\n			node-caret-blink var(--node-caret-blink-duration, 1.1s) ease-in-out infinite\n		);}.caret.svelte-mzpbhk::before {--_ci: var(--node-caret-inset, var(--node-caret-marker-inset, 2px));--_ct: var(--node-caret-thickness, 2px);--_cp: var(--node-caret-row-inline-position, 50%);content:\'\';position:absolute;background:var(--node-caret-bg, var(--editing));\n		/* Increase the visibility of the caret by contrasting it with a box shadow that\'s the inverted brightness of the current text color. */\n		/* Component developers must set their background color and text color on the node itself, not a child element, for this to work. */box-shadow:var(--node-caret-shadow, 0 0 0 0.5px oklch(from currentColor calc(1 - l) c h));border:var(--node-caret-border, none);border-radius:var(--node-caret-radius, 1px);\n		/*\n		 * Column: horizontal line at 50% — top=50%, bottom=50%-thickness.\n		 * Row: vertical line at --_cp — left=cp, right=100%-cp-thickness.\n		 * No explicit height/width — inset pairs control dimensions.\n		 */top:min(\n			calc(50% + var(--_R) * 99999px),\n			calc(var(--_ci) + var(--_C) * 99999px)\n		);bottom:min(\n			calc(50% - var(--_ct) + var(--_R) * 99999px),\n			calc(var(--_ci) + var(--_C) * 99999px)\n		);left:min(\n			calc(var(--_ci) + var(--_R) * 99999px),\n			calc(var(--_cp) + var(--_C) * 99999px)\n		);right:min(\n			calc(var(--_ci) + var(--_R) * 99999px),\n			calc(100% - var(--_cp) - var(--_ct) + var(--_C) * 99999px)\n		);transform:translateY(calc(var(--_C) * -0.5px))\n			translateX(calc(var(--_R) * -0.5px));}'
 	};
 
 	function NodeCaret($$anchor) {
-		append_styles$1($$anchor, $$css$4);
+		append_styles$1($$anchor, $$css$6);
 
 		var /**
 		 * Visual insertion caret rendered inside the active insertion marker.
@@ -8077,22 +7993,22 @@ ${fallback_html}`;
 		 * color/shape/animation and switches orientation via var(--row, 1)
 		 * with the * 99999 multiplier trick — works in all browsers.
 		 */
-		div = root$h();
+		div = root$i();
 
 		append($$anchor, div);
 	}
 
-	var root$g = from_html(`<!> <!>`, 1);
-	var root_1$3 = from_html(`<div contenteditable="false"><!></div>`);
+	var root$h = from_html(`<!> <!>`, 1);
+	var root_1$4 = from_html(`<div contenteditable="false"><!></div>`);
 
-	const $$css$3 = {
+	const $$css$5 = {
 		hash: 'svelte-fcy96a',
 		code: '\n	/*\n	 * Public customization tokens (set on an ancestor or this component):\n	 * --editing-stroke\n	 * --node-caret-gap-color\n	 * --node-caret-symbol-size\n	 * --node-caret-symbol-stroke\n	 * --node-caret-symbol-gap\n	 * --node-caret-symbol-bg\n	 * --node-caret-symbol-mask\n	 * --node-caret-marker-inset\n	 * --node-caret-edge-gap\n	 * --node-caret-gap-min-size\n	 * --node-caret-marker-padding\n	 * --node-caret-marker-z-index\n	 * --node-caret-line-border\n	 * --node-caret-empty-border\n	 * --node-caret-empty-border-radius\n	 * --node-caret-bg\n	 * --node-caret-shadow\n	 * --node-caret-border\n	 * --node-caret-thickness\n	 * --node-caret-inset\n	 * --node-caret-radius\n	 * --node-caret-z-index\n	 * --node-caret-blink-duration\n	 * --node-caret-animation\n	 * --node-caret-row-inline-position\n	 * --node-caret-boundary          (anchor-name of a parent element; edge\n	 *                                  gaps clamp to its edges instead of 0px.\n	 *                                  Prevents overlap when the node array has\n	 *                                  neighbors. See NodeGap.svelte for details.)\n	 * --node-caret-boundary-x        (per-axis override; clamps left/right only)\n	 * --node-caret-boundary-y        (per-axis override; clamps top/bottom only)\n	 *\n	 * Row/column detection uses var(--row, 1) with the * 9999999 multiplier\n	 * trick throughout. Shorthand:\n	 *   --_R: var(--row, 1)              (1 when row, 0 when column)\n	 *   --_C: calc(1 - var(--row, 1))    (1 when column, 0 when row)\n	 *\n	 * Inside min(): + var(--_X) * 9999999px makes a branch huge → min ignores it.\n	 * Inside max(): + var(--_X) * -9999999px makes a branch tiny → max ignores it.\n	 * Nested min/max inherit the outermost convention: if the root is min(),\n	 * all branches (even inside inner max()) use + 9999999px to disable.\n	 */\n\n	/* Suppress caret blink during active click on a node gap. */.svedit-canvas:active .gap-marker.svelte-fcy96a {--node-caret-animation: none;}\n\n	/*\n	 * Base marker positioning.\n	 *\n	 * Each subclass (gap-empty, gap-mid, gap-edge) provides its own\n	 * top/left/bottom/right anchored to NODE elements directly — never\n	 * to the NodeGap .svedit-selectable. This avoids chained anchor\n	 * positioning (marker → selectable → node) which fails in some\n	 * layouts.\n	 *\n	 * Anchor CSS custom properties (set via inline style on each element):\n	 *   --_ct  node gap (.svedit-selectable anchor-name, unused by markers)\n	 *   --_a   adjacent node (edge gaps) or placeholder (empty arrays)\n	 *   --_p   previous node (mid gaps)\n	 *   --_n   next node (mid gaps, row same-line vs wrap detection)\n	 *   --_f   reference item 0 (row gap narrowing)\n	 *   --_s   reference item 1 (row gap narrowing)\n	 *   --_c   node-array container (edge row.last cap)\n	 */.gap-marker.svelte-fcy96a {--_eg: var(--node-caret-edge-gap, 24px);--_gm: var(--node-caret-gap-min-size, 16px);--_R: var(--row, 1);--_C: calc(1 - var(--row, 1));position:absolute;position-visibility:anchors-visible;pointer-events:none;z-index:var(--node-caret-marker-z-index, 2);padding:var(--node-caret-marker-padding, 2px);margin:0 !important; /* prevent unwanted margin from parent elements */}\n\n	/*\n	 * position-anchor ties the marker\'s containing-block/scroll behavior to\n	 * a specific anchor element, so the marker tracks its anchor\'s scroll\n	 * container the same way NodeGap\'s .svedit-selectable does. Without it,\n	 * markers inside a nested scroll container stay fixed in viewport space\n	 * while the anchored nodes scroll away.\n	 */.gap-marker.gap-empty.svelte-fcy96a,\n	.gap-marker.gap-edge.svelte-fcy96a {position-anchor:var(--_a);}.gap-marker.gap-mid.svelte-fcy96a {position-anchor:var(--_p);}\n\n	/* --------------------------------------------------------------------- */\n	/* Empty array                                                           */\n	/* --------------------------------------------------------------------- */.gap-marker.gap-empty.svelte-fcy96a {--node-caret-row-inline-position: calc(var(--_R) * 0px + var(--_C) * 50%);top:anchor(var(--_a) top);left:anchor(var(--_a) left);bottom:anchor(var(--_a) bottom);right:max(\n			calc(anchor(var(--_a) right) + var(--_R) * -9999999px),\n			calc(anchor(var(--_a) right) + var(--_C) * -9999999px),\n			calc(anchor(var(--_a) left) - var(--_eg) + var(--_C) * -9999999px)\n		);}\n\n	/* --------------------------------------------------------------------- */\n	/* Mid gap (between two nodes) — anchors directly to --_p and --_n.     */\n	/* Column: spans from prev bottom to next top, with a centering branch  */\n	/* that guarantees at least --_gm height when the gap is too small.     */\n	/* Row: spans prev node. Row left/right use complex narrowing logic;    */\n	/* row branches all get + var(--_C) * 9999999px so they\'re ignored in     */\n	/* column layout.                                                        */\n	/* --------------------------------------------------------------------- */.gap-marker.gap-mid.svelte-fcy96a {top:min(\n			calc(anchor(var(--_p) bottom) + var(--_R) * 9999999px),\n			calc(\n				(anchor(var(--_p) bottom) + anchor(var(--_n) top)) / 2\n				- var(--_gm) / 2\n				+ var(--_R) * 9999999px\n			),\n			calc(anchor(var(--_p) top) + var(--_C) * 9999999px)\n		);bottom:min(\n			calc(anchor(var(--_n) top) + var(--_R) * 9999999px),\n			calc(\n				(anchor(var(--_p) bottom) + anchor(var(--_n) top)) / 2\n				- var(--_gm) / 2\n				+ var(--_R) * 9999999px\n			),\n			calc(anchor(var(--_p) bottom) + var(--_C) * 9999999px)\n		);left:min(\n			calc(anchor(var(--_p) left) + var(--_R) * 9999999px),\n			calc(anchor(var(--_p) right) + var(--_C) * 9999999px),\n			calc(\n				(anchor(var(--_p) right) + anchor(var(--_n) left)) / 2\n				- var(--_gm) / 2\n				+ max(0px, anchor(var(--_p) right) - anchor(var(--_n) left)) * 9999\n				+ var(--_C) * 9999999px\n			),\n			/* Wrap narrowing: centers marker in a gap-width region at prev_right.\n			   The + 0.5px disables this branch for zero-gap grids (items touching)\n			   where gap/2 - max(gap,--_gm)/2 would incorrectly shift left by 8px. */\n			calc(\n				anchor(var(--_p) right)\n				+ (max(0px, anchor(var(--_s) left) - anchor(var(--_f) right))) / 2\n				- max(\n					max(0px, anchor(var(--_s) left) - anchor(var(--_f) right)),\n					var(--_gm)\n				) / 2\n				+ max(0px, anchor(var(--_n) left) - anchor(var(--_p) right)) * 9999\n				+ max(0px, anchor(var(--_f) right) - anchor(var(--_s) left) + 0.5px) * 9999\n				+ var(--_C) * 9999999px\n			),\n			/* Safety clamp for wrap: pins marker inside CB when prev/next wrap\n			   across rows (so the marker ends at the right edge of row 1).\n			   Disabled in nowrap/horizontal-scroll where p and n are\n			   side-by-side on the same row — there the other branches\n			   position correctly and this clamp would wrongly force the\n			   marker to the CB right. */\n			calc(\n				100% - var(--_gm)\n				+ max(0px, anchor(var(--_n) left) - anchor(var(--_p) right) + 0.5px) * 9999\n				+ var(--_C) * 9999999px\n			),\n			calc(\n				100% - max(\n					max(0px, anchor(var(--_s) left) - anchor(var(--_f) right)),\n					var(--_gm)\n				)\n				+ max(0px,\n					(max(0px, anchor(var(--_s) left) - anchor(var(--_f) right)))\n					- (anchor(var(--_c) right) - anchor(var(--_p) right))\n					- 0.5px\n				) * 9999\n				+ max(0px, anchor(var(--_n) left) - anchor(var(--_p) right)) * 9999\n				+ var(--_C) * 9999999px\n			)\n		);right:max(\n			/* CB-right floor, disabled in nowrap/horizontal-scroll where n\n			   extends past CB right (p_right - n_left > 0 in right context,\n			   equivalent to n_left_body > p_right_body in layout). In that\n			   case the marker must extend past CB right to reach the gap,\n			   so right must be allowed to go negative. */\n			calc(\n				0px + var(--_C) * -9999999px\n				- max(0px, anchor(var(--_p) right) - anchor(var(--_n) left) + 0.5px) * 9999\n			),\n			min(\n				calc(anchor(var(--_p) right) + var(--_R) * 9999999px),\n				calc(\n					anchor(var(--_n) left) + var(--_C) * 9999999px\n				),\n				calc(\n					(anchor(var(--_p) right) + anchor(var(--_n) left)) / 2\n					- var(--_gm) / 2\n					+ var(--_C) * 9999999px\n				),\n				max(\n					/* Symmetric right-side narrowing. The + 0.5px mirrors the left\n					   fix: disables for zero-gap grids to prevent 8px inward shift. */\n					calc(\n						anchor(var(--_p) right)\n						- (\n							max(0px, anchor(var(--_f) right) - anchor(var(--_s) left))\n							+ max(\n								max(0px, anchor(var(--_f) right) - anchor(var(--_s) left)),\n								var(--_gm)\n							)\n						) / 2\n						- max(0px, anchor(var(--_s) left) - anchor(var(--_f) right) + 0.5px) * 9999\n						+ var(--_C) * 9999999px\n					),\n					calc(\n						anchor(var(--_p) right) - var(--_gm)\n						- max(0px,\n							(anchor(var(--_p) right) - anchor(var(--_c) right))\n							- (max(0px, anchor(var(--_f) right) - anchor(var(--_s) left)))\n							+ 0.5px\n						) * 9999\n						+ var(--_C) * 9999999px\n					),\n					calc(\n						anchor(var(--_p) right) - var(--_gm)\n						- max(0px, anchor(var(--_f) right) - anchor(var(--_s) left)) * 9999\n						+ var(--_C) * 9999999px\n					),\n					calc(\n						anchor(var(--_p) right)\n						- (anchor(var(--_n) left) - anchor(var(--_p) right)) * 9999\n						+ var(--_C) * 9999999px\n					),\n					min(\n						calc(anchor(var(--_c) right) + var(--_C) * 9999999px),\n						calc(anchor(var(--_p) right) - var(--_eg) + var(--_C) * 9999999px)\n					)\n				)\n			)\n		);}\n\n	/* --------------------------------------------------------------------- */\n	/* Edge gaps                                                             */\n	/* --------------------------------------------------------------------- */.gap-marker.gap-edge.svelte-fcy96a {min-height:var(--_gm);min-width:var(--_gm);}\n\n	/* Edge first: column = above first node, row = left of first node */.gap-edge.first.svelte-fcy96a {--_b-t: anchor(var(--node-caret-boundary-y, var(--node-caret-boundary, --_no-boundary)) top, 0px);--_b-l: anchor(var(--node-caret-boundary-x, var(--node-caret-boundary, --_no-boundary)) left, 0px);top:min(\n			calc(anchor(var(--_a) top) + var(--_C) * 9999999px),\n			calc(max(var(--_b-t), calc(anchor(var(--_a) top) - var(--_gm))) + var(--_R) * 9999999px)\n		);bottom:min(\n			calc(anchor(var(--_a) bottom) + var(--_C) * 9999999px),\n			calc(anchor(var(--_a) top) + var(--_R) * 9999999px)\n		);left:min(\n			calc(anchor(var(--_a) left) + var(--_R) * 9999999px),\n			calc(max(var(--_b-l), calc(anchor(var(--_a) left) - var(--_gm))) + var(--_C) * 9999999px)\n		);right:min(\n			calc(anchor(var(--_a) right) + var(--_R) * 9999999px),\n			calc(anchor(var(--_a) left) + var(--_C) * 9999999px)\n		);}\n\n	/* Edge last: column = below last node, row = right of last node.\n	   top/left also clamp to boundary - gm so that min-height/min-width\n	   (which win over bottom/right in overconstrained abs-pos) cannot\n	   push the element past the boundary. */.gap-edge.last.svelte-fcy96a {--_b-b: anchor(var(--node-caret-boundary-y, var(--node-caret-boundary, --_no-boundary)) bottom, 0px);--_b-r: anchor(var(--node-caret-boundary-x, var(--node-caret-boundary, --_no-boundary)) right, 0px);--_b-bt: anchor(var(--node-caret-boundary-y, var(--node-caret-boundary, --_no-boundary)) bottom, 9999999px);--_b-rl: anchor(var(--node-caret-boundary-x, var(--node-caret-boundary, --_no-boundary)) right, 9999999px);top:min(\n			calc(anchor(var(--_a) top) + var(--_C) * 9999999px),\n			calc(\n				min(\n					anchor(var(--_a) bottom),\n					calc(var(--_b-bt) - var(--_gm))\n				) + var(--_R) * 9999999px\n			)\n		);bottom:min(\n			calc(anchor(var(--_a) bottom) + var(--_C) * 9999999px),\n			calc(max(var(--_b-b), calc(anchor(var(--_a) bottom) - var(--_gm))) + var(--_R) * 9999999px)\n		);left:min(\n			calc(anchor(var(--_a) left) + var(--_R) * 9999999px),\n			calc(\n				min(\n					anchor(var(--_a) right),\n					calc(var(--_b-rl) - var(--_gm))\n				) + var(--_C) * 9999999px\n			),\n			calc(100% - var(--_gm) + var(--_C) * 9999999px)\n		);right:max(\n			calc(var(--_b-r) + var(--_C) * -9999999px),\n			calc(anchor(var(--_a) right) + var(--_R) * -9999999px),\n			calc(anchor(var(--_a) right) - var(--_gm) + var(--_C) * -9999999px),\n			/* Column / wrap-layout fill: when the last item sits within\n			   the container (non-overflow), max picks anchor(--_c right)\n			   and the marker stretches to the containers trailing edge.\n			   In row-overflow this branch is dominated by anchor(--_a right)\n			   which is smaller, so the marker follows the trailing node\n			   past the container. */\n			calc(anchor(var(--_c) right) + var(--_C) * -9999999px)\n		);}\n\n	/* --------------------------------------------------------------------- */\n	/* Trailing gap in row with 2+ items: complex narrowing using --_f/--_s  */\n	/* Overrides .gap-edge.last — must re-include col branch for both left   */\n	/* (min: + 9999999px to disable) and right (max: * -9999999px to disable).   */\n	/* --------------------------------------------------------------------- */\n\n	/* Purpose of this + 0.5px: disable for zero-gap grids (see .gap-mid comment). */.gap-marker.gap-edge.last.pair.svelte-fcy96a {left:min(\n			calc(anchor(var(--_a) left) + var(--_R) * 9999999px),\n			calc(anchor(var(--_a) right) + var(--_C) * 9999999px),\n			calc(var(--_b-rl) - var(--_gm) + var(--_C) * 9999999px),\n			calc(\n				anchor(var(--_a) right)\n				+ (max(0px, anchor(var(--_s) left) - anchor(var(--_f) right))) / 2\n				- max(\n					max(0px, anchor(var(--_s) left) - anchor(var(--_f) right)),\n					var(--_gm)\n				) / 2\n				+ max(0px, anchor(var(--_f) right) - anchor(var(--_s) left)) * 9999\n				+ max(0px, anchor(var(--_a) right) - anchor(var(--_c) right) + 0.5px) * 9999\n				+ var(--_C) * 9999999px\n			),\n			/* Safety clamp for wrap: pins marker inside CB when items 0 and 1\n			   wrap across rows. Disabled in nowrap/horizontal-scroll where\n			   items 0 and 1 are side-by-side on the same row — there the\n			   anchor-based branches position correctly and this clamp would\n			   wrongly force the marker to the CB right. */\n			calc(\n				100% - var(--_gm)\n				+ max(0px, anchor(var(--_s) left) - anchor(var(--_f) right) + 0.5px) * 9999\n				+ var(--_C) * 9999999px\n			),\n			calc(\n				100% - max(\n					max(0px, anchor(var(--_s) left) - anchor(var(--_f) right)),\n					var(--_gm)\n				)\n				+ max(0px,\n					(max(0px, anchor(var(--_s) left) - anchor(var(--_f) right)))\n					- (anchor(var(--_c) right) - anchor(var(--_a) right))\n					- 0.5px\n				) * 9999\n				+ var(--_C) * 9999999px\n			)\n		);right:max(\n			calc(anchor(var(--_a) right) + var(--_R) * -9999999px),\n			calc(var(--_b-r) + var(--_C) * -9999999px),\n			calc(\n				anchor(var(--_a) right)\n				- (\n					max(0px, anchor(var(--_f) right) - anchor(var(--_s) left))\n					+ max(\n						max(0px, anchor(var(--_f) right) - anchor(var(--_s) left)),\n						var(--_gm)\n					)\n				) / 2\n				- max(0px, anchor(var(--_s) left) - anchor(var(--_f) right)) * 9999\n				- max(0px, anchor(var(--_c) right) - anchor(var(--_a) right) + 0.5px) * 9999\n				+ var(--_C) * -9999999px\n			),\n			calc(\n				anchor(var(--_a) right) - var(--_gm)\n				- max(0px,\n					(anchor(var(--_a) right) - anchor(var(--_c) right))\n					- (max(0px, anchor(var(--_f) right) - anchor(var(--_s) left)))\n					+ 0.5px\n				) * 9999\n				+ var(--_C) * -9999999px\n			),\n			calc(\n				anchor(var(--_a) right) - var(--_gm)\n				- max(0px, anchor(var(--_f) right) - anchor(var(--_s) left)) * 9999\n				+ var(--_C) * -9999999px\n			),\n			min(\n				calc(anchor(var(--_c) right) + var(--_C) * -9999999px),\n				calc(anchor(var(--_a) right) - var(--_eg) + var(--_C) * -9999999px)\n			)\n		);}\n\n	/* --------------------------------------------------------------------- */\n	/* Marker visuals (line + symbol). Hidden when active (caret shows).     */\n	/* --------------------------------------------------------------------- */.gap-marker.svelte-fcy96a:not(.active) {&::before {content:\'\';position:absolute;--gap-center: calc( var(--node-caret-symbol-size, 6px) / 2 + var(--node-caret-symbol-gap, 4px) );}\n\n		/* Dashed line: horizontal (column) or vertical (row).\n		   Column: top=50% bottom=50% → zero height, border-top is the line.\n		   Row: left=50% right=50% → zero width, border-left is the line.\n		   No explicit height/width — inset pairs control dimensions. */&:not(.gap-empty)::before {--_mi: var(--node-caret-marker-inset, 2px);top:min(\n				calc(50% + var(--_R) * 9999999px),\n				calc(var(--_mi) + var(--_C) * 9999999px)\n			);bottom:min(\n				calc(50% + var(--_R) * 9999999px),\n				calc(var(--_mi) + var(--_C) * 9999999px)\n			);left:min(\n				calc(var(--_mi) + var(--_R) * 9999999px),\n				calc(50% + var(--_C) * 9999999px)\n			);right:min(\n				calc(var(--_mi) + var(--_R) * 9999999px),\n				calc(50% + var(--_C) * 9999999px)\n			);border-top:calc(var(--_C) * 1px) dashed var(--node-caret-gap-color, var(--editing-stroke));border-left:calc(var(--_R) * 1px) dashed var(--node-caret-gap-color, var(--editing-stroke));transform:translateY(calc(var(--_C) * -0.5px))\n				translateX(calc(var(--_R) * -0.5px));mask-image:radial-gradient(\n				circle at center,\n				transparent calc(var(--gap-center) - 0.5px),\n				black var(--gap-center)\n			);}\n\n		/* Empty array marker (dashed outline for discoverability). */&.gap-empty::before {inset:0px;border:var(--node-caret-empty-border, 1px dashed var(--node-caret-gap-color, var(--editing-stroke)));border-radius:var(--node-caret-empty-border-radius, 3px);}\n\n		/* Centered insertion symbol (default mask renders a plus). */&::after {content:\'\';position:absolute;width:var(--node-caret-symbol-size, 6px);height:var(--node-caret-symbol-size, 6px);top:50%;left:50%;transform:translate(-50%, -50%);background:var(--node-caret-symbol-bg, var(--node-caret-gap-color, var(--editing-stroke)));mask:var(--node-caret-symbol-mask,\n				linear-gradient(black, black) center / 100% var(--node-caret-symbol-stroke, 1px) no-repeat,\n				linear-gradient(black, black) center / var(--node-caret-symbol-stroke, 1px) 100% no-repeat\n			);}}\n\n	/* Debugging styles - DO NOT CHANGE OR REMOVE */\n	/* :global([data-type="node_array"]) {\n		outline: 0.1px solid green;\n	}\n	.gap-marker {\n		outline: 1px solid blue;\n		outline-offset: 0.5px;\n	} */'
 	};
 
 	function NodeGapMarkers($$anchor, $$props) {
 		push($$props, true);
-		append_styles$1($$anchor, $$css$3);
+		append_styles$1($$anchor, $$css$5);
 
 		/**
 		 * ┌─────────────────────────────────────────────────────────────────┐
@@ -8256,13 +8172,13 @@ ${fallback_html}`;
 		var node = first_child(fragment);
 
 		each(node, 17, () => get$1(my_gaps), (gap) => gap.key, ($$anchor, gap) => {
-			var div = root_1$3();
+			var div = root_1$4();
 			let classes;
 			var node_1 = child(div);
 
 			{
 				var consequent_1 = ($$anchor) => {
-					var fragment_1 = root$g();
+					var fragment_1 = root$h();
 					var node_2 = first_child(fragment_1);
 
 					NodeCaret(node_2);
@@ -8340,18 +8256,18 @@ ${fallback_html}`;
 		'style'
 	]);
 
-	var root$f = from_html(`<!> <!>`, 1);
-	var root_1$2 = from_html(`<div class="empty-node-placeholder svelte-1lsqwip" data-type="node"><!></div>`);
-	var root_2$1 = from_html(`<!> <!> <!> <!>`, 1);
+	var root$g = from_html(`<!> <!>`, 1);
+	var root_1$3 = from_html(`<div class="empty-node-placeholder svelte-1lsqwip" data-type="node"><!></div>`);
+	var root_2$2 = from_html(`<!> <!> <!> <!>`, 1);
 
-	const $$css$2 = {
+	const $$css$4 = {
 		hash: 'svelte-1lsqwip',
 		code: '\n	/* position: relative makes this the containing block for the gap\'s\n   .svedit-selectable, which fills it via inset:0. You may override to\n   position: absolute (e.g. so an empty array doesn\'t occupy flow space)\n   — still a containing block; then also set position: relative on the\n   parent node-array container so this placeholder\'s inset:0 resolves\n   against it. */:where(.empty-node-placeholder.svelte-1lsqwip) {position:relative;inset:0;min-height:40px;min-width:24px;cursor:pointer;}'
 	};
 
 	function NodeArrayProperty($$anchor, $$props) {
 		push($$props, true);
-		append_styles$1($$anchor, $$css$2);
+		append_styles$1($$anchor, $$css$4);
 
 		const svedit = getContext('svedit');
 		let NodeGap$1 = user_derived(() => svedit.session.config.system_components?.node_gap ?? NodeGap);
@@ -8495,7 +8411,7 @@ ${fallback_html}`;
 					const mark = user_derived(() => get_mark(get$1(index)));
 					const annotations = user_derived(() => get_annotation_contexts(get$1(index)));
 					const Component = user_derived(() => svedit.session.config.node_components[get$1(node).type]);
-					var fragment_3 = root$f();
+					var fragment_3 = root$g();
 					var node_3 = first_child(fragment_3);
 
 					component(node_3, () => get$1(NodeGap$1), ($$anchor, NodeGap_1) => {
@@ -8567,12 +8483,12 @@ ${fallback_html}`;
 				append($$anchor, fragment_2);
 			};
 
-			var fragment_6 = root_2$1();
+			var fragment_6 = root_2$2();
 			var node_6 = first_child(fragment_6);
 
 			{
 				var consequent_1 = ($$anchor) => {
-					var div = root_1$2();
+					var div = root_1$3();
 					var node_7 = child(div);
 
 					component(node_7, () => get$1(NodeGap$1), ($$anchor, NodeGap_2) => {
@@ -10707,944 +10623,6 @@ ${fallback_html}`;
 		}
 	}
 
-	function Overlays($$anchor) {
-		// Overlays component for custom UI only (link previews, image editors, etc.)
-		// Node selection rendering is now handled by the library's NodeSelectionMarkers.
-	}
-
-	const SEGMENT_SEPARATOR = "_";
-	const ESCAPED_UNDERSCORE = "--";
-	function unescapeSegment(segment) {
-	  return segment.replaceAll(ESCAPED_UNDERSCORE, SEGMENT_SEPARATOR)
-	}
-	function folderFromClasses(classList) {
-	  const dirClassList = classList.filter(name => name.startsWith(SEGMENT_SEPARATOR));
-	  if (!dirClassList.length) return null
-	  const deepest = dirClassList.reduce((longest, name) => {
-	    return name.length > longest.length ? name : longest
-	  }, "");
-	  const segments = deepest.slice(1).split(SEGMENT_SEPARATOR).filter(Boolean);
-	  return segments.map(unescapeSegment).join("/")
-	}
-	function globParams(classList) {
-	  const folder = folderFromClasses(classList);
-	  if (folder === null) return null
-	  const limitClass = classList.find(name => name.startsWith("limit-"));
-	  const tagClass = classList.find(name => name.startsWith("tag-"));
-	  return {
-	    folder,
-	    recursive: classList.includes("recursive"),
-	    limit: limitClass ? limitClass.slice("limit-".length) : null,
-	    tag: tagClass ? tagClass.slice("tag-".length) : null
-	  }
-	}
-	function globDirective({ folder, recursive, limit, tag }) {
-	  const base = "/" + [folder, recursive ? "**" : "*"].filter(Boolean).join("/");
-	  const countParam = limit ? [`count=${limit}`] : [];
-	  const tagParam = tag ? [`tag=${tag}`] : [];
-	  const query = [...countParam, ...tagParam].join("&");
-	  return query ? `${base}?${query}` : base
-	}
-
-	const TEXT_NODE = 3;
-	const ELEMENT_NODE = 1;
-	const MARK_TYPES = {
-	  STRONG: "strong",
-	  B: "strong",
-	  EM: "emphasis",
-	  I: "emphasis",
-	  CODE: "inline_code",
-	  MARK: "highlight",
-	  DEL: "strikethrough",
-	  S: "strikethrough",
-	  A: "link"
-	};
-	const HEADING_LEVELS = {
-	  H1: 1,
-	  H2: 2,
-	  H3: 3,
-	  H4: 4,
-	  H5: 5,
-	  H6: 6
-	};
-	function classList(element) {
-	  return [...element.classList]
-	}
-	function expansionDirective(element) {
-	  const classes = classList(element);
-	  if (element.tagName === "UL" && classes.some(name => name.startsWith("_"))) {
-	    const params = globParams(classes);
-	    return params && globDirective(params)
-	  }
-	  if (element.tagName === "ARTICLE" && classes.includes("reference")) {
-	    const link = element.querySelector("a[href]");
-	    return link && link.getAttribute("href")
-	  }
-	  if (element.tagName === "A" && classes.includes("link-preview")) {
-	    return element.getAttribute("href")
-	  }
-	  if (element.tagName === "ARTICLE" && classes.includes("link-preview")) {
-	    const link = element.querySelector("a[href]");
-	    return link && link.getAttribute("href")
-	  }
-	  return null
-	}
-	function inlineFrom$1(domNode, context, insideMark) {
-	  if (domNode.nodeType === TEXT_NODE) {
-	    return { content: domNode.nodeValue, marks: [] }
-	  }
-	  if (domNode.nodeType !== ELEMENT_NODE) {
-	    return { content: "", marks: [] }
-	  }
-	  if (domNode.tagName === "BR") {
-	    return { content: "\n", marks: [] }
-	  }
-	  const markType = insideMark ? null : MARK_TYPES[domNode.tagName];
-	  const children = [...domNode.childNodes].map(child => {
-	    return inlineFrom$1(child, context, insideMark || Boolean(markType))
-	  });
-	  const combined = children.reduce((accumulated, result) => {
-	    const shifted = result.marks.map(mark => ({
-	      ...mark,
-	      start_offset: mark.start_offset + accumulated.content.length,
-	      end_offset: mark.end_offset + accumulated.content.length
-	    }));
-	    return {
-	      content: accumulated.content + result.content,
-	      marks: [...accumulated.marks, ...shifted]
-	    }
-	  }, { content: "", marks: [] });
-	  if (!markType) return combined
-	  const markId = context.createMark(markType, domNode);
-	  return {
-	    content: combined.content,
-	    marks: [{ start_offset: 0, end_offset: combined.content.length, node_id: markId }]
-	  }
-	}
-	function trimValue({ content, marks }) {
-	  const leading = content.length - content.trimStart().length;
-	  const trimmed = content.trim();
-	  const clamped = marks
-	    .map(mark => ({
-	      ...mark,
-	      start_offset: Math.max(0, Math.min(mark.start_offset - leading, trimmed.length)),
-	      end_offset: Math.max(0, Math.min(mark.end_offset - leading, trimmed.length))
-	    }))
-	    .filter(mark => mark.end_offset > mark.start_offset);
-	  return { content: trimmed, marks: clamped, annotations: [] }
-	}
-	function textValue(element, context) {
-	  return trimValue(inlineFrom$1(element, context, false))
-	}
-	function pictureIn(element) {
-	  if (element.tagName === "PICTURE") return element
-	  return element.querySelector("picture")
-	}
-	function blockFrom$1(element, context) {
-	  const directive = expansionDirective(element);
-	  if (directive) {
-	    return context.create({
-	      type: "embed",
-	      directive,
-	      html: element.outerHTML
-	    })
-	  }
-	  const tag = element.tagName;
-	  if (tag === "P") {
-	    const picture = pictureIn(element);
-	    if (picture && !element.textContent.trim()) return imageFrom(picture, null, element, context)
-	    return context.create({
-	      type: "paragraph",
-	      content: textValue(element, context)
-	    })
-	  }
-	  if (HEADING_LEVELS[tag]) {
-	    return context.create({
-	      type: "heading",
-	      level: HEADING_LEVELS[tag],
-	      content: textValue(element, context)
-	    })
-	  }
-	  if (tag === "UL" || tag === "OL") {
-	    const items = [...element.children].map(child => {
-	      if (child.tagName !== "LI") return null
-	      return context.create({
-	        type: "list_item",
-	        content: textValue(child, context)
-	      })
-	    });
-	    if (items.some(id => !id)) return null
-	    return context.create({
-	      type: "list",
-	      ordered: tag === "OL",
-	      items: { nodes: items, marks: [], annotations: [] }
-	    })
-	  }
-	  if (tag === "ASIDE" && classList(element).includes("alert")) {
-	    const variant = classList(element).find(name => name !== "alert");
-	    const body = [...element.children]
-	      .filter(child => child.tagName !== "H2")
-	      .map(child => blockFrom$1(child, context));
-	    if (body.some(id => !id)) return null
-	    return context.create({
-	      type: "alert",
-	      variant: variant || "note",
-	      body: { nodes: body, marks: [], annotations: [] }
-	    })
-	  }
-	  if (tag === "BLOCKQUOTE") {
-	    const body = [...element.children].map(child => blockFrom$1(child, context));
-	    if (body.some(id => !id)) return null
-	    return context.create({
-	      type: "blockquote",
-	      body: { nodes: body, marks: [], annotations: [] }
-	    })
-	  }
-	  if (tag === "PRE") {
-	    const code = element.querySelector("code");
-	    const language = code
-	      ? (classList(code).find(name => name.startsWith("language-")) || "").slice("language-".length)
-	      : "";
-	    return context.create({
-	      type: "code_block",
-	      language,
-	      code: (code || element).textContent.replace(/\n+$/, "")
-	    })
-	  }
-	  if (tag === "HR") {
-	    return context.create({ type: "thematic_break" })
-	  }
-	  if (tag === "FIGURE") {
-	    const picture = pictureIn(element);
-	    const caption = element.querySelector("figcaption");
-	    if (picture) return imageFrom(picture, caption, element, context)
-	  }
-	  if (tag === "PICTURE") {
-	    return imageFrom(element, null, element, context)
-	  }
-	  context.unrecognised.push(tag.toLowerCase() + (element.className ? `.${element.className}` : ""));
-	  return null
-	}
-	function imageFrom(picture, caption, outer, context) {
-	  const img = picture.querySelector("img");
-	  const source = picture.getAttribute("data-original");
-	  if (!source) {
-	    context.unrecognised.push("picture (no data-original)");
-	    return null
-	  }
-	  return context.create({
-	    type: "image",
-	    source,
-	    alt: img ? (img.getAttribute("alt") || "") : "",
-	    caption: caption ? caption.textContent : "",
-	    html: outer.outerHTML
-	  })
-	}
-	function ingest(contentElement, generateId) {
-	  const nodes = {};
-	  const unrecognised = [];
-	  const context = {
-	    unrecognised,
-	    create(node) {
-	      const id = generateId();
-	      nodes[id] = { ...node, id };
-	      return id
-	    },
-	    createMark(type, element) {
-	      const properties = type === "link"
-	        ? { href: element.getAttribute("href") || "" }
-	        : {};
-	      return context.create({ type, ...properties })
-	    }
-	  };
-	  const body = [...contentElement.children].map(child => blockFrom$1(child, context));
-	  if (unrecognised.length) return { doc: null, unrecognised }
-	  const pageId = generateId();
-	  nodes[pageId] = {
-	    id: pageId,
-	    type: "page",
-	    body: { nodes: body.filter(Boolean), marks: [], annotations: [] }
-	  };
-	  return { doc: { document_id: pageId, nodes }, unrecognised: [] }
-	}
-
-	var root$e = from_html(`<div class="page"><!></div>`);
-
-	const $$css$1 = {
-		hash: 'svelte-xibch9',
-		code: '.body-node-array {display:grid;grid-template-columns:1fr;--row: 0;}'
-	};
-
-	function Page($$anchor, $$props) {
-		append_styles$1($$anchor, $$css$1);
-
-		Node$1($$anchor, {
-			get path() {
-				return $$props.path;
-			},
-
-			children: ($$anchor, $$slotProps) => {
-				var div = root$e();
-				var node = child(div);
-
-				{
-					let $0 = user_derived(() => [...$$props.path, 'body']);
-
-					NodeArrayProperty(node, {
-						class: 'body-node-array',
-						get path() {
-							return get$1($0);
-						}
-					});
-				}
-				append($$anchor, div);
-			},
-			$$slots: { default: true }
-		});
-	}
-
-	function Paragraph($$anchor, $$props) {
-		Node$1($$anchor, {
-			get path() {
-				return $$props.path;
-			},
-
-			children: ($$anchor, $$slotProps) => {
-				{
-					let $0 = user_derived(() => [...$$props.path, "content"]);
-
-					TextProperty($$anchor, {
-						tag: 'p',
-						get path() {
-							return get$1($0);
-						},
-						placeholder: 'Paragraph'
-					});
-				}
-			},
-			$$slots: { default: true }
-		});
-	}
-
-	function Heading($$anchor, $$props) {
-		push($$props, true);
-
-		const svedit = getContext("svedit");
-		const node = user_derived(() => svedit.session.get($$props.path));
-		const tag = user_derived(() => `h${get$1(node).level || 2}`);
-
-		Node$1($$anchor, {
-			get path() {
-				return $$props.path;
-			},
-
-			children: ($$anchor, $$slotProps) => {
-				{
-					let $0 = user_derived(() => [...$$props.path, "content"]);
-
-					TextProperty($$anchor, {
-						get tag() {
-							return get$1(tag);
-						},
-
-						get path() {
-							return get$1($0);
-						},
-						placeholder: 'Heading'
-					});
-				}
-			},
-			$$slots: { default: true }
-		});
-
-		pop();
-	}
-
-	function List($$anchor, $$props) {
-		push($$props, true);
-
-		const svedit = getContext("svedit");
-		const node = user_derived(() => svedit.session.get($$props.path));
-		const tag = user_derived(() => get$1(node).ordered ? "ol" : "ul");
-
-		Node$1($$anchor, {
-			get path() {
-				return $$props.path;
-			},
-
-			children: ($$anchor, $$slotProps) => {
-				{
-					let $0 = user_derived(() => [...$$props.path, "items"]);
-
-					NodeArrayProperty($$anchor, {
-						get tag() {
-							return get$1(tag);
-						},
-
-						get path() {
-							return get$1($0);
-						}
-					});
-				}
-			},
-			$$slots: { default: true }
-		});
-
-		pop();
-	}
-
-	function ListItem($$anchor, $$props) {
-		Node$1($$anchor, {
-			get path() {
-				return $$props.path;
-			},
-
-			children: ($$anchor, $$slotProps) => {
-				{
-					let $0 = user_derived(() => [...$$props.path, "content"]);
-
-					TextProperty($$anchor, {
-						tag: 'li',
-						get path() {
-							return get$1($0);
-						},
-						placeholder: 'List item'
-					});
-				}
-			},
-			$$slots: { default: true }
-		});
-	}
-
-	function Blockquote($$anchor, $$props) {
-		Node$1($$anchor, {
-			get path() {
-				return $$props.path;
-			},
-
-			children: ($$anchor, $$slotProps) => {
-				{
-					let $0 = user_derived(() => [...$$props.path, "body"]);
-
-					NodeArrayProperty($$anchor, {
-						tag: 'blockquote',
-						get path() {
-							return get$1($0);
-						}
-					});
-				}
-			},
-			$$slots: { default: true }
-		});
-	}
-
-	var root$d = from_html(`<aside><h2 contenteditable="false"> </h2> <!></aside>`);
-
-	function Alert($$anchor, $$props) {
-		push($$props, true);
-
-		const svedit = getContext("svedit");
-		const node = user_derived(() => svedit.session.get($$props.path));
-		const variant = user_derived(() => get$1(node).variant || "note");
-		const label = user_derived(() => get$1(variant).charAt(0).toUpperCase() + get$1(variant).slice(1));
-
-		Node$1($$anchor, {
-			get path() {
-				return $$props.path;
-			},
-
-			children: ($$anchor, $$slotProps) => {
-				var aside = root$d();
-				var h2 = child(aside);
-				var text = only_child(h2, true);
-				var node_1 = sibling(h2, 2);
-
-				{
-					let $0 = user_derived(() => [...$$props.path, "body"]);
-
-					NodeArrayProperty(node_1, {
-						get path() {
-							return get$1($0);
-						}
-					});
-				}
-
-				template_effect(() => {
-					set_class(aside, 1, `alert ${get$1(variant) ?? ''}`);
-					set_text(text, get$1(label));
-				});
-
-				append($$anchor, aside);
-			},
-			$$slots: { default: true }
-		});
-
-		pop();
-	}
-
-	var root$c = from_html(`<code contenteditable="false"> </code>`);
-
-	function CodeBlock($$anchor, $$props) {
-		push($$props, true);
-
-		const svedit = getContext("svedit");
-		const node = user_derived(() => svedit.session.get($$props.path));
-
-		Node$1($$anchor, {
-			get path() {
-				return $$props.path;
-			},
-
-			children: ($$anchor, $$slotProps) => {
-				{
-					let $0 = user_derived(() => [...$$props.path, "code"]);
-
-					CustomProperty($$anchor, {
-						tag: 'pre',
-						get path() {
-							return get$1($0);
-						},
-
-						children: ($$anchor, $$slotProps) => {
-							var code = root$c();
-							var text = only_child(code, true);
-
-							template_effect(() => {
-								set_class(code, 1, clsx(get$1(node).language ? `language-${get$1(node).language}` : ""));
-								set_text(text, get$1(node).code);
-							});
-
-							append($$anchor, code);
-						},
-						$$slots: { default: true }
-					});
-				}
-			},
-			$$slots: { default: true }
-		});
-
-		pop();
-	}
-
-	var root$b = from_html(`<hr contenteditable="false"/>`);
-
-	function ThematicBreak($$anchor, $$props) {
-		Node$1($$anchor, {
-			get path() {
-				return $$props.path;
-			},
-
-			children: ($$anchor, $$slotProps) => {
-				var hr = root$b();
-
-				append($$anchor, hr);
-			},
-			$$slots: { default: true }
-		});
-	}
-
-	var root$a = from_html(`<div contenteditable="false"></div>`);
-
-	function Image($$anchor, $$props) {
-		push($$props, true);
-
-		const svedit = getContext("svedit");
-		const node = user_derived(() => svedit.session.get($$props.path));
-
-		Node$1($$anchor, {
-			get path() {
-				return $$props.path;
-			},
-
-			children: ($$anchor, $$slotProps) => {
-				{
-					let $0 = user_derived(() => [...$$props.path, "source"]);
-
-					CustomProperty($$anchor, {
-						get path() {
-							return get$1($0);
-						},
-
-						children: ($$anchor, $$slotProps) => {
-							var div = root$a();
-
-							html$1(div, () => get$1(node).html, true);
-							append($$anchor, div);
-						},
-						$$slots: { default: true }
-					});
-				}
-			},
-			$$slots: { default: true }
-		});
-
-		pop();
-	}
-
-	var root$9 = from_html(`<div contenteditable="false" class="embed"></div>`);
-
-	function Embed($$anchor, $$props) {
-		push($$props, true);
-
-		const svedit = getContext("svedit");
-		const node = user_derived(() => svedit.session.get($$props.path));
-
-		Node$1($$anchor, {
-			get path() {
-				return $$props.path;
-			},
-
-			children: ($$anchor, $$slotProps) => {
-				{
-					let $0 = user_derived(() => [...$$props.path, "directive"]);
-
-					CustomProperty($$anchor, {
-						get path() {
-							return get$1($0);
-						},
-
-						children: ($$anchor, $$slotProps) => {
-							var div = root$9();
-
-							html$1(div, () => get$1(node).html, true);
-							template_effect(() => set_attribute(div, 'title', get$1(node).directive));
-							append($$anchor, div);
-						},
-						$$slots: { default: true }
-					});
-				}
-			},
-			$$slots: { default: true }
-		});
-
-		pop();
-	}
-
-	var root$8 = from_html(`<strong> </strong>`);
-
-	function Strong($$anchor, $$props) {
-		push($$props, true);
-
-		const svedit = getContext("svedit");
-		const node = user_derived(() => svedit.session.get($$props.path));
-		var strong = root$8();
-		var text = only_child(strong, true);
-
-		template_effect(() => {
-			set_attribute(strong, 'id', get$1(node).id);
-			set_attribute(strong, 'data-node-id', get$1(node).id);
-			set_text(text, $$props.content);
-		});
-
-		append($$anchor, strong);
-		pop();
-	}
-
-	var root$7 = from_html(`<em> </em>`);
-
-	function Emphasis($$anchor, $$props) {
-		push($$props, true);
-
-		const svedit = getContext("svedit");
-		const node = user_derived(() => svedit.session.get($$props.path));
-		var em = root$7();
-		var text = only_child(em, true);
-
-		template_effect(() => {
-			set_attribute(em, 'id', get$1(node).id);
-			set_attribute(em, 'data-node-id', get$1(node).id);
-			set_text(text, $$props.content);
-		});
-
-		append($$anchor, em);
-		pop();
-	}
-
-	var root$6 = from_html(`<code> </code>`);
-
-	function InlineCode($$anchor, $$props) {
-		push($$props, true);
-
-		const svedit = getContext("svedit");
-		const node = user_derived(() => svedit.session.get($$props.path));
-		var code = root$6();
-		var text = only_child(code, true);
-
-		template_effect(() => {
-			set_attribute(code, 'id', get$1(node).id);
-			set_attribute(code, 'data-node-id', get$1(node).id);
-			set_text(text, $$props.content);
-		});
-
-		append($$anchor, code);
-		pop();
-	}
-
-	var root$5 = from_html(`<mark> </mark>`);
-
-	function Highlight($$anchor, $$props) {
-		push($$props, true);
-
-		const svedit = getContext("svedit");
-		const node = user_derived(() => svedit.session.get($$props.path));
-		var mark = root$5();
-		var text = only_child(mark, true);
-
-		template_effect(() => {
-			set_attribute(mark, 'id', get$1(node).id);
-			set_attribute(mark, 'data-node-id', get$1(node).id);
-			set_text(text, $$props.content);
-		});
-
-		append($$anchor, mark);
-		pop();
-	}
-
-	var root$4 = from_html(`<del> </del>`);
-
-	function Strikethrough($$anchor, $$props) {
-		push($$props, true);
-
-		const svedit = getContext("svedit");
-		const node = user_derived(() => svedit.session.get($$props.path));
-		var del = root$4();
-		var text = only_child(del, true);
-
-		template_effect(() => {
-			set_attribute(del, 'id', get$1(node).id);
-			set_attribute(del, 'data-node-id', get$1(node).id);
-			set_text(text, $$props.content);
-		});
-
-		append($$anchor, del);
-		pop();
-	}
-
-	var root$3 = from_html(`<div class="link"> </div>`);
-	var root_1$1 = from_html(`<a> </a>`);
-
-	function Link($$anchor, $$props) {
-		push($$props, true);
-
-		const svedit = getContext("svedit");
-		const node = user_derived(() => svedit.session.get($$props.path));
-		var fragment = comment();
-		var node_1 = first_child(fragment);
-
-		{
-			var consequent = ($$anchor) => {
-				var div = root$3();
-				var text = only_child(div, true);
-
-				template_effect(() => {
-					set_attribute(div, 'data-node-id', get$1(node).id);
-					set_attribute(div, 'data-href', get$1(node).href);
-					set_text(text, $$props.content);
-				});
-
-				append($$anchor, div);
-			};
-
-			var alternate = ($$anchor) => {
-				var a = root_1$1();
-				var text_1 = only_child(a, true);
-
-				template_effect(() => {
-					set_attribute(a, 'id', get$1(node).id);
-					set_attribute(a, 'data-node-id', get$1(node).id);
-					set_attribute(a, 'href', get$1(node).href);
-					set_text(text_1, $$props.content);
-				});
-
-				append($$anchor, a);
-			};
-
-			if_block(node_1, ($$render) => {
-				if (svedit.editable) $$render(consequent); else $$render(alternate, -1);
-			});
-		}
-
-		append($$anchor, fragment);
-		pop();
-	}
-
-	const INLINE_MARKS = ["strong", "emphasis", "inline_code", "highlight", "strikethrough", "link"];
-	const BLOCK_TYPES = [
-	  "paragraph",
-	  "heading",
-	  "list",
-	  "blockquote",
-	  "alert",
-	  "code_block",
-	  "thematic_break",
-	  "image",
-	  "embed"
-	];
-	const document_schema = define_document_schema({
-	  page: {
-	    kind: "document",
-	    properties: {
-	      body: {
-	        type: "node_array",
-	        node_types: BLOCK_TYPES,
-	        default_node_type: "paragraph"
-	      }
-	    }
-	  },
-	  paragraph: {
-	    kind: "text",
-	    properties: {
-	      content: { type: "text", mark_types: INLINE_MARKS, allow_newlines: true }
-	    }
-	  },
-	  heading: {
-	    kind: "text",
-	    properties: {
-	      content: { type: "text", mark_types: INLINE_MARKS, allow_newlines: false },
-	      level: { type: "integer", min: 1, max: 6, default: 2 }
-	    }
-	  },
-	  list: {
-	    kind: "block",
-	    properties: {
-	      items: { type: "node_array", node_types: ["list_item"], default_node_type: "list_item" },
-	      ordered: { type: "boolean", default: false }
-	    }
-	  },
-	  list_item: {
-	    kind: "text",
-	    properties: {
-	      content: { type: "text", mark_types: INLINE_MARKS, allow_newlines: false }
-	    }
-	  },
-	  blockquote: {
-	    kind: "block",
-	    properties: {
-	      body: { type: "node_array", node_types: BLOCK_TYPES, default_node_type: "paragraph" }
-	    }
-	  },
-	  alert: {
-	    kind: "block",
-	    properties: {
-	      variant: { type: "string", default: "note" },
-	      body: { type: "node_array", node_types: BLOCK_TYPES, default_node_type: "paragraph" }
-	    }
-	  },
-	  code_block: {
-	    kind: "block",
-	    properties: {
-	      code: { type: "string", default: "" },
-	      language: { type: "string", default: "" }
-	    }
-	  },
-	  thematic_break: {
-	    kind: "block",
-	    properties: {}
-	  },
-	  image: {
-	    kind: "block",
-	    properties: {
-	      source: { type: "string", default: "" },
-	      alt: { type: "string", default: "" },
-	      caption: { type: "string", default: "" },
-	      html: { type: "string", default: "" }
-	    }
-	  },
-	  embed: {
-	    kind: "block",
-	    properties: {
-	      directive: { type: "string", default: "" },
-	      html: { type: "string", default: "" }
-	    }
-	  },
-	  strong: { kind: "mark", properties: {} },
-	  emphasis: { kind: "mark", properties: {} },
-	  inline_code: { kind: "mark", properties: {} },
-	  highlight: { kind: "mark", properties: {} },
-	  strikethrough: { kind: "mark", properties: {} },
-	  link: { kind: "mark", properties: { href: { type: "string", default: "" } } }
-	});
-	function generate_id(length = 16) {
-	  const id_alphabet = "abcdefghijklmnopqrstuvwxyz";
-	  const random_values = crypto.getRandomValues(new Uint8Array(length));
-	  return [...random_values].map(value => id_alphabet[value % id_alphabet.length]).join("")
-	}
-	const session_config = {
-	  generate_id,
-	  system_components: {
-	    overlays: Overlays
-	  },
-	  node_components: {
-	    page: Page,
-	    paragraph: Paragraph,
-	    heading: Heading,
-	    list: List,
-	    list_item: ListItem,
-	    blockquote: Blockquote,
-	    alert: Alert,
-	    code_block: CodeBlock,
-	    thematic_break: ThematicBreak,
-	    image: Image,
-	    embed: Embed,
-	    strong: Strong,
-	    emphasis: Emphasis,
-	    inline_code: InlineCode,
-	    highlight: Highlight,
-	    strikethrough: Strikethrough,
-	    link: Link
-	  },
-	  create_commands_and_keymap: (context) => {
-	    const commands = {
-	      select_all: new SelectAllCommand(context),
-	      insert_default_node: new InsertDefaultNodeCommand(context),
-	      add_new_line: new AddNewLineCommand(context),
-	      break_text_node: new BreakTextNodeCommand(context),
-	      undo: new UndoCommand(context),
-	      redo: new RedoCommand(context),
-	      select_parent: new SelectParentCommand(context),
-	      toggle_strong: new ToggleMarkCommand("strong", context),
-	      toggle_emphasis: new ToggleMarkCommand("emphasis", context),
-	      toggle_inline_code: new ToggleMarkCommand("inline_code", context),
-	      toggle_highlight: new ToggleMarkCommand("highlight", context),
-	      toggle_strikethrough: new ToggleMarkCommand("strikethrough", context)
-	    };
-	    const keymap = define_keymap({
-	      "meta+a,ctrl+a": [commands.select_all],
-	      enter: [commands.break_text_node, commands.insert_default_node],
-	      "shift+enter": [commands.add_new_line, commands.insert_default_node],
-	      "meta+z,ctrl+z": [commands.undo],
-	      "meta+shift+z,ctrl+shift+z": [commands.redo],
-	      escape: [commands.select_parent],
-	      "meta+b,ctrl+b": [commands.toggle_strong],
-	      "meta+i,ctrl+i": [commands.toggle_emphasis]
-	    });
-	    return { commands, keymap }
-	  },
-	  inserters: {
-	    paragraph: function (tr, content = { content: "", marks: [], annotations: [] }) {
-	      const new_paragraph = {
-	        id: session_config.generate_id(),
-	        type: "paragraph",
-	        content
-	      };
-	      tr.create(new_paragraph);
-	      tr.insert_nodes([new_paragraph.id]);
-	      tr.set_selection({
-	        type: "text",
-	        path: [...tr.selection.path, tr.selection.focus_offset - 1, "content"],
-	        anchor_offset: 0,
-	        focus_offset: 0
-	      });
-	    }
-	  }
-	};
-	function create_session(element) {
-	  const { doc, unrecognised } = ingest(element, generate_id);
-	  if (!doc) return { session: null, unrecognised }
-	  const filled = fill_document_defaults(doc, document_schema);
-	  return { session: new Session(document_schema, filled, session_config), unrecognised: [] }
-	}
-
 	const own$1 = {}.hasOwnProperty;
 	function zwitch(key, options) {
 	  const settings = options || {};
@@ -12781,7 +11759,7 @@ ${fallback_html}`;
 	    ])
 	  );
 
-	function root$2(node, _, state, info) {
+	function root$f(node, _, state, info) {
 	  const hasPhrasing = node.children.some(function (d) {
 	    return phrasing(d)
 	  });
@@ -12880,7 +11858,7 @@ ${fallback_html}`;
 	  list,
 	  listItem,
 	  paragraph,
-	  root: root$2,
+	  root: root$f,
 	  strong,
 	  text,
 	  thematicBreak
@@ -13404,14 +12382,14 @@ ${fallback_html}`;
 	const DOC = Symbol.for('yaml.document');
 	const MAP = Symbol.for('yaml.map');
 	const PAIR = Symbol.for('yaml.pair');
-	const SCALAR = Symbol.for('yaml.scalar');
+	const SCALAR$1 = Symbol.for('yaml.scalar');
 	const SEQ = Symbol.for('yaml.seq');
 	const NODE_TYPE = Symbol.for('yaml.node.type');
 	const isAlias = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === ALIAS;
 	const isDocument = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === DOC;
 	const isMap = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === MAP;
 	const isPair = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === PAIR;
-	const isScalar = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === SCALAR;
+	const isScalar = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === SCALAR$1;
 	const isSeq = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === SEQ;
 	function isCollection(node) {
 	    if (node && typeof node === 'object')
@@ -13427,7 +12405,7 @@ ${fallback_html}`;
 	        switch (node[NODE_TYPE]) {
 	            case ALIAS:
 	            case MAP:
-	            case SCALAR:
+	            case SCALAR$1:
 	            case SEQ:
 	                return true;
 	        }
@@ -13952,7 +12930,7 @@ ${fallback_html}`;
 	const isScalarValue = (value) => !value || (typeof value !== 'function' && typeof value !== 'object');
 	class Scalar extends NodeBase {
 	    constructor(value) {
-	        super(SCALAR);
+	        super(SCALAR$1);
 	        this.value = value;
 	    }
 	    toJSON(arg, ctx) {
@@ -16210,7 +15188,7 @@ ${fallback_html}`;
 	        this.tags = getTags(customTags, this.name, merge);
 	        this.toStringOptions = toStringDefaults ?? null;
 	        Object.defineProperty(this, MAP, { value: map });
-	        Object.defineProperty(this, SCALAR, { value: string });
+	        Object.defineProperty(this, SCALAR$1, { value: string });
 	        Object.defineProperty(this, SEQ, { value: seq });
 	        this.sortMapEntries =
 	            typeof sortMapEntries === 'function'
@@ -16545,11 +15523,3121 @@ ${fallback_html}`;
 	    throw new Error('Expected a YAML collection as document contents');
 	}
 
-	new Set('0123456789ABCDEFabcdef');
-	new Set("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-#;/?:@&=+$_.!~*'()");
-	new Set(',[]{}');
-	new Set(' ,[]{}\n\r\t');
+	class YAMLError extends Error {
+	    constructor(name, pos, code, message) {
+	        super();
+	        this.name = name;
+	        this.code = code;
+	        this.message = message;
+	        this.pos = pos;
+	    }
+	}
+	class YAMLParseError extends YAMLError {
+	    constructor(pos, code, message) {
+	        super('YAMLParseError', pos, code, message);
+	    }
+	}
+	class YAMLWarning extends YAMLError {
+	    constructor(pos, code, message) {
+	        super('YAMLWarning', pos, code, message);
+	    }
+	}
+	const prettifyError = (src, lc) => (error) => {
+	    if (error.pos[0] === -1)
+	        return;
+	    error.linePos = error.pos.map(pos => lc.linePos(pos));
+	    const { line, col } = error.linePos[0];
+	    error.message += ` at line ${line}, column ${col}`;
+	    let ci = col - 1;
+	    let lineStr = src
+	        .substring(lc.lineStarts[line - 1], lc.lineStarts[line])
+	        .replace(/[\n\r]+$/, '');
+	    if (ci >= 60 && lineStr.length > 80) {
+	        const trimStart = Math.min(ci - 39, lineStr.length - 79);
+	        lineStr = '…' + lineStr.substring(trimStart);
+	        ci -= trimStart - 1;
+	    }
+	    if (lineStr.length > 80)
+	        lineStr = lineStr.substring(0, 79) + '…';
+	    if (line > 1 && /^ *$/.test(lineStr.substring(0, ci))) {
+	        let prev = src.substring(lc.lineStarts[line - 2], lc.lineStarts[line - 1]);
+	        if (prev.length > 80)
+	            prev = prev.substring(0, 79) + '…\n';
+	        lineStr = prev + lineStr;
+	    }
+	    if (/[^ ]/.test(lineStr)) {
+	        let count = 1;
+	        const end = error.linePos[1];
+	        if (end?.line === line && end.col > col) {
+	            count = Math.max(1, Math.min(end.col - col, 80 - ci));
+	        }
+	        const pointer = ' '.repeat(ci) + '^'.repeat(count);
+	        error.message += `:\n\n${lineStr}\n${pointer}\n`;
+	    }
+	};
 
+	function resolveProps(tokens, { flow, indicator, next, offset, onError, parentIndent, startOnNewline }) {
+	    let spaceBefore = false;
+	    let atNewline = startOnNewline;
+	    let hasSpace = startOnNewline;
+	    let comment = '';
+	    let commentSep = '';
+	    let hasNewline = false;
+	    let reqSpace = false;
+	    let tab = null;
+	    let anchor = null;
+	    let tag = null;
+	    let newlineAfterProp = null;
+	    let comma = null;
+	    let found = null;
+	    let start = null;
+	    for (const token of tokens) {
+	        if (reqSpace) {
+	            if (token.type !== 'space' &&
+	                token.type !== 'newline' &&
+	                token.type !== 'comma')
+	                onError(token.offset, 'MISSING_CHAR', 'Tags and anchors must be separated from the next token by white space');
+	            reqSpace = false;
+	        }
+	        if (tab) {
+	            if (atNewline && token.type !== 'comment' && token.type !== 'newline') {
+	                onError(tab, 'TAB_AS_INDENT', 'Tabs are not allowed as indentation');
+	            }
+	            tab = null;
+	        }
+	        switch (token.type) {
+	            case 'space':
+	                if (!flow &&
+	                    (indicator !== 'doc-start' || next?.type !== 'flow-collection') &&
+	                    token.source.includes('\t')) {
+	                    tab = token;
+	                }
+	                hasSpace = true;
+	                break;
+	            case 'comment': {
+	                if (!hasSpace)
+	                    onError(token, 'MISSING_CHAR', 'Comments must be separated from other tokens by white space characters');
+	                const cb = token.source.substring(1) || ' ';
+	                if (!comment)
+	                    comment = cb;
+	                else
+	                    comment += commentSep + cb;
+	                commentSep = '';
+	                atNewline = false;
+	                break;
+	            }
+	            case 'newline':
+	                if (atNewline) {
+	                    if (comment)
+	                        comment += token.source;
+	                    else if (!found || indicator !== 'seq-item-ind')
+	                        spaceBefore = true;
+	                }
+	                else
+	                    commentSep += token.source;
+	                atNewline = true;
+	                hasNewline = true;
+	                if (anchor || tag)
+	                    newlineAfterProp = token;
+	                hasSpace = true;
+	                break;
+	            case 'anchor':
+	                if (anchor)
+	                    onError(token, 'MULTIPLE_ANCHORS', 'A node can have at most one anchor');
+	                if (token.source.endsWith(':'))
+	                    onError(token.offset + token.source.length - 1, 'BAD_ALIAS', 'Anchor ending in : is ambiguous', true);
+	                anchor = token;
+	                start ?? (start = token.offset);
+	                atNewline = false;
+	                hasSpace = false;
+	                reqSpace = true;
+	                break;
+	            case 'tag': {
+	                if (tag)
+	                    onError(token, 'MULTIPLE_TAGS', 'A node can have at most one tag');
+	                tag = token;
+	                start ?? (start = token.offset);
+	                atNewline = false;
+	                hasSpace = false;
+	                reqSpace = true;
+	                break;
+	            }
+	            case indicator:
+	                if (anchor || tag)
+	                    onError(token, 'BAD_PROP_ORDER', `Anchors and tags must be after the ${token.source} indicator`);
+	                if (found)
+	                    onError(token, 'UNEXPECTED_TOKEN', `Unexpected ${token.source} in ${flow ?? 'collection'}`);
+	                found = token;
+	                atNewline =
+	                    indicator === 'seq-item-ind' || indicator === 'explicit-key-ind';
+	                hasSpace = false;
+	                break;
+	            case 'comma':
+	                if (flow) {
+	                    if (comma)
+	                        onError(token, 'UNEXPECTED_TOKEN', `Unexpected , in ${flow}`);
+	                    comma = token;
+	                    atNewline = false;
+	                    hasSpace = false;
+	                    break;
+	                }
+	            default:
+	                onError(token, 'UNEXPECTED_TOKEN', `Unexpected ${token.type} token`);
+	                atNewline = false;
+	                hasSpace = false;
+	        }
+	    }
+	    const last = tokens[tokens.length - 1];
+	    const end = last ? last.offset + last.source.length : offset;
+	    if (reqSpace &&
+	        next &&
+	        next.type !== 'space' &&
+	        next.type !== 'newline' &&
+	        next.type !== 'comma' &&
+	        (next.type !== 'scalar' || next.source !== '')) {
+	        onError(next.offset, 'MISSING_CHAR', 'Tags and anchors must be separated from the next token by white space');
+	    }
+	    if (tab &&
+	        ((atNewline && tab.indent <= parentIndent) ||
+	            next?.type === 'block-map' ||
+	            next?.type === 'block-seq'))
+	        onError(tab, 'TAB_AS_INDENT', 'Tabs are not allowed as indentation');
+	    return {
+	        comma,
+	        found,
+	        spaceBefore,
+	        comment,
+	        hasNewline,
+	        anchor,
+	        tag,
+	        newlineAfterProp,
+	        end,
+	        start: start ?? end
+	    };
+	}
+
+	function containsNewline(key) {
+	    if (!key)
+	        return null;
+	    switch (key.type) {
+	        case 'alias':
+	        case 'scalar':
+	        case 'double-quoted-scalar':
+	        case 'single-quoted-scalar':
+	            if (key.source.includes('\n'))
+	                return true;
+	            if (key.end)
+	                for (const st of key.end)
+	                    if (st.type === 'newline')
+	                        return true;
+	            return false;
+	        case 'flow-collection':
+	            for (const it of key.items) {
+	                for (const st of it.start)
+	                    if (st.type === 'newline')
+	                        return true;
+	                if (it.sep)
+	                    for (const st of it.sep)
+	                        if (st.type === 'newline')
+	                            return true;
+	                if (containsNewline(it.key) || containsNewline(it.value))
+	                    return true;
+	            }
+	            return false;
+	        default:
+	            return true;
+	    }
+	}
+
+	function flowIndentCheck(indent, fc, onError) {
+	    if (fc?.type === 'flow-collection') {
+	        const end = fc.end[0];
+	        if (end.indent === indent &&
+	            (end.source === ']' || end.source === '}') &&
+	            containsNewline(fc)) {
+	            const msg = 'Flow end indicator should be more indented than parent';
+	            onError(end, 'BAD_INDENT', msg, true);
+	        }
+	    }
+	}
+
+	function mapIncludes(ctx, items, search) {
+	    const { uniqueKeys } = ctx.options;
+	    if (uniqueKeys === false)
+	        return false;
+	    const isEqual = typeof uniqueKeys === 'function'
+	        ? uniqueKeys
+	        : (a, b) => a === b || (isScalar(a) && isScalar(b) && a.value === b.value);
+	    return items.some(pair => isEqual(pair.key, search));
+	}
+
+	const startColMsg = 'All mapping items must start at the same column';
+	function resolveBlockMap({ composeNode, composeEmptyNode }, ctx, bm, onError, tag) {
+	    const NodeClass = tag?.nodeClass ?? YAMLMap;
+	    const map = new NodeClass(ctx.schema);
+	    if (ctx.atRoot)
+	        ctx.atRoot = false;
+	    let offset = bm.offset;
+	    let commentEnd = null;
+	    for (const collItem of bm.items) {
+	        const { start, key, sep, value } = collItem;
+	        const keyProps = resolveProps(start, {
+	            indicator: 'explicit-key-ind',
+	            next: key ?? sep?.[0],
+	            offset,
+	            onError,
+	            parentIndent: bm.indent,
+	            startOnNewline: true
+	        });
+	        const implicitKey = !keyProps.found;
+	        if (implicitKey) {
+	            if (key) {
+	                if (key.type === 'block-seq')
+	                    onError(offset, 'BLOCK_AS_IMPLICIT_KEY', 'A block sequence may not be used as an implicit map key');
+	                else if ('indent' in key && key.indent !== bm.indent)
+	                    onError(offset, 'BAD_INDENT', startColMsg);
+	            }
+	            if (!keyProps.anchor && !keyProps.tag && !sep) {
+	                commentEnd = keyProps.end;
+	                if (keyProps.comment) {
+	                    if (map.comment)
+	                        map.comment += '\n' + keyProps.comment;
+	                    else
+	                        map.comment = keyProps.comment;
+	                }
+	                continue;
+	            }
+	            if (keyProps.newlineAfterProp || containsNewline(key)) {
+	                onError(key ?? start[start.length - 1], 'MULTILINE_IMPLICIT_KEY', 'Implicit keys need to be on a single line');
+	            }
+	        }
+	        else if (keyProps.found?.indent !== bm.indent) {
+	            onError(offset, 'BAD_INDENT', startColMsg);
+	        }
+	        ctx.atKey = true;
+	        const keyStart = keyProps.end;
+	        const keyNode = key
+	            ? composeNode(ctx, key, keyProps, onError)
+	            : composeEmptyNode(ctx, keyStart, start, null, keyProps, onError);
+	        if (ctx.schema.compat)
+	            flowIndentCheck(bm.indent, key, onError);
+	        ctx.atKey = false;
+	        if (mapIncludes(ctx, map.items, keyNode))
+	            onError(keyStart, 'DUPLICATE_KEY', 'Map keys must be unique');
+	        const valueProps = resolveProps(sep ?? [], {
+	            indicator: 'map-value-ind',
+	            next: value,
+	            offset: keyNode.range[2],
+	            onError,
+	            parentIndent: bm.indent,
+	            startOnNewline: !key || key.type === 'block-scalar'
+	        });
+	        offset = valueProps.end;
+	        if (valueProps.found) {
+	            if (implicitKey) {
+	                if (value?.type === 'block-map' && !valueProps.hasNewline)
+	                    onError(offset, 'BLOCK_AS_IMPLICIT_KEY', 'Nested mappings are not allowed in compact mappings');
+	                if (ctx.options.strict &&
+	                    keyProps.start < valueProps.found.offset - 1024)
+	                    onError(keyNode.range, 'KEY_OVER_1024_CHARS', 'The : indicator must be at most 1024 chars after the start of an implicit block mapping key');
+	            }
+	            const valueNode = value
+	                ? composeNode(ctx, value, valueProps, onError)
+	                : composeEmptyNode(ctx, offset, sep, null, valueProps, onError);
+	            if (ctx.schema.compat)
+	                flowIndentCheck(bm.indent, value, onError);
+	            offset = valueNode.range[2];
+	            const pair = new Pair(keyNode, valueNode);
+	            if (ctx.options.keepSourceTokens)
+	                pair.srcToken = collItem;
+	            map.items.push(pair);
+	        }
+	        else {
+	            if (implicitKey)
+	                onError(keyNode.range, 'MISSING_CHAR', 'Implicit map keys need to be followed by map values');
+	            if (valueProps.comment) {
+	                if (keyNode.comment)
+	                    keyNode.comment += '\n' + valueProps.comment;
+	                else
+	                    keyNode.comment = valueProps.comment;
+	            }
+	            const pair = new Pair(keyNode);
+	            if (ctx.options.keepSourceTokens)
+	                pair.srcToken = collItem;
+	            map.items.push(pair);
+	        }
+	    }
+	    if (commentEnd && commentEnd < offset)
+	        onError(commentEnd, 'IMPOSSIBLE', 'Map comment with trailing content');
+	    map.range = [bm.offset, offset, commentEnd ?? offset];
+	    return map;
+	}
+
+	function resolveBlockSeq({ composeNode, composeEmptyNode }, ctx, bs, onError, tag) {
+	    const NodeClass = tag?.nodeClass ?? YAMLSeq;
+	    const seq = new NodeClass(ctx.schema);
+	    if (ctx.atRoot)
+	        ctx.atRoot = false;
+	    if (ctx.atKey)
+	        ctx.atKey = false;
+	    let offset = bs.offset;
+	    let commentEnd = null;
+	    for (const { start, value } of bs.items) {
+	        const props = resolveProps(start, {
+	            indicator: 'seq-item-ind',
+	            next: value,
+	            offset,
+	            onError,
+	            parentIndent: bs.indent,
+	            startOnNewline: true
+	        });
+	        if (!props.found) {
+	            if (props.anchor || props.tag || value) {
+	                if (value?.type === 'block-seq')
+	                    onError(props.end, 'BAD_INDENT', 'All sequence items must start at the same column');
+	                else
+	                    onError(offset, 'MISSING_CHAR', 'Sequence item without - indicator');
+	            }
+	            else {
+	                commentEnd = props.end;
+	                if (props.comment)
+	                    seq.comment = props.comment;
+	                continue;
+	            }
+	        }
+	        const node = value
+	            ? composeNode(ctx, value, props, onError)
+	            : composeEmptyNode(ctx, props.end, start, null, props, onError);
+	        if (ctx.schema.compat)
+	            flowIndentCheck(bs.indent, value, onError);
+	        offset = node.range[2];
+	        seq.items.push(node);
+	    }
+	    seq.range = [bs.offset, offset, commentEnd ?? offset];
+	    return seq;
+	}
+
+	function resolveEnd(end, offset, reqSpace, onError) {
+	    let comment = '';
+	    if (end) {
+	        let hasSpace = false;
+	        let sep = '';
+	        for (const token of end) {
+	            const { source, type } = token;
+	            switch (type) {
+	                case 'space':
+	                    hasSpace = true;
+	                    break;
+	                case 'comment': {
+	                    if (reqSpace && !hasSpace)
+	                        onError(token, 'MISSING_CHAR', 'Comments must be separated from other tokens by white space characters');
+	                    const cb = source.substring(1) || ' ';
+	                    if (!comment)
+	                        comment = cb;
+	                    else
+	                        comment += sep + cb;
+	                    sep = '';
+	                    break;
+	                }
+	                case 'newline':
+	                    if (comment)
+	                        sep += source;
+	                    hasSpace = true;
+	                    break;
+	                default:
+	                    onError(token, 'UNEXPECTED_TOKEN', `Unexpected ${type} at node end`);
+	            }
+	            offset += source.length;
+	        }
+	    }
+	    return { comment, offset };
+	}
+
+	const blockMsg = 'Block collections are not allowed within flow collections';
+	const isBlock = (token) => token && (token.type === 'block-map' || token.type === 'block-seq');
+	function resolveFlowCollection({ composeNode, composeEmptyNode }, ctx, fc, onError, tag) {
+	    const isMap = fc.start.source === '{';
+	    const fcName = isMap ? 'flow map' : 'flow sequence';
+	    const NodeClass = (tag?.nodeClass ?? (isMap ? YAMLMap : YAMLSeq));
+	    const coll = new NodeClass(ctx.schema);
+	    coll.flow = true;
+	    const atRoot = ctx.atRoot;
+	    if (atRoot)
+	        ctx.atRoot = false;
+	    if (ctx.atKey)
+	        ctx.atKey = false;
+	    let offset = fc.offset + fc.start.source.length;
+	    for (let i = 0; i < fc.items.length; ++i) {
+	        const collItem = fc.items[i];
+	        const { start, key, sep, value } = collItem;
+	        const props = resolveProps(start, {
+	            flow: fcName,
+	            indicator: 'explicit-key-ind',
+	            next: key ?? sep?.[0],
+	            offset,
+	            onError,
+	            parentIndent: fc.indent,
+	            startOnNewline: false
+	        });
+	        if (!props.found) {
+	            if (!props.anchor && !props.tag && !sep && !value) {
+	                if (i === 0 && props.comma)
+	                    onError(props.comma, 'UNEXPECTED_TOKEN', `Unexpected , in ${fcName}`);
+	                else if (i < fc.items.length - 1)
+	                    onError(props.start, 'UNEXPECTED_TOKEN', `Unexpected empty item in ${fcName}`);
+	                if (props.comment) {
+	                    if (coll.comment)
+	                        coll.comment += '\n' + props.comment;
+	                    else
+	                        coll.comment = props.comment;
+	                }
+	                offset = props.end;
+	                continue;
+	            }
+	            if (!isMap && ctx.options.strict && containsNewline(key))
+	                onError(key,
+	                'MULTILINE_IMPLICIT_KEY', 'Implicit keys of flow sequence pairs need to be on a single line');
+	        }
+	        if (i === 0) {
+	            if (props.comma)
+	                onError(props.comma, 'UNEXPECTED_TOKEN', `Unexpected , in ${fcName}`);
+	        }
+	        else {
+	            if (!props.comma)
+	                onError(props.start, 'MISSING_CHAR', `Missing , between ${fcName} items`);
+	            if (props.comment) {
+	                let prevItemComment = '';
+	                loop: for (const st of start) {
+	                    switch (st.type) {
+	                        case 'comma':
+	                        case 'space':
+	                            break;
+	                        case 'comment':
+	                            prevItemComment = st.source.substring(1);
+	                            break loop;
+	                        default:
+	                            break loop;
+	                    }
+	                }
+	                if (prevItemComment) {
+	                    let prev = coll.items[coll.items.length - 1];
+	                    if (isPair(prev))
+	                        prev = prev.value ?? prev.key;
+	                    if (prev.comment)
+	                        prev.comment += '\n' + prevItemComment;
+	                    else
+	                        prev.comment = prevItemComment;
+	                    props.comment = props.comment.substring(prevItemComment.length + 1);
+	                }
+	            }
+	        }
+	        if (!isMap && !sep && !props.found) {
+	            const valueNode = value
+	                ? composeNode(ctx, value, props, onError)
+	                : composeEmptyNode(ctx, props.end, sep, null, props, onError);
+	            coll.items.push(valueNode);
+	            offset = valueNode.range[2];
+	            if (isBlock(value))
+	                onError(valueNode.range, 'BLOCK_IN_FLOW', blockMsg);
+	        }
+	        else {
+	            ctx.atKey = true;
+	            const keyStart = props.end;
+	            const keyNode = key
+	                ? composeNode(ctx, key, props, onError)
+	                : composeEmptyNode(ctx, keyStart, start, null, props, onError);
+	            if (isBlock(key))
+	                onError(keyNode.range, 'BLOCK_IN_FLOW', blockMsg);
+	            ctx.atKey = false;
+	            const valueProps = resolveProps(sep ?? [], {
+	                flow: fcName,
+	                indicator: 'map-value-ind',
+	                next: value,
+	                offset: keyNode.range[2],
+	                onError,
+	                parentIndent: fc.indent,
+	                startOnNewline: false
+	            });
+	            if (valueProps.found) {
+	                if (!isMap && !props.found && ctx.options.strict) {
+	                    if (sep)
+	                        for (const st of sep) {
+	                            if (st === valueProps.found)
+	                                break;
+	                            if (st.type === 'newline') {
+	                                onError(st, 'MULTILINE_IMPLICIT_KEY', 'Implicit keys of flow sequence pairs need to be on a single line');
+	                                break;
+	                            }
+	                        }
+	                    if (props.start < valueProps.found.offset - 1024)
+	                        onError(valueProps.found, 'KEY_OVER_1024_CHARS', 'The : indicator must be at most 1024 chars after the start of an implicit flow sequence key');
+	                }
+	            }
+	            else if (value) {
+	                if ('source' in value && value.source?.[0] === ':')
+	                    onError(value, 'MISSING_CHAR', `Missing space after : in ${fcName}`);
+	                else
+	                    onError(valueProps.start, 'MISSING_CHAR', `Missing , or : between ${fcName} items`);
+	            }
+	            const valueNode = value
+	                ? composeNode(ctx, value, valueProps, onError)
+	                : valueProps.found
+	                    ? composeEmptyNode(ctx, valueProps.end, sep, null, valueProps, onError)
+	                    : null;
+	            if (valueNode) {
+	                if (isBlock(value))
+	                    onError(valueNode.range, 'BLOCK_IN_FLOW', blockMsg);
+	            }
+	            else if (valueProps.comment) {
+	                if (keyNode.comment)
+	                    keyNode.comment += '\n' + valueProps.comment;
+	                else
+	                    keyNode.comment = valueProps.comment;
+	            }
+	            const pair = new Pair(keyNode, valueNode);
+	            if (ctx.options.keepSourceTokens)
+	                pair.srcToken = collItem;
+	            if (isMap) {
+	                const map = coll;
+	                if (mapIncludes(ctx, map.items, keyNode))
+	                    onError(keyStart, 'DUPLICATE_KEY', 'Map keys must be unique');
+	                map.items.push(pair);
+	            }
+	            else {
+	                const map = new YAMLMap(ctx.schema);
+	                map.flow = true;
+	                map.items.push(pair);
+	                const endRange = (valueNode ?? keyNode).range;
+	                map.range = [keyNode.range[0], endRange[1], endRange[2]];
+	                coll.items.push(map);
+	            }
+	            offset = valueNode ? valueNode.range[2] : valueProps.end;
+	        }
+	    }
+	    const expectedEnd = isMap ? '}' : ']';
+	    const [ce, ...ee] = fc.end;
+	    let cePos = offset;
+	    if (ce?.source === expectedEnd)
+	        cePos = ce.offset + ce.source.length;
+	    else {
+	        const name = fcName[0].toUpperCase() + fcName.substring(1);
+	        const msg = atRoot
+	            ? `${name} must end with a ${expectedEnd}`
+	            : `${name} in block collection must be sufficiently indented and end with a ${expectedEnd}`;
+	        onError(offset, atRoot ? 'MISSING_CHAR' : 'BAD_INDENT', msg);
+	        if (ce && ce.source.length !== 1)
+	            ee.unshift(ce);
+	    }
+	    if (ee.length > 0) {
+	        const end = resolveEnd(ee, cePos, ctx.options.strict, onError);
+	        if (end.comment) {
+	            if (coll.comment)
+	                coll.comment += '\n' + end.comment;
+	            else
+	                coll.comment = end.comment;
+	        }
+	        coll.range = [fc.offset, cePos, end.offset];
+	    }
+	    else {
+	        coll.range = [fc.offset, cePos, cePos];
+	    }
+	    return coll;
+	}
+
+	function resolveCollection(CN, ctx, token, onError, tagName, tag) {
+	    const coll = token.type === 'block-map'
+	        ? resolveBlockMap(CN, ctx, token, onError, tag)
+	        : token.type === 'block-seq'
+	            ? resolveBlockSeq(CN, ctx, token, onError, tag)
+	            : resolveFlowCollection(CN, ctx, token, onError, tag);
+	    const Coll = coll.constructor;
+	    if (tagName === '!' || tagName === Coll.tagName) {
+	        coll.tag = Coll.tagName;
+	        return coll;
+	    }
+	    if (tagName)
+	        coll.tag = tagName;
+	    return coll;
+	}
+	function composeCollection(CN, ctx, token, props, onError) {
+	    const tagToken = props.tag;
+	    const tagName = !tagToken
+	        ? null
+	        : ctx.directives.tagName(tagToken.source, msg => onError(tagToken, 'TAG_RESOLVE_FAILED', msg));
+	    if (token.type === 'block-seq') {
+	        const { anchor, newlineAfterProp: nl } = props;
+	        const lastProp = anchor && tagToken
+	            ? anchor.offset > tagToken.offset
+	                ? anchor
+	                : tagToken
+	            : (anchor ?? tagToken);
+	        if (lastProp && (!nl || nl.offset < lastProp.offset)) {
+	            const message = 'Missing newline after block sequence props';
+	            onError(lastProp, 'MISSING_CHAR', message);
+	        }
+	    }
+	    const expType = token.type === 'block-map'
+	        ? 'map'
+	        : token.type === 'block-seq'
+	            ? 'seq'
+	            : token.start.source === '{'
+	                ? 'map'
+	                : 'seq';
+	    if (!tagToken ||
+	        !tagName ||
+	        tagName === '!' ||
+	        (tagName === YAMLMap.tagName && expType === 'map') ||
+	        (tagName === YAMLSeq.tagName && expType === 'seq')) {
+	        return resolveCollection(CN, ctx, token, onError, tagName);
+	    }
+	    let tag = ctx.schema.tags.find(t => t.tag === tagName && t.collection === expType);
+	    if (!tag) {
+	        const kt = ctx.schema.knownTags[tagName];
+	        if (kt?.collection === expType) {
+	            ctx.schema.tags.push(Object.assign({}, kt, { default: false }));
+	            tag = kt;
+	        }
+	        else {
+	            if (kt) {
+	                onError(tagToken, 'BAD_COLLECTION_TYPE', `${kt.tag} used for ${expType} collection, but expects ${kt.collection ?? 'scalar'}`, true);
+	            }
+	            else {
+	                onError(tagToken, 'TAG_RESOLVE_FAILED', `Unresolved tag: ${tagName}`, true);
+	            }
+	            return resolveCollection(CN, ctx, token, onError, tagName);
+	        }
+	    }
+	    const coll = resolveCollection(CN, ctx, token, onError, tagName, tag);
+	    const res = tag.resolve?.(coll, msg => onError(tagToken, 'TAG_RESOLVE_FAILED', msg), ctx.options) ?? coll;
+	    const node = isNode(res)
+	        ? res
+	        : new Scalar(res);
+	    node.range = coll.range;
+	    node.tag = tagName;
+	    if (tag?.format)
+	        node.format = tag.format;
+	    return node;
+	}
+
+	function resolveBlockScalar(ctx, scalar, onError) {
+	    const start = scalar.offset;
+	    const header = parseBlockScalarHeader(scalar, ctx.options.strict, onError);
+	    if (!header)
+	        return { value: '', type: null, comment: '', range: [start, start, start] };
+	    const type = header.mode === '>' ? Scalar.BLOCK_FOLDED : Scalar.BLOCK_LITERAL;
+	    const lines = scalar.source ? splitLines(scalar.source) : [];
+	    let chompStart = lines.length;
+	    for (let i = lines.length - 1; i >= 0; --i) {
+	        const content = lines[i][1];
+	        if (content === '' || content === '\r')
+	            chompStart = i;
+	        else
+	            break;
+	    }
+	    if (chompStart === 0) {
+	        const value = header.chomp === '+' && lines.length > 0
+	            ? '\n'.repeat(Math.max(1, lines.length - 1))
+	            : '';
+	        let end = start + header.length;
+	        if (scalar.source)
+	            end += scalar.source.length;
+	        return { value, type, comment: header.comment, range: [start, end, end] };
+	    }
+	    let trimIndent = scalar.indent + header.indent;
+	    let offset = scalar.offset + header.length;
+	    let contentStart = 0;
+	    for (let i = 0; i < chompStart; ++i) {
+	        const [indent, content] = lines[i];
+	        if (content === '' || content === '\r') {
+	            if (header.indent === 0 && indent.length > trimIndent)
+	                trimIndent = indent.length;
+	        }
+	        else {
+	            if (indent.length < trimIndent) {
+	                const message = 'Block scalars with more-indented leading empty lines must use an explicit indentation indicator';
+	                onError(offset + indent.length, 'MISSING_CHAR', message);
+	            }
+	            if (header.indent === 0)
+	                trimIndent = indent.length;
+	            contentStart = i;
+	            if (trimIndent === 0 && !ctx.atRoot) {
+	                const message = 'Block scalar values in collections must be indented';
+	                onError(offset, 'BAD_INDENT', message);
+	            }
+	            break;
+	        }
+	        offset += indent.length + content.length + 1;
+	    }
+	    for (let i = lines.length - 1; i >= chompStart; --i) {
+	        if (lines[i][0].length > trimIndent)
+	            chompStart = i + 1;
+	    }
+	    let value = '';
+	    let sep = '';
+	    let prevMoreIndented = false;
+	    for (let i = 0; i < contentStart; ++i)
+	        value += lines[i][0].slice(trimIndent) + '\n';
+	    for (let i = contentStart; i < chompStart; ++i) {
+	        let [indent, content] = lines[i];
+	        offset += indent.length + content.length + 1;
+	        const crlf = content[content.length - 1] === '\r';
+	        if (crlf)
+	            content = content.slice(0, -1);
+	        if (content && indent.length < trimIndent) {
+	            const src = header.indent
+	                ? 'explicit indentation indicator'
+	                : 'first line';
+	            const message = `Block scalar lines must not be less indented than their ${src}`;
+	            onError(offset - content.length - (crlf ? 2 : 1), 'BAD_INDENT', message);
+	            indent = '';
+	        }
+	        if (type === Scalar.BLOCK_LITERAL) {
+	            value += sep + indent.slice(trimIndent) + content;
+	            sep = '\n';
+	        }
+	        else if (indent.length > trimIndent || content[0] === '\t') {
+	            if (sep === ' ')
+	                sep = '\n';
+	            else if (!prevMoreIndented && sep === '\n')
+	                sep = '\n\n';
+	            value += sep + indent.slice(trimIndent) + content;
+	            sep = '\n';
+	            prevMoreIndented = true;
+	        }
+	        else if (content === '') {
+	            if (sep === '\n')
+	                value += '\n';
+	            else
+	                sep = '\n';
+	        }
+	        else {
+	            value += sep + content;
+	            sep = ' ';
+	            prevMoreIndented = false;
+	        }
+	    }
+	    switch (header.chomp) {
+	        case '-':
+	            break;
+	        case '+':
+	            for (let i = chompStart; i < lines.length; ++i)
+	                value += '\n' + lines[i][0].slice(trimIndent);
+	            if (value[value.length - 1] !== '\n')
+	                value += '\n';
+	            break;
+	        default:
+	            value += '\n';
+	    }
+	    const end = start + header.length + scalar.source.length;
+	    return { value, type, comment: header.comment, range: [start, end, end] };
+	}
+	function parseBlockScalarHeader({ offset, props }, strict, onError) {
+	    if (props[0].type !== 'block-scalar-header') {
+	        onError(props[0], 'IMPOSSIBLE', 'Block scalar header not found');
+	        return null;
+	    }
+	    const { source } = props[0];
+	    const mode = source[0];
+	    let indent = 0;
+	    let chomp = '';
+	    let error = -1;
+	    for (let i = 1; i < source.length; ++i) {
+	        const ch = source[i];
+	        if (!chomp && (ch === '-' || ch === '+'))
+	            chomp = ch;
+	        else {
+	            const n = Number(ch);
+	            if (!indent && n)
+	                indent = n;
+	            else if (error === -1)
+	                error = offset + i;
+	        }
+	    }
+	    if (error !== -1)
+	        onError(error, 'UNEXPECTED_TOKEN', `Block scalar header includes extra characters: ${source}`);
+	    let hasSpace = false;
+	    let comment = '';
+	    let length = source.length;
+	    for (let i = 1; i < props.length; ++i) {
+	        const token = props[i];
+	        switch (token.type) {
+	            case 'space':
+	                hasSpace = true;
+	            case 'newline':
+	                length += token.source.length;
+	                break;
+	            case 'comment':
+	                if (strict && !hasSpace) {
+	                    const message = 'Comments must be separated from other tokens by white space characters';
+	                    onError(token, 'MISSING_CHAR', message);
+	                }
+	                length += token.source.length;
+	                comment = token.source.substring(1);
+	                break;
+	            case 'error':
+	                onError(token, 'UNEXPECTED_TOKEN', token.message);
+	                length += token.source.length;
+	                break;
+	            default: {
+	                const message = `Unexpected token in block scalar header: ${token.type}`;
+	                onError(token, 'UNEXPECTED_TOKEN', message);
+	                const ts = token.source;
+	                if (ts && typeof ts === 'string')
+	                    length += ts.length;
+	            }
+	        }
+	    }
+	    return { mode, indent, chomp, comment, length };
+	}
+	function splitLines(source) {
+	    const split = source.split(/\n( *)/);
+	    const first = split[0];
+	    const m = first.match(/^( *)/);
+	    const line0 = m?.[1]
+	        ? [m[1], first.slice(m[1].length)]
+	        : ['', first];
+	    const lines = [line0];
+	    for (let i = 1; i < split.length; i += 2)
+	        lines.push([split[i], split[i + 1]]);
+	    return lines;
+	}
+
+	function resolveFlowScalar(scalar, strict, onError) {
+	    const { offset, type, source, end } = scalar;
+	    let _type;
+	    let value;
+	    const _onError = (rel, code, msg) => onError(offset + rel, code, msg);
+	    switch (type) {
+	        case 'scalar':
+	            _type = Scalar.PLAIN;
+	            value = plainValue(source, _onError);
+	            break;
+	        case 'single-quoted-scalar':
+	            _type = Scalar.QUOTE_SINGLE;
+	            value = singleQuotedValue(source, _onError);
+	            break;
+	        case 'double-quoted-scalar':
+	            _type = Scalar.QUOTE_DOUBLE;
+	            value = doubleQuotedValue(source, _onError);
+	            break;
+	        default:
+	            onError(scalar, 'UNEXPECTED_TOKEN', `Expected a flow scalar value, but found: ${type}`);
+	            return {
+	                value: '',
+	                type: null,
+	                comment: '',
+	                range: [offset, offset + source.length, offset + source.length]
+	            };
+	    }
+	    const valueEnd = offset + source.length;
+	    const re = resolveEnd(end, valueEnd, strict, onError);
+	    return {
+	        value,
+	        type: _type,
+	        comment: re.comment,
+	        range: [offset, valueEnd, re.offset]
+	    };
+	}
+	function plainValue(source, onError) {
+	    let badChar = '';
+	    switch (source[0]) {
+	        case '\t':
+	            badChar = 'a tab character';
+	            break;
+	        case ',':
+	            badChar = 'flow indicator character ,';
+	            break;
+	        case '%':
+	            badChar = 'directive indicator character %';
+	            break;
+	        case '|':
+	        case '>': {
+	            badChar = `block scalar indicator ${source[0]}`;
+	            break;
+	        }
+	        case '@':
+	        case '`': {
+	            badChar = `reserved character ${source[0]}`;
+	            break;
+	        }
+	    }
+	    if (badChar)
+	        onError(0, 'BAD_SCALAR_START', `Plain value cannot start with ${badChar}`);
+	    return foldLines(source);
+	}
+	function singleQuotedValue(source, onError) {
+	    if (source[source.length - 1] !== "'" || source.length === 1)
+	        onError(source.length, 'MISSING_CHAR', "Missing closing 'quote");
+	    return foldLines(source.slice(1, -1)).replace(/''/g, "'");
+	}
+	function foldLines(source) {
+	    let first, line;
+	    try {
+	        first = new RegExp('(.*?)(?<![ \t])[ \t]*\r?\n', 'sy');
+	        line = new RegExp('[ \t]*(.*?)(?:(?<![ \t])[ \t]*)?\r?\n', 'sy');
+	    }
+	    catch {
+	        first = /(.*?)[ \t]*\r?\n/sy;
+	        line = /[ \t]*(.*?)[ \t]*\r?\n/sy;
+	    }
+	    let match = first.exec(source);
+	    if (!match)
+	        return source;
+	    let res = match[1];
+	    let sep = ' ';
+	    let pos = first.lastIndex;
+	    line.lastIndex = pos;
+	    while ((match = line.exec(source))) {
+	        if (match[1] === '') {
+	            if (sep === '\n')
+	                res += sep;
+	            else
+	                sep = '\n';
+	        }
+	        else {
+	            res += sep + match[1];
+	            sep = ' ';
+	        }
+	        pos = line.lastIndex;
+	    }
+	    const last = /[ \t]*(.*)/sy;
+	    last.lastIndex = pos;
+	    match = last.exec(source);
+	    return res + sep + (match?.[1] ?? '');
+	}
+	function doubleQuotedValue(source, onError) {
+	    let res = '';
+	    for (let i = 1; i < source.length - 1; ++i) {
+	        const ch = source[i];
+	        if (ch === '\r' && source[i + 1] === '\n')
+	            continue;
+	        if (ch === '\n') {
+	            const { fold, offset } = foldNewline(source, i);
+	            res += fold;
+	            i = offset;
+	        }
+	        else if (ch === '\\') {
+	            let next = source[++i];
+	            const cc = escapeCodes[next];
+	            if (cc)
+	                res += cc;
+	            else if (next === '\n') {
+	                next = source[i + 1];
+	                while (next === ' ' || next === '\t')
+	                    next = source[++i + 1];
+	            }
+	            else if (next === '\r' && source[i + 1] === '\n') {
+	                next = source[++i + 1];
+	                while (next === ' ' || next === '\t')
+	                    next = source[++i + 1];
+	            }
+	            else if (next === 'x' || next === 'u' || next === 'U') {
+	                const length = next === 'x' ? 2 : next === 'u' ? 4 : 8;
+	                res += parseCharCode(source, i + 1, length, onError);
+	                i += length;
+	            }
+	            else {
+	                const raw = source.substr(i - 1, 2);
+	                onError(i - 1, 'BAD_DQ_ESCAPE', `Invalid escape sequence ${raw}`);
+	                res += raw;
+	            }
+	        }
+	        else if (ch === ' ' || ch === '\t') {
+	            const wsStart = i;
+	            let next = source[i + 1];
+	            while (next === ' ' || next === '\t')
+	                next = source[++i + 1];
+	            if (next !== '\n' && !(next === '\r' && source[i + 2] === '\n'))
+	                res += i > wsStart ? source.slice(wsStart, i + 1) : ch;
+	        }
+	        else {
+	            res += ch;
+	        }
+	    }
+	    if (source[source.length - 1] !== '"' || source.length === 1)
+	        onError(source.length, 'MISSING_CHAR', 'Missing closing "quote');
+	    return res;
+	}
+	function foldNewline(source, offset) {
+	    let fold = '';
+	    let ch = source[offset + 1];
+	    while (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
+	        if (ch === '\r' && source[offset + 2] !== '\n')
+	            break;
+	        if (ch === '\n')
+	            fold += '\n';
+	        offset += 1;
+	        ch = source[offset + 1];
+	    }
+	    if (!fold)
+	        fold = ' ';
+	    return { fold, offset };
+	}
+	const escapeCodes = {
+	    '0': '\0',
+	    a: '\x07',
+	    b: '\b',
+	    e: '\x1b',
+	    f: '\f',
+	    n: '\n',
+	    r: '\r',
+	    t: '\t',
+	    v: '\v',
+	    N: '\u0085',
+	    _: '\u00a0',
+	    L: '\u2028',
+	    P: '\u2029',
+	    ' ': ' ',
+	    '"': '"',
+	    '/': '/',
+	    '\\': '\\',
+	    '\t': '\t'
+	};
+	function parseCharCode(source, offset, length, onError) {
+	    const cc = source.substr(offset, length);
+	    const ok = cc.length === length && /^[0-9a-fA-F]+$/.test(cc);
+	    const code = ok ? parseInt(cc, 16) : NaN;
+	    try {
+	        return String.fromCodePoint(code);
+	    }
+	    catch {
+	        const raw = source.substr(offset - 2, length + 2);
+	        onError(offset - 2, 'BAD_DQ_ESCAPE', `Invalid escape sequence ${raw}`);
+	        return raw;
+	    }
+	}
+
+	function composeScalar(ctx, token, tagToken, onError) {
+	    const { value, type, comment, range } = token.type === 'block-scalar'
+	        ? resolveBlockScalar(ctx, token, onError)
+	        : resolveFlowScalar(token, ctx.options.strict, onError);
+	    const tagName = tagToken
+	        ? ctx.directives.tagName(tagToken.source, msg => onError(tagToken, 'TAG_RESOLVE_FAILED', msg))
+	        : null;
+	    let tag;
+	    if (ctx.options.stringKeys && ctx.atKey) {
+	        tag = ctx.schema[SCALAR$1];
+	    }
+	    else if (tagName)
+	        tag = findScalarTagByName(ctx.schema, value, tagName, tagToken, onError);
+	    else if (token.type === 'scalar')
+	        tag = findScalarTagByTest(ctx, value, token, onError);
+	    else
+	        tag = ctx.schema[SCALAR$1];
+	    let scalar;
+	    try {
+	        const res = tag.resolve(value, msg => onError(tagToken ?? token, 'TAG_RESOLVE_FAILED', msg), ctx.options);
+	        scalar = isScalar(res) ? res : new Scalar(res);
+	    }
+	    catch (error) {
+	        const msg = error instanceof Error ? error.message : String(error);
+	        onError(tagToken ?? token, 'TAG_RESOLVE_FAILED', msg);
+	        scalar = new Scalar(value);
+	    }
+	    scalar.range = range;
+	    scalar.source = value;
+	    if (type)
+	        scalar.type = type;
+	    if (tagName)
+	        scalar.tag = tagName;
+	    if (tag.format)
+	        scalar.format = tag.format;
+	    if (comment)
+	        scalar.comment = comment;
+	    return scalar;
+	}
+	function findScalarTagByName(schema, value, tagName, tagToken, onError) {
+	    if (tagName === '!')
+	        return schema[SCALAR$1];
+	    const matchWithTest = [];
+	    for (const tag of schema.tags) {
+	        if (!tag.collection && tag.tag === tagName) {
+	            if (tag.default && tag.test)
+	                matchWithTest.push(tag);
+	            else
+	                return tag;
+	        }
+	    }
+	    for (const tag of matchWithTest)
+	        if (tag.test?.test(value))
+	            return tag;
+	    const kt = schema.knownTags[tagName];
+	    if (kt && !kt.collection) {
+	        schema.tags.push(Object.assign({}, kt, { default: false, test: undefined }));
+	        return kt;
+	    }
+	    onError(tagToken, 'TAG_RESOLVE_FAILED', `Unresolved tag: ${tagName}`, tagName !== 'tag:yaml.org,2002:str');
+	    return schema[SCALAR$1];
+	}
+	function findScalarTagByTest({ atKey, directives, schema }, value, token, onError) {
+	    const tag = schema.tags.find(tag => (tag.default === true || (atKey && tag.default === 'key')) &&
+	        tag.test?.test(value)) || schema[SCALAR$1];
+	    if (schema.compat) {
+	        const compat = schema.compat.find(tag => tag.default && tag.test?.test(value)) ??
+	            schema[SCALAR$1];
+	        if (tag.tag !== compat.tag) {
+	            const ts = directives.tagString(tag.tag);
+	            const cs = directives.tagString(compat.tag);
+	            const msg = `Value may be parsed as either ${ts} or ${cs}`;
+	            onError(token, 'TAG_RESOLVE_FAILED', msg, true);
+	        }
+	    }
+	    return tag;
+	}
+
+	function emptyScalarPosition(offset, before, pos) {
+	    if (before) {
+	        pos ?? (pos = before.length);
+	        for (let i = pos - 1; i >= 0; --i) {
+	            let st = before[i];
+	            switch (st.type) {
+	                case 'space':
+	                case 'comment':
+	                case 'newline':
+	                    offset -= st.source.length;
+	                    continue;
+	            }
+	            st = before[++i];
+	            while (st?.type === 'space') {
+	                offset += st.source.length;
+	                st = before[++i];
+	            }
+	            break;
+	        }
+	    }
+	    return offset;
+	}
+
+	const CN = { composeNode, composeEmptyNode };
+	function composeNode(ctx, token, props, onError) {
+	    const atKey = ctx.atKey;
+	    const { spaceBefore, comment, anchor, tag } = props;
+	    let node;
+	    let isSrcToken = true;
+	    switch (token.type) {
+	        case 'alias':
+	            node = composeAlias(ctx, token, onError);
+	            if (anchor || tag)
+	                onError(token, 'ALIAS_PROPS', 'An alias node must not specify any properties');
+	            break;
+	        case 'scalar':
+	        case 'single-quoted-scalar':
+	        case 'double-quoted-scalar':
+	        case 'block-scalar':
+	            node = composeScalar(ctx, token, tag, onError);
+	            if (anchor)
+	                node.anchor = anchor.source.substring(1);
+	            break;
+	        case 'block-map':
+	        case 'block-seq':
+	        case 'flow-collection':
+	            try {
+	                node = composeCollection(CN, ctx, token, props, onError);
+	                if (anchor)
+	                    node.anchor = anchor.source.substring(1);
+	            }
+	            catch (error) {
+	                const message = error instanceof Error ? error.message : String(error);
+	                onError(token, 'RESOURCE_EXHAUSTION', message);
+	            }
+	            break;
+	        default: {
+	            const message = token.type === 'error'
+	                ? token.message
+	                : `Unsupported token (type: ${token.type})`;
+	            onError(token, 'UNEXPECTED_TOKEN', message);
+	            isSrcToken = false;
+	        }
+	    }
+	    node ?? (node = composeEmptyNode(ctx, token.offset, undefined, null, props, onError));
+	    if (anchor && node.anchor === '')
+	        onError(anchor, 'BAD_ALIAS', 'Anchor cannot be an empty string');
+	    if (atKey &&
+	        ctx.options.stringKeys &&
+	        (!isScalar(node) ||
+	            typeof node.value !== 'string' ||
+	            (node.tag && node.tag !== 'tag:yaml.org,2002:str'))) {
+	        const msg = 'With stringKeys, all keys must be strings';
+	        onError(tag ?? token, 'NON_STRING_KEY', msg);
+	    }
+	    if (spaceBefore)
+	        node.spaceBefore = true;
+	    if (comment) {
+	        if (token.type === 'scalar' && token.source === '')
+	            node.comment = comment;
+	        else
+	            node.commentBefore = comment;
+	    }
+	    if (ctx.options.keepSourceTokens && isSrcToken)
+	        node.srcToken = token;
+	    return node;
+	}
+	function composeEmptyNode(ctx, offset, before, pos, { spaceBefore, comment, anchor, tag, end }, onError) {
+	    const token = {
+	        type: 'scalar',
+	        offset: emptyScalarPosition(offset, before, pos),
+	        indent: -1,
+	        source: ''
+	    };
+	    const node = composeScalar(ctx, token, tag, onError);
+	    if (anchor) {
+	        node.anchor = anchor.source.substring(1);
+	        if (node.anchor === '')
+	            onError(anchor, 'BAD_ALIAS', 'Anchor cannot be an empty string');
+	    }
+	    if (spaceBefore)
+	        node.spaceBefore = true;
+	    if (comment) {
+	        node.comment = comment;
+	        node.range[2] = end;
+	    }
+	    return node;
+	}
+	function composeAlias({ options }, { offset, source, end }, onError) {
+	    const alias = new Alias(source.substring(1));
+	    if (alias.source === '')
+	        onError(offset, 'BAD_ALIAS', 'Alias cannot be an empty string');
+	    if (alias.source.endsWith(':'))
+	        onError(offset + source.length - 1, 'BAD_ALIAS', 'Alias ending in : is ambiguous', true);
+	    const valueEnd = offset + source.length;
+	    const re = resolveEnd(end, valueEnd, options.strict, onError);
+	    alias.range = [offset, valueEnd, re.offset];
+	    if (re.comment)
+	        alias.comment = re.comment;
+	    return alias;
+	}
+
+	function composeDoc(options, directives, { offset, start, value, end }, onError) {
+	    const opts = Object.assign({ _directives: directives }, options);
+	    const doc = new Document(undefined, opts);
+	    const ctx = {
+	        atKey: false,
+	        atRoot: true,
+	        directives: doc.directives,
+	        options: doc.options,
+	        schema: doc.schema
+	    };
+	    const props = resolveProps(start, {
+	        indicator: 'doc-start',
+	        next: value ?? end?.[0],
+	        offset,
+	        onError,
+	        parentIndent: 0,
+	        startOnNewline: true
+	    });
+	    if (props.found) {
+	        doc.directives.docStart = true;
+	        if (value &&
+	            (value.type === 'block-map' || value.type === 'block-seq') &&
+	            !props.hasNewline)
+	            onError(props.end, 'MISSING_CHAR', 'Block collection cannot start on same line with directives-end marker');
+	    }
+	    doc.contents = value
+	        ? composeNode(ctx, value, props, onError)
+	        : composeEmptyNode(ctx, props.end, start, null, props, onError);
+	    const contentEnd = doc.contents.range[2];
+	    const re = resolveEnd(end, contentEnd, false, onError);
+	    if (re.comment)
+	        doc.comment = re.comment;
+	    doc.range = [offset, contentEnd, re.offset];
+	    return doc;
+	}
+
+	function getErrorPos(src) {
+	    if (typeof src === 'number')
+	        return [src, src + 1];
+	    if (Array.isArray(src))
+	        return src.length === 2 ? src : [src[0], src[1]];
+	    const { offset, source } = src;
+	    return [offset, offset + (typeof source === 'string' ? source.length : 1)];
+	}
+	function parsePrelude(prelude) {
+	    let comment = '';
+	    let atComment = false;
+	    let afterEmptyLine = false;
+	    for (let i = 0; i < prelude.length; ++i) {
+	        const source = prelude[i];
+	        switch (source[0]) {
+	            case '#':
+	                comment +=
+	                    (comment === '' ? '' : afterEmptyLine ? '\n\n' : '\n') +
+	                        (source.substring(1) || ' ');
+	                atComment = true;
+	                afterEmptyLine = false;
+	                break;
+	            case '%':
+	                if (prelude[i + 1]?.[0] !== '#')
+	                    i += 1;
+	                atComment = false;
+	                break;
+	            default:
+	                if (!atComment)
+	                    afterEmptyLine = true;
+	                atComment = false;
+	        }
+	    }
+	    return { comment, afterEmptyLine };
+	}
+	class Composer {
+	    constructor(options = {}) {
+	        this.doc = null;
+	        this.atDirectives = false;
+	        this.prelude = [];
+	        this.errors = [];
+	        this.warnings = [];
+	        this.onError = (source, code, message, warning) => {
+	            const pos = getErrorPos(source);
+	            if (warning)
+	                this.warnings.push(new YAMLWarning(pos, code, message));
+	            else
+	                this.errors.push(new YAMLParseError(pos, code, message));
+	        };
+	        this.directives = new Directives({ version: options.version || '1.2' });
+	        this.options = options;
+	    }
+	    decorate(doc, afterDoc) {
+	        const { comment, afterEmptyLine } = parsePrelude(this.prelude);
+	        if (comment) {
+	            const dc = doc.contents;
+	            if (afterDoc) {
+	                doc.comment = doc.comment ? `${doc.comment}\n${comment}` : comment;
+	            }
+	            else if (afterEmptyLine || doc.directives.docStart || !dc) {
+	                doc.commentBefore = comment;
+	            }
+	            else if (isCollection(dc) && !dc.flow && dc.items.length > 0) {
+	                let it = dc.items[0];
+	                if (isPair(it))
+	                    it = it.key;
+	                const cb = it.commentBefore;
+	                it.commentBefore = cb ? `${comment}\n${cb}` : comment;
+	            }
+	            else {
+	                const cb = dc.commentBefore;
+	                dc.commentBefore = cb ? `${comment}\n${cb}` : comment;
+	            }
+	        }
+	        if (afterDoc) {
+	            for (let i = 0; i < this.errors.length; ++i)
+	                doc.errors.push(this.errors[i]);
+	            for (let i = 0; i < this.warnings.length; ++i)
+	                doc.warnings.push(this.warnings[i]);
+	        }
+	        else {
+	            doc.errors = this.errors;
+	            doc.warnings = this.warnings;
+	        }
+	        this.prelude = [];
+	        this.errors = [];
+	        this.warnings = [];
+	    }
+	    streamInfo() {
+	        return {
+	            comment: parsePrelude(this.prelude).comment,
+	            directives: this.directives,
+	            errors: this.errors,
+	            warnings: this.warnings
+	        };
+	    }
+	    *compose(tokens, forceDoc = false, endOffset = -1) {
+	        for (const token of tokens)
+	            yield* this.next(token);
+	        yield* this.end(forceDoc, endOffset);
+	    }
+	    *next(token) {
+	        switch (token.type) {
+	            case 'directive':
+	                this.directives.add(token.source, (offset, message, warning) => {
+	                    const pos = getErrorPos(token);
+	                    pos[0] += offset;
+	                    this.onError(pos, 'BAD_DIRECTIVE', message, warning);
+	                });
+	                this.prelude.push(token.source);
+	                this.atDirectives = true;
+	                break;
+	            case 'document': {
+	                const doc = composeDoc(this.options, this.directives, token, this.onError);
+	                if (this.atDirectives && !doc.directives.docStart)
+	                    this.onError(token, 'MISSING_CHAR', 'Missing directives-end/doc-start indicator line');
+	                this.decorate(doc, false);
+	                if (this.doc)
+	                    yield this.doc;
+	                this.doc = doc;
+	                this.atDirectives = false;
+	                break;
+	            }
+	            case 'byte-order-mark':
+	            case 'space':
+	                break;
+	            case 'comment':
+	            case 'newline':
+	                this.prelude.push(token.source);
+	                break;
+	            case 'error': {
+	                const msg = token.source
+	                    ? `${token.message}: ${JSON.stringify(token.source)}`
+	                    : token.message;
+	                const error = new YAMLParseError(getErrorPos(token), 'UNEXPECTED_TOKEN', msg);
+	                if (this.atDirectives || !this.doc)
+	                    this.errors.push(error);
+	                else
+	                    this.doc.errors.push(error);
+	                break;
+	            }
+	            case 'doc-end': {
+	                if (!this.doc) {
+	                    const msg = 'Unexpected doc-end without preceding document';
+	                    this.errors.push(new YAMLParseError(getErrorPos(token), 'UNEXPECTED_TOKEN', msg));
+	                    break;
+	                }
+	                this.doc.directives.docEnd = true;
+	                const end = resolveEnd(token.end, token.offset + token.source.length, this.doc.options.strict, this.onError);
+	                this.decorate(this.doc, true);
+	                if (end.comment) {
+	                    const dc = this.doc.comment;
+	                    this.doc.comment = dc ? `${dc}\n${end.comment}` : end.comment;
+	                }
+	                this.doc.range[2] = end.offset;
+	                break;
+	            }
+	            default:
+	                this.errors.push(new YAMLParseError(getErrorPos(token), 'UNEXPECTED_TOKEN', `Unsupported token ${token.type}`));
+	        }
+	    }
+	    *end(forceDoc = false, endOffset = -1) {
+	        if (this.doc) {
+	            this.decorate(this.doc, true);
+	            yield this.doc;
+	            this.doc = null;
+	        }
+	        else if (forceDoc) {
+	            const opts = Object.assign({ _directives: this.directives }, this.options);
+	            const doc = new Document(undefined, opts);
+	            if (this.atDirectives)
+	                this.onError(endOffset, 'MISSING_CHAR', 'Missing directives-end indicator line');
+	            doc.range = [0, endOffset, endOffset];
+	            this.decorate(doc, false);
+	            yield doc;
+	        }
+	    }
+	}
+
+	const BOM = '\u{FEFF}';
+	const DOCUMENT = '\x02';
+	const FLOW_END = '\x18';
+	const SCALAR = '\x1f';
+	function tokenType(source) {
+	    switch (source) {
+	        case BOM:
+	            return 'byte-order-mark';
+	        case DOCUMENT:
+	            return 'doc-mode';
+	        case FLOW_END:
+	            return 'flow-error-end';
+	        case SCALAR:
+	            return 'scalar';
+	        case '---':
+	            return 'doc-start';
+	        case '...':
+	            return 'doc-end';
+	        case '':
+	        case '\n':
+	        case '\r\n':
+	            return 'newline';
+	        case '-':
+	            return 'seq-item-ind';
+	        case '?':
+	            return 'explicit-key-ind';
+	        case ':':
+	            return 'map-value-ind';
+	        case '{':
+	            return 'flow-map-start';
+	        case '}':
+	            return 'flow-map-end';
+	        case '[':
+	            return 'flow-seq-start';
+	        case ']':
+	            return 'flow-seq-end';
+	        case ',':
+	            return 'comma';
+	    }
+	    switch (source[0]) {
+	        case ' ':
+	        case '\t':
+	            return 'space';
+	        case '#':
+	            return 'comment';
+	        case '%':
+	            return 'directive-line';
+	        case '*':
+	            return 'alias';
+	        case '&':
+	            return 'anchor';
+	        case '!':
+	            return 'tag';
+	        case "'":
+	            return 'single-quoted-scalar';
+	        case '"':
+	            return 'double-quoted-scalar';
+	        case '|':
+	        case '>':
+	            return 'block-scalar-header';
+	    }
+	    return null;
+	}
+
+	function isEmpty(ch) {
+	    switch (ch) {
+	        case undefined:
+	        case ' ':
+	        case '\n':
+	        case '\r':
+	        case '\t':
+	            return true;
+	        default:
+	            return false;
+	    }
+	}
+	const hexDigits = new Set('0123456789ABCDEFabcdef');
+	const tagChars = new Set("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-#;/?:@&=+$_.!~*'()");
+	const flowIndicatorChars = new Set(',[]{}');
+	const invalidAnchorChars = new Set(' ,[]{}\n\r\t');
+	const isNotAnchorChar = (ch) => !ch || invalidAnchorChars.has(ch);
+	class Lexer {
+	    constructor() {
+	        this.atEnd = false;
+	        this.blockScalarIndent = -1;
+	        this.blockScalarKeep = false;
+	        this.buffer = '';
+	        this.flowKey = false;
+	        this.flowLevel = 0;
+	        this.indentNext = 0;
+	        this.indentValue = 0;
+	        this.lineEndPos = null;
+	        this.next = null;
+	        this.pos = 0;
+	    }
+	    *lex(source, incomplete = false) {
+	        if (source) {
+	            if (typeof source !== 'string')
+	                throw TypeError('source is not a string');
+	            this.buffer = this.buffer ? this.buffer + source : source;
+	            this.lineEndPos = null;
+	        }
+	        this.atEnd = !incomplete;
+	        let next = this.next ?? 'stream';
+	        while (next && (incomplete || this.hasChars(1)))
+	            next = yield* this.parseNext(next);
+	    }
+	    atLineEnd() {
+	        let i = this.pos;
+	        let ch = this.buffer[i];
+	        while (ch === ' ' || ch === '\t')
+	            ch = this.buffer[++i];
+	        if (!ch || ch === '#' || ch === '\n')
+	            return true;
+	        if (ch === '\r')
+	            return this.buffer[i + 1] === '\n';
+	        return false;
+	    }
+	    charAt(n) {
+	        return this.buffer[this.pos + n];
+	    }
+	    continueScalar(offset) {
+	        let ch = this.buffer[offset];
+	        if (this.indentNext > 0) {
+	            let indent = 0;
+	            while (ch === ' ')
+	                ch = this.buffer[++indent + offset];
+	            if (ch === '\r') {
+	                const next = this.buffer[indent + offset + 1];
+	                if (next === '\n' || (!next && !this.atEnd))
+	                    return offset + indent + 1;
+	            }
+	            return ch === '\n' || indent >= this.indentNext || (!ch && !this.atEnd)
+	                ? offset + indent
+	                : -1;
+	        }
+	        if (ch === '-' || ch === '.') {
+	            const dt = this.buffer.substr(offset, 3);
+	            if ((dt === '---' || dt === '...') && isEmpty(this.buffer[offset + 3]))
+	                return -1;
+	        }
+	        return offset;
+	    }
+	    getLine() {
+	        let end = this.lineEndPos;
+	        if (typeof end !== 'number' || (end !== -1 && end < this.pos)) {
+	            end = this.buffer.indexOf('\n', this.pos);
+	            this.lineEndPos = end;
+	        }
+	        if (end === -1)
+	            return this.atEnd ? this.buffer.substring(this.pos) : null;
+	        if (this.buffer[end - 1] === '\r')
+	            end -= 1;
+	        return this.buffer.substring(this.pos, end);
+	    }
+	    hasChars(n) {
+	        return this.pos + n <= this.buffer.length;
+	    }
+	    setNext(state) {
+	        this.buffer = this.buffer.substring(this.pos);
+	        this.pos = 0;
+	        this.lineEndPos = null;
+	        this.next = state;
+	        return null;
+	    }
+	    peek(n) {
+	        return this.buffer.substr(this.pos, n);
+	    }
+	    *parseNext(next) {
+	        switch (next) {
+	            case 'stream':
+	                return yield* this.parseStream();
+	            case 'line-start':
+	                return yield* this.parseLineStart();
+	            case 'block-start':
+	                return yield* this.parseBlockStart();
+	            case 'doc':
+	                return yield* this.parseDocument();
+	            case 'flow':
+	                return yield* this.parseFlowCollection();
+	            case 'quoted-scalar':
+	                return yield* this.parseQuotedScalar();
+	            case 'block-scalar':
+	                return yield* this.parseBlockScalar();
+	            case 'plain-scalar':
+	                return yield* this.parsePlainScalar();
+	        }
+	    }
+	    *parseStream() {
+	        let line = this.getLine();
+	        if (line === null)
+	            return this.setNext('stream');
+	        if (line[0] === BOM) {
+	            yield* this.pushCount(1);
+	            line = line.substring(1);
+	        }
+	        if (line[0] === '%') {
+	            let dirEnd = line.length;
+	            let cs = line.indexOf('#');
+	            while (cs !== -1) {
+	                const ch = line[cs - 1];
+	                if (ch === ' ' || ch === '\t') {
+	                    dirEnd = cs - 1;
+	                    break;
+	                }
+	                else {
+	                    cs = line.indexOf('#', cs + 1);
+	                }
+	            }
+	            while (true) {
+	                const ch = line[dirEnd - 1];
+	                if (ch === ' ' || ch === '\t')
+	                    dirEnd -= 1;
+	                else
+	                    break;
+	            }
+	            const n = (yield* this.pushCount(dirEnd)) + (yield* this.pushSpaces(true));
+	            yield* this.pushCount(line.length - n);
+	            this.pushNewline();
+	            return 'stream';
+	        }
+	        if (this.atLineEnd()) {
+	            const sp = yield* this.pushSpaces(true);
+	            yield* this.pushCount(line.length - sp);
+	            yield* this.pushNewline();
+	            return 'stream';
+	        }
+	        yield DOCUMENT;
+	        return yield* this.parseLineStart();
+	    }
+	    *parseLineStart() {
+	        const ch = this.charAt(0);
+	        if (!ch && !this.atEnd)
+	            return this.setNext('line-start');
+	        if (ch === '-' || ch === '.') {
+	            if (!this.atEnd && !this.hasChars(4))
+	                return this.setNext('line-start');
+	            const s = this.peek(3);
+	            if ((s === '---' || s === '...') && isEmpty(this.charAt(3))) {
+	                yield* this.pushCount(3);
+	                this.indentValue = 0;
+	                this.indentNext = 0;
+	                return s === '---' ? 'doc' : 'stream';
+	            }
+	        }
+	        this.indentValue = yield* this.pushSpaces(false);
+	        if (this.indentNext > this.indentValue && !isEmpty(this.charAt(1)))
+	            this.indentNext = this.indentValue;
+	        return yield* this.parseBlockStart();
+	    }
+	    *parseBlockStart() {
+	        const [ch0, ch1] = this.peek(2);
+	        if (!ch1 && !this.atEnd)
+	            return this.setNext('block-start');
+	        if ((ch0 === '-' || ch0 === '?' || ch0 === ':') && isEmpty(ch1)) {
+	            const n = (yield* this.pushCount(1)) + (yield* this.pushSpaces(true));
+	            this.indentNext = this.indentValue + 1;
+	            this.indentValue += n;
+	            return 'block-start';
+	        }
+	        return 'doc';
+	    }
+	    *parseDocument() {
+	        yield* this.pushSpaces(true);
+	        const line = this.getLine();
+	        if (line === null)
+	            return this.setNext('doc');
+	        let n = yield* this.pushIndicators();
+	        switch (line[n]) {
+	            case '#':
+	                yield* this.pushCount(line.length - n);
+	            case undefined:
+	                yield* this.pushNewline();
+	                return yield* this.parseLineStart();
+	            case '{':
+	            case '[':
+	                yield* this.pushCount(1);
+	                this.flowKey = false;
+	                this.flowLevel = 1;
+	                return 'flow';
+	            case '}':
+	            case ']':
+	                yield* this.pushCount(1);
+	                return 'doc';
+	            case '*':
+	                yield* this.pushUntil(isNotAnchorChar);
+	                return 'doc';
+	            case '"':
+	            case "'":
+	                return yield* this.parseQuotedScalar();
+	            case '|':
+	            case '>':
+	                n += yield* this.parseBlockScalarHeader();
+	                n += yield* this.pushSpaces(true);
+	                yield* this.pushCount(line.length - n);
+	                yield* this.pushNewline();
+	                return yield* this.parseBlockScalar();
+	            default:
+	                return yield* this.parsePlainScalar();
+	        }
+	    }
+	    *parseFlowCollection() {
+	        let nl, sp;
+	        let indent = -1;
+	        do {
+	            nl = yield* this.pushNewline();
+	            if (nl > 0) {
+	                sp = yield* this.pushSpaces(false);
+	                this.indentValue = indent = sp;
+	            }
+	            else {
+	                sp = 0;
+	            }
+	            sp += yield* this.pushSpaces(true);
+	        } while (nl + sp > 0);
+	        const line = this.getLine();
+	        if (line === null)
+	            return this.setNext('flow');
+	        if ((indent !== -1 && indent < this.indentNext && line[0] !== '#') ||
+	            (indent === 0 &&
+	                (line.startsWith('---') || line.startsWith('...')) &&
+	                isEmpty(line[3]))) {
+	            const atFlowEndMarker = indent === this.indentNext - 1 &&
+	                this.flowLevel === 1 &&
+	                (line[0] === ']' || line[0] === '}');
+	            if (!atFlowEndMarker) {
+	                this.flowLevel = 0;
+	                yield FLOW_END;
+	                return yield* this.parseLineStart();
+	            }
+	        }
+	        let n = 0;
+	        while (line[n] === ',') {
+	            n += yield* this.pushCount(1);
+	            n += yield* this.pushSpaces(true);
+	            this.flowKey = false;
+	        }
+	        n += yield* this.pushIndicators();
+	        switch (line[n]) {
+	            case undefined:
+	                return 'flow';
+	            case '#':
+	                yield* this.pushCount(line.length - n);
+	                return 'flow';
+	            case '{':
+	            case '[':
+	                yield* this.pushCount(1);
+	                this.flowKey = false;
+	                this.flowLevel += 1;
+	                return 'flow';
+	            case '}':
+	            case ']':
+	                yield* this.pushCount(1);
+	                this.flowKey = true;
+	                this.flowLevel -= 1;
+	                return this.flowLevel ? 'flow' : 'doc';
+	            case '*':
+	                yield* this.pushUntil(isNotAnchorChar);
+	                return 'flow';
+	            case '"':
+	            case "'":
+	                this.flowKey = true;
+	                return yield* this.parseQuotedScalar();
+	            case ':': {
+	                const next = this.charAt(1);
+	                if (this.flowKey || isEmpty(next) || next === ',') {
+	                    this.flowKey = false;
+	                    yield* this.pushCount(1);
+	                    yield* this.pushSpaces(true);
+	                    return 'flow';
+	                }
+	            }
+	            default:
+	                this.flowKey = false;
+	                return yield* this.parsePlainScalar();
+	        }
+	    }
+	    *parseQuotedScalar() {
+	        const quote = this.charAt(0);
+	        let end = this.buffer.indexOf(quote, this.pos + 1);
+	        if (quote === "'") {
+	            while (end !== -1 && this.buffer[end + 1] === "'")
+	                end = this.buffer.indexOf("'", end + 2);
+	        }
+	        else {
+	            while (end !== -1) {
+	                let n = 0;
+	                while (this.buffer[end - 1 - n] === '\\')
+	                    n += 1;
+	                if (n % 2 === 0)
+	                    break;
+	                end = this.buffer.indexOf('"', end + 1);
+	            }
+	        }
+	        const qb = this.buffer.substring(0, end);
+	        let nl = qb.indexOf('\n', this.pos);
+	        if (nl !== -1) {
+	            while (nl !== -1) {
+	                const cs = this.continueScalar(nl + 1);
+	                if (cs === -1)
+	                    break;
+	                nl = qb.indexOf('\n', cs);
+	            }
+	            if (nl !== -1) {
+	                end = nl - (qb[nl - 1] === '\r' ? 2 : 1);
+	            }
+	        }
+	        if (end === -1) {
+	            if (!this.atEnd)
+	                return this.setNext('quoted-scalar');
+	            end = this.buffer.length;
+	        }
+	        yield* this.pushToIndex(end + 1, false);
+	        return this.flowLevel ? 'flow' : 'doc';
+	    }
+	    *parseBlockScalarHeader() {
+	        this.blockScalarIndent = -1;
+	        this.blockScalarKeep = false;
+	        let i = this.pos;
+	        while (true) {
+	            const ch = this.buffer[++i];
+	            if (ch === '+')
+	                this.blockScalarKeep = true;
+	            else if (ch > '0' && ch <= '9')
+	                this.blockScalarIndent = Number(ch) - 1;
+	            else if (ch !== '-')
+	                break;
+	        }
+	        return yield* this.pushUntil(ch => isEmpty(ch) || ch === '#');
+	    }
+	    *parseBlockScalar() {
+	        let nl = this.pos - 1;
+	        let indent = 0;
+	        let ch;
+	        loop: for (let i = this.pos; (ch = this.buffer[i]); ++i) {
+	            switch (ch) {
+	                case ' ':
+	                    indent += 1;
+	                    break;
+	                case '\n':
+	                    nl = i;
+	                    indent = 0;
+	                    break;
+	                case '\r': {
+	                    const next = this.buffer[i + 1];
+	                    if (!next && !this.atEnd)
+	                        return this.setNext('block-scalar');
+	                    if (next === '\n')
+	                        break;
+	                }
+	                default:
+	                    break loop;
+	            }
+	        }
+	        if (!ch && !this.atEnd)
+	            return this.setNext('block-scalar');
+	        if (indent >= this.indentNext) {
+	            if (this.blockScalarIndent === -1)
+	                this.indentNext = indent;
+	            else {
+	                this.indentNext =
+	                    this.blockScalarIndent + (this.indentNext === 0 ? 1 : this.indentNext);
+	            }
+	            do {
+	                const cs = this.continueScalar(nl + 1);
+	                if (cs === -1)
+	                    break;
+	                nl = this.buffer.indexOf('\n', cs);
+	            } while (nl !== -1);
+	            if (nl === -1) {
+	                if (!this.atEnd)
+	                    return this.setNext('block-scalar');
+	                nl = this.buffer.length;
+	            }
+	        }
+	        let i = nl + 1;
+	        ch = this.buffer[i];
+	        while (ch === ' ')
+	            ch = this.buffer[++i];
+	        if (ch === '\t') {
+	            while (ch === '\t' || ch === ' ' || ch === '\r' || ch === '\n')
+	                ch = this.buffer[++i];
+	            nl = i - 1;
+	        }
+	        else if (!this.blockScalarKeep) {
+	            do {
+	                let i = nl - 1;
+	                let ch = this.buffer[i];
+	                if (ch === '\r')
+	                    ch = this.buffer[--i];
+	                const lastChar = i;
+	                while (ch === ' ')
+	                    ch = this.buffer[--i];
+	                if (ch === '\n' && i >= this.pos && i + 1 + indent > lastChar)
+	                    nl = i;
+	                else
+	                    break;
+	            } while (true);
+	        }
+	        yield SCALAR;
+	        yield* this.pushToIndex(nl + 1, true);
+	        return yield* this.parseLineStart();
+	    }
+	    *parsePlainScalar() {
+	        const inFlow = this.flowLevel > 0;
+	        let end = this.pos - 1;
+	        let i = this.pos - 1;
+	        let ch;
+	        while ((ch = this.buffer[++i])) {
+	            if (ch === ':') {
+	                const next = this.buffer[i + 1];
+	                if (isEmpty(next) || (inFlow && flowIndicatorChars.has(next)))
+	                    break;
+	                end = i;
+	            }
+	            else if (isEmpty(ch)) {
+	                let next = this.buffer[i + 1];
+	                if (ch === '\r') {
+	                    if (next === '\n') {
+	                        i += 1;
+	                        ch = '\n';
+	                        next = this.buffer[i + 1];
+	                    }
+	                    else
+	                        end = i;
+	                }
+	                if (next === '#' || (inFlow && flowIndicatorChars.has(next)))
+	                    break;
+	                if (ch === '\n') {
+	                    const cs = this.continueScalar(i + 1);
+	                    if (cs === -1)
+	                        break;
+	                    i = Math.max(i, cs - 2);
+	                }
+	            }
+	            else {
+	                if (inFlow && flowIndicatorChars.has(ch))
+	                    break;
+	                end = i;
+	            }
+	        }
+	        if (!ch && !this.atEnd)
+	            return this.setNext('plain-scalar');
+	        yield SCALAR;
+	        yield* this.pushToIndex(end + 1, true);
+	        return inFlow ? 'flow' : 'doc';
+	    }
+	    *pushCount(n) {
+	        if (n > 0) {
+	            yield this.buffer.substr(this.pos, n);
+	            this.pos += n;
+	            return n;
+	        }
+	        return 0;
+	    }
+	    *pushToIndex(i, allowEmpty) {
+	        const s = this.buffer.slice(this.pos, i);
+	        if (s) {
+	            yield s;
+	            this.pos += s.length;
+	            return s.length;
+	        }
+	        else if (allowEmpty)
+	            yield '';
+	        return 0;
+	    }
+	    *pushIndicators() {
+	        let n = 0;
+	        loop: while (true) {
+	            switch (this.charAt(0)) {
+	                case '!':
+	                    n += yield* this.pushTag();
+	                    n += yield* this.pushSpaces(true);
+	                    continue loop;
+	                case '&':
+	                    n += yield* this.pushUntil(isNotAnchorChar);
+	                    n += yield* this.pushSpaces(true);
+	                    continue loop;
+	                case '-':
+	                case '?':
+	                case ':': {
+	                    const inFlow = this.flowLevel > 0;
+	                    const ch1 = this.charAt(1);
+	                    if (isEmpty(ch1) || (inFlow && flowIndicatorChars.has(ch1))) {
+	                        if (!inFlow)
+	                            this.indentNext = this.indentValue + 1;
+	                        else if (this.flowKey)
+	                            this.flowKey = false;
+	                        n += yield* this.pushCount(1);
+	                        n += yield* this.pushSpaces(true);
+	                        continue loop;
+	                    }
+	                }
+	            }
+	            break loop;
+	        }
+	        return n;
+	    }
+	    *pushTag() {
+	        if (this.charAt(1) === '<') {
+	            let i = this.pos + 2;
+	            let ch = this.buffer[i];
+	            while (!isEmpty(ch) && ch !== '>')
+	                ch = this.buffer[++i];
+	            return yield* this.pushToIndex(ch === '>' ? i + 1 : i, false);
+	        }
+	        else {
+	            let i = this.pos + 1;
+	            let ch = this.buffer[i];
+	            while (ch) {
+	                if (tagChars.has(ch))
+	                    ch = this.buffer[++i];
+	                else if (ch === '%' &&
+	                    hexDigits.has(this.buffer[i + 1]) &&
+	                    hexDigits.has(this.buffer[i + 2])) {
+	                    ch = this.buffer[(i += 3)];
+	                }
+	                else
+	                    break;
+	            }
+	            return yield* this.pushToIndex(i, false);
+	        }
+	    }
+	    *pushNewline() {
+	        const ch = this.buffer[this.pos];
+	        if (ch === '\n')
+	            return yield* this.pushCount(1);
+	        else if (ch === '\r' && this.charAt(1) === '\n')
+	            return yield* this.pushCount(2);
+	        else
+	            return 0;
+	    }
+	    *pushSpaces(allowTabs) {
+	        let i = this.pos - 1;
+	        let ch;
+	        do {
+	            ch = this.buffer[++i];
+	        } while (ch === ' ' || (allowTabs && ch === '\t'));
+	        const n = i - this.pos;
+	        if (n > 0) {
+	            yield this.buffer.substr(this.pos, n);
+	            this.pos = i;
+	        }
+	        return n;
+	    }
+	    *pushUntil(test) {
+	        let i = this.pos;
+	        let ch = this.buffer[i];
+	        while (!test(ch))
+	            ch = this.buffer[++i];
+	        return yield* this.pushToIndex(i, false);
+	    }
+	}
+
+	class LineCounter {
+	    constructor() {
+	        this.lineStarts = [];
+	        this.addNewLine = (offset) => this.lineStarts.push(offset);
+	        this.linePos = (offset) => {
+	            let low = 0;
+	            let high = this.lineStarts.length;
+	            while (low < high) {
+	                const mid = (low + high) >> 1;
+	                if (this.lineStarts[mid] < offset)
+	                    low = mid + 1;
+	                else
+	                    high = mid;
+	            }
+	            if (this.lineStarts[low] === offset)
+	                return { line: low + 1, col: 1 };
+	            if (low === 0)
+	                return { line: 0, col: offset };
+	            const start = this.lineStarts[low - 1];
+	            return { line: low, col: offset - start + 1 };
+	        };
+	    }
+	}
+
+	function includesToken(list, type) {
+	    for (let i = 0; i < list.length; ++i)
+	        if (list[i].type === type)
+	            return true;
+	    return false;
+	}
+	function findNonEmptyIndex(list) {
+	    for (let i = 0; i < list.length; ++i) {
+	        switch (list[i].type) {
+	            case 'space':
+	            case 'comment':
+	            case 'newline':
+	                break;
+	            default:
+	                return i;
+	        }
+	    }
+	    return -1;
+	}
+	function isFlowToken(token) {
+	    switch (token?.type) {
+	        case 'alias':
+	        case 'scalar':
+	        case 'single-quoted-scalar':
+	        case 'double-quoted-scalar':
+	        case 'flow-collection':
+	            return true;
+	        default:
+	            return false;
+	    }
+	}
+	function getPrevProps(parent) {
+	    switch (parent.type) {
+	        case 'document':
+	            return parent.start;
+	        case 'block-map': {
+	            const it = parent.items[parent.items.length - 1];
+	            return it.sep ?? it.start;
+	        }
+	        case 'block-seq':
+	            return parent.items[parent.items.length - 1].start;
+	        default:
+	            return [];
+	    }
+	}
+	function getFirstKeyStartProps(prev) {
+	    if (prev.length === 0)
+	        return [];
+	    let i = prev.length;
+	    loop: while (--i >= 0) {
+	        switch (prev[i].type) {
+	            case 'doc-start':
+	            case 'explicit-key-ind':
+	            case 'map-value-ind':
+	            case 'seq-item-ind':
+	            case 'newline':
+	                break loop;
+	        }
+	    }
+	    while (prev[++i]?.type === 'space') {
+	    }
+	    return prev.splice(i, prev.length);
+	}
+	function arrayPushArray(target, source) {
+	    if (source.length < 1e5)
+	        Array.prototype.push.apply(target, source);
+	    else
+	        for (let i = 0; i < source.length; ++i)
+	            target.push(source[i]);
+	}
+	function fixFlowSeqItems(fc) {
+	    if (fc.start.type === 'flow-seq-start') {
+	        for (const it of fc.items) {
+	            if (it.sep &&
+	                !it.value &&
+	                !includesToken(it.start, 'explicit-key-ind') &&
+	                !includesToken(it.sep, 'map-value-ind')) {
+	                if (it.key)
+	                    it.value = it.key;
+	                delete it.key;
+	                if (isFlowToken(it.value)) {
+	                    if (it.value.end)
+	                        arrayPushArray(it.value.end, it.sep);
+	                    else
+	                        it.value.end = it.sep;
+	                }
+	                else
+	                    arrayPushArray(it.start, it.sep);
+	                delete it.sep;
+	            }
+	        }
+	    }
+	}
+	class Parser {
+	    constructor(onNewLine) {
+	        this.atNewLine = true;
+	        this.atScalar = false;
+	        this.indent = 0;
+	        this.offset = 0;
+	        this.onKeyLine = false;
+	        this.stack = [];
+	        this.source = '';
+	        this.type = '';
+	        this.lexer = new Lexer();
+	        this.onNewLine = onNewLine;
+	    }
+	    *parse(source, incomplete = false) {
+	        if (this.onNewLine && this.offset === 0)
+	            this.onNewLine(0);
+	        for (const lexeme of this.lexer.lex(source, incomplete))
+	            yield* this.next(lexeme);
+	        if (!incomplete)
+	            yield* this.end();
+	    }
+	    *next(source) {
+	        this.source = source;
+	        if (this.atScalar) {
+	            this.atScalar = false;
+	            yield* this.step();
+	            this.offset += source.length;
+	            return;
+	        }
+	        const type = tokenType(source);
+	        if (!type) {
+	            const message = `Not a YAML token: ${source}`;
+	            yield* this.pop({ type: 'error', offset: this.offset, message, source });
+	            this.offset += source.length;
+	        }
+	        else if (type === 'scalar') {
+	            this.atNewLine = false;
+	            this.atScalar = true;
+	            this.type = 'scalar';
+	        }
+	        else {
+	            this.type = type;
+	            yield* this.step();
+	            switch (type) {
+	                case 'newline':
+	                    this.atNewLine = true;
+	                    this.indent = 0;
+	                    if (this.onNewLine)
+	                        this.onNewLine(this.offset + source.length);
+	                    break;
+	                case 'space':
+	                    if (this.atNewLine && source[0] === ' ')
+	                        this.indent += source.length;
+	                    break;
+	                case 'explicit-key-ind':
+	                case 'map-value-ind':
+	                case 'seq-item-ind':
+	                    if (this.atNewLine)
+	                        this.indent += source.length;
+	                    break;
+	                case 'doc-mode':
+	                case 'flow-error-end':
+	                    return;
+	                default:
+	                    this.atNewLine = false;
+	            }
+	            this.offset += source.length;
+	        }
+	    }
+	    *end() {
+	        while (this.stack.length > 0)
+	            yield* this.pop();
+	    }
+	    get sourceToken() {
+	        const st = {
+	            type: this.type,
+	            offset: this.offset,
+	            indent: this.indent,
+	            source: this.source
+	        };
+	        return st;
+	    }
+	    *step() {
+	        const top = this.peek(1);
+	        if (this.type === 'doc-end' && top?.type !== 'doc-end') {
+	            while (this.stack.length > 0)
+	                yield* this.pop();
+	            this.stack.push({
+	                type: 'doc-end',
+	                offset: this.offset,
+	                source: this.source
+	            });
+	            return;
+	        }
+	        if (!top)
+	            return yield* this.stream();
+	        switch (top.type) {
+	            case 'document':
+	                return yield* this.document(top);
+	            case 'alias':
+	            case 'scalar':
+	            case 'single-quoted-scalar':
+	            case 'double-quoted-scalar':
+	                return yield* this.scalar(top);
+	            case 'block-scalar':
+	                return yield* this.blockScalar(top);
+	            case 'block-map':
+	                return yield* this.blockMap(top);
+	            case 'block-seq':
+	                return yield* this.blockSequence(top);
+	            case 'flow-collection':
+	                return yield* this.flowCollection(top);
+	            case 'doc-end':
+	                return yield* this.documentEnd(top);
+	        }
+	        yield* this.pop();
+	    }
+	    peek(n) {
+	        return this.stack[this.stack.length - n];
+	    }
+	    *pop(error) {
+	        const token = error ?? this.stack.pop();
+	        if (!token) {
+	            const message = 'Tried to pop an empty stack';
+	            yield { type: 'error', offset: this.offset, source: '', message };
+	        }
+	        else if (this.stack.length === 0) {
+	            yield token;
+	        }
+	        else {
+	            const top = this.peek(1);
+	            if (token.type === 'block-scalar') {
+	                token.indent = 'indent' in top ? top.indent : 0;
+	            }
+	            else if (token.type === 'flow-collection' && top.type === 'document') {
+	                token.indent = 0;
+	            }
+	            if (token.type === 'flow-collection')
+	                fixFlowSeqItems(token);
+	            switch (top.type) {
+	                case 'document':
+	                    top.value = token;
+	                    break;
+	                case 'block-scalar':
+	                    top.props.push(token);
+	                    break;
+	                case 'block-map': {
+	                    const it = top.items[top.items.length - 1];
+	                    if (it.value) {
+	                        top.items.push({ start: [], key: token, sep: [] });
+	                        this.onKeyLine = true;
+	                        return;
+	                    }
+	                    else if (it.sep) {
+	                        it.value = token;
+	                    }
+	                    else {
+	                        Object.assign(it, { key: token, sep: [] });
+	                        this.onKeyLine = !it.explicitKey;
+	                        return;
+	                    }
+	                    break;
+	                }
+	                case 'block-seq': {
+	                    const it = top.items[top.items.length - 1];
+	                    if (it.value)
+	                        top.items.push({ start: [], value: token });
+	                    else
+	                        it.value = token;
+	                    break;
+	                }
+	                case 'flow-collection': {
+	                    const it = top.items[top.items.length - 1];
+	                    if (!it || it.value)
+	                        top.items.push({ start: [], key: token, sep: [] });
+	                    else if (it.sep)
+	                        it.value = token;
+	                    else
+	                        Object.assign(it, { key: token, sep: [] });
+	                    return;
+	                }
+	                default:
+	                    yield* this.pop();
+	                    yield* this.pop(token);
+	            }
+	            if ((top.type === 'document' ||
+	                top.type === 'block-map' ||
+	                top.type === 'block-seq') &&
+	                (token.type === 'block-map' || token.type === 'block-seq')) {
+	                const last = token.items[token.items.length - 1];
+	                if (last &&
+	                    !last.sep &&
+	                    !last.value &&
+	                    last.start.length > 0 &&
+	                    findNonEmptyIndex(last.start) === -1 &&
+	                    (token.indent === 0 ||
+	                        last.start.every(st => st.type !== 'comment' || st.indent < token.indent))) {
+	                    if (top.type === 'document')
+	                        top.end = last.start;
+	                    else
+	                        top.items.push({ start: last.start });
+	                    token.items.splice(-1, 1);
+	                }
+	            }
+	        }
+	    }
+	    *stream() {
+	        switch (this.type) {
+	            case 'directive-line':
+	                yield { type: 'directive', offset: this.offset, source: this.source };
+	                return;
+	            case 'byte-order-mark':
+	            case 'space':
+	            case 'comment':
+	            case 'newline':
+	                yield this.sourceToken;
+	                return;
+	            case 'doc-mode':
+	            case 'doc-start': {
+	                const doc = {
+	                    type: 'document',
+	                    offset: this.offset,
+	                    start: []
+	                };
+	                if (this.type === 'doc-start')
+	                    doc.start.push(this.sourceToken);
+	                this.stack.push(doc);
+	                return;
+	            }
+	        }
+	        yield {
+	            type: 'error',
+	            offset: this.offset,
+	            message: `Unexpected ${this.type} token in YAML stream`,
+	            source: this.source
+	        };
+	    }
+	    *document(doc) {
+	        if (doc.value)
+	            return yield* this.lineEnd(doc);
+	        switch (this.type) {
+	            case 'doc-start': {
+	                if (findNonEmptyIndex(doc.start) !== -1) {
+	                    yield* this.pop();
+	                    yield* this.step();
+	                }
+	                else
+	                    doc.start.push(this.sourceToken);
+	                return;
+	            }
+	            case 'anchor':
+	            case 'tag':
+	            case 'space':
+	            case 'comment':
+	            case 'newline':
+	                doc.start.push(this.sourceToken);
+	                return;
+	        }
+	        const bv = this.startBlockValue(doc);
+	        if (bv)
+	            this.stack.push(bv);
+	        else {
+	            yield {
+	                type: 'error',
+	                offset: this.offset,
+	                message: `Unexpected ${this.type} token in YAML document`,
+	                source: this.source
+	            };
+	        }
+	    }
+	    *scalar(scalar) {
+	        if (this.type === 'map-value-ind') {
+	            const prev = getPrevProps(this.peek(2));
+	            const start = getFirstKeyStartProps(prev);
+	            let sep;
+	            if (scalar.end) {
+	                sep = scalar.end;
+	                sep.push(this.sourceToken);
+	                delete scalar.end;
+	            }
+	            else
+	                sep = [this.sourceToken];
+	            const map = {
+	                type: 'block-map',
+	                offset: scalar.offset,
+	                indent: scalar.indent,
+	                items: [{ start, key: scalar, sep }]
+	            };
+	            this.onKeyLine = true;
+	            this.stack[this.stack.length - 1] = map;
+	        }
+	        else
+	            yield* this.lineEnd(scalar);
+	    }
+	    *blockScalar(scalar) {
+	        switch (this.type) {
+	            case 'space':
+	            case 'comment':
+	            case 'newline':
+	                scalar.props.push(this.sourceToken);
+	                return;
+	            case 'scalar':
+	                scalar.source = this.source;
+	                this.atNewLine = true;
+	                this.indent = 0;
+	                if (this.onNewLine) {
+	                    let nl = this.source.indexOf('\n') + 1;
+	                    while (nl !== 0) {
+	                        this.onNewLine(this.offset + nl);
+	                        nl = this.source.indexOf('\n', nl) + 1;
+	                    }
+	                }
+	                yield* this.pop();
+	                break;
+	            default:
+	                yield* this.pop();
+	                yield* this.step();
+	        }
+	    }
+	    *blockMap(map) {
+	        const it = map.items[map.items.length - 1];
+	        switch (this.type) {
+	            case 'newline':
+	                this.onKeyLine = false;
+	                if (it.value) {
+	                    const end = 'end' in it.value ? it.value.end : undefined;
+	                    const last = Array.isArray(end) ? end[end.length - 1] : undefined;
+	                    if (last?.type === 'comment')
+	                        end?.push(this.sourceToken);
+	                    else
+	                        map.items.push({ start: [this.sourceToken] });
+	                }
+	                else if (it.sep) {
+	                    it.sep.push(this.sourceToken);
+	                }
+	                else {
+	                    it.start.push(this.sourceToken);
+	                }
+	                return;
+	            case 'space':
+	            case 'comment':
+	                if (it.value) {
+	                    map.items.push({ start: [this.sourceToken] });
+	                }
+	                else if (it.sep) {
+	                    it.sep.push(this.sourceToken);
+	                }
+	                else {
+	                    if (this.atIndentedComment(it.start, map.indent)) {
+	                        const prev = map.items[map.items.length - 2];
+	                        const end = prev?.value?.end;
+	                        if (Array.isArray(end)) {
+	                            arrayPushArray(end, it.start);
+	                            end.push(this.sourceToken);
+	                            map.items.pop();
+	                            return;
+	                        }
+	                    }
+	                    it.start.push(this.sourceToken);
+	                }
+	                return;
+	        }
+	        if (this.indent >= map.indent) {
+	            const atMapIndent = !this.onKeyLine && this.indent === map.indent;
+	            const atNextItem = atMapIndent &&
+	                (it.sep || it.explicitKey) &&
+	                this.type !== 'seq-item-ind';
+	            let start = [];
+	            if (atNextItem && it.sep && !it.value) {
+	                const nl = [];
+	                for (let i = 0; i < it.sep.length; ++i) {
+	                    const st = it.sep[i];
+	                    switch (st.type) {
+	                        case 'newline':
+	                            nl.push(i);
+	                            break;
+	                        case 'space':
+	                            break;
+	                        case 'comment':
+	                            if (st.indent > map.indent)
+	                                nl.length = 0;
+	                            break;
+	                        default:
+	                            nl.length = 0;
+	                    }
+	                }
+	                if (nl.length >= 2)
+	                    start = it.sep.splice(nl[1]);
+	            }
+	            switch (this.type) {
+	                case 'anchor':
+	                case 'tag':
+	                    if (atNextItem || it.value) {
+	                        start.push(this.sourceToken);
+	                        map.items.push({ start });
+	                        this.onKeyLine = true;
+	                    }
+	                    else if (it.sep) {
+	                        it.sep.push(this.sourceToken);
+	                    }
+	                    else {
+	                        it.start.push(this.sourceToken);
+	                    }
+	                    return;
+	                case 'explicit-key-ind':
+	                    if (!it.sep && !it.explicitKey) {
+	                        it.start.push(this.sourceToken);
+	                        it.explicitKey = true;
+	                    }
+	                    else if (atNextItem || it.value) {
+	                        start.push(this.sourceToken);
+	                        map.items.push({ start, explicitKey: true });
+	                    }
+	                    else {
+	                        this.stack.push({
+	                            type: 'block-map',
+	                            offset: this.offset,
+	                            indent: this.indent,
+	                            items: [{ start: [this.sourceToken], explicitKey: true }]
+	                        });
+	                    }
+	                    this.onKeyLine = true;
+	                    return;
+	                case 'map-value-ind':
+	                    if (it.explicitKey) {
+	                        if (!it.sep) {
+	                            if (includesToken(it.start, 'newline')) {
+	                                Object.assign(it, { key: null, sep: [this.sourceToken] });
+	                            }
+	                            else {
+	                                const start = getFirstKeyStartProps(it.start);
+	                                this.stack.push({
+	                                    type: 'block-map',
+	                                    offset: this.offset,
+	                                    indent: this.indent,
+	                                    items: [{ start, key: null, sep: [this.sourceToken] }]
+	                                });
+	                            }
+	                        }
+	                        else if (it.value) {
+	                            map.items.push({ start: [], key: null, sep: [this.sourceToken] });
+	                        }
+	                        else if (includesToken(it.sep, 'map-value-ind')) {
+	                            this.stack.push({
+	                                type: 'block-map',
+	                                offset: this.offset,
+	                                indent: this.indent,
+	                                items: [{ start, key: null, sep: [this.sourceToken] }]
+	                            });
+	                        }
+	                        else if (isFlowToken(it.key) &&
+	                            !includesToken(it.sep, 'newline')) {
+	                            const start = getFirstKeyStartProps(it.start);
+	                            const key = it.key;
+	                            const sep = it.sep;
+	                            sep.push(this.sourceToken);
+	                            delete it.key;
+	                            delete it.sep;
+	                            this.stack.push({
+	                                type: 'block-map',
+	                                offset: this.offset,
+	                                indent: this.indent,
+	                                items: [{ start, key, sep }]
+	                            });
+	                        }
+	                        else if (start.length > 0) {
+	                            it.sep = it.sep.concat(start, this.sourceToken);
+	                        }
+	                        else {
+	                            it.sep.push(this.sourceToken);
+	                        }
+	                    }
+	                    else {
+	                        if (!it.sep) {
+	                            Object.assign(it, { key: null, sep: [this.sourceToken] });
+	                        }
+	                        else if (it.value || atNextItem) {
+	                            map.items.push({ start, key: null, sep: [this.sourceToken] });
+	                        }
+	                        else if (includesToken(it.sep, 'map-value-ind')) {
+	                            this.stack.push({
+	                                type: 'block-map',
+	                                offset: this.offset,
+	                                indent: this.indent,
+	                                items: [{ start: [], key: null, sep: [this.sourceToken] }]
+	                            });
+	                        }
+	                        else {
+	                            it.sep.push(this.sourceToken);
+	                        }
+	                    }
+	                    this.onKeyLine = true;
+	                    return;
+	                case 'alias':
+	                case 'scalar':
+	                case 'single-quoted-scalar':
+	                case 'double-quoted-scalar': {
+	                    const fs = this.flowScalar(this.type);
+	                    if (atNextItem || it.value) {
+	                        map.items.push({ start, key: fs, sep: [] });
+	                        this.onKeyLine = true;
+	                    }
+	                    else if (it.sep) {
+	                        this.stack.push(fs);
+	                    }
+	                    else {
+	                        Object.assign(it, { key: fs, sep: [] });
+	                        this.onKeyLine = true;
+	                    }
+	                    return;
+	                }
+	                default: {
+	                    const bv = this.startBlockValue(map);
+	                    if (bv) {
+	                        if (bv.type === 'block-seq') {
+	                            if (!it.explicitKey &&
+	                                it.sep &&
+	                                !includesToken(it.sep, 'newline')) {
+	                                yield* this.pop({
+	                                    type: 'error',
+	                                    offset: this.offset,
+	                                    message: 'Unexpected block-seq-ind on same line with key',
+	                                    source: this.source
+	                                });
+	                                return;
+	                            }
+	                        }
+	                        else if (atMapIndent) {
+	                            map.items.push({ start });
+	                        }
+	                        this.stack.push(bv);
+	                        return;
+	                    }
+	                }
+	            }
+	        }
+	        yield* this.pop();
+	        yield* this.step();
+	    }
+	    *blockSequence(seq) {
+	        const it = seq.items[seq.items.length - 1];
+	        switch (this.type) {
+	            case 'newline':
+	                if (it.value) {
+	                    const end = 'end' in it.value ? it.value.end : undefined;
+	                    const last = Array.isArray(end) ? end[end.length - 1] : undefined;
+	                    if (last?.type === 'comment')
+	                        end?.push(this.sourceToken);
+	                    else
+	                        seq.items.push({ start: [this.sourceToken] });
+	                }
+	                else
+	                    it.start.push(this.sourceToken);
+	                return;
+	            case 'space':
+	            case 'comment':
+	                if (it.value)
+	                    seq.items.push({ start: [this.sourceToken] });
+	                else {
+	                    if (this.atIndentedComment(it.start, seq.indent)) {
+	                        const prev = seq.items[seq.items.length - 2];
+	                        const end = prev?.value?.end;
+	                        if (Array.isArray(end)) {
+	                            arrayPushArray(end, it.start);
+	                            end.push(this.sourceToken);
+	                            seq.items.pop();
+	                            return;
+	                        }
+	                    }
+	                    it.start.push(this.sourceToken);
+	                }
+	                return;
+	            case 'anchor':
+	            case 'tag':
+	                if (it.value || this.indent <= seq.indent)
+	                    break;
+	                it.start.push(this.sourceToken);
+	                return;
+	            case 'seq-item-ind':
+	                if (this.indent !== seq.indent)
+	                    break;
+	                if (it.value || includesToken(it.start, 'seq-item-ind'))
+	                    seq.items.push({ start: [this.sourceToken] });
+	                else
+	                    it.start.push(this.sourceToken);
+	                return;
+	        }
+	        if (this.indent > seq.indent) {
+	            const bv = this.startBlockValue(seq);
+	            if (bv) {
+	                this.stack.push(bv);
+	                return;
+	            }
+	        }
+	        yield* this.pop();
+	        yield* this.step();
+	    }
+	    *flowCollection(fc) {
+	        const it = fc.items[fc.items.length - 1];
+	        if (this.type === 'flow-error-end') {
+	            let top;
+	            do {
+	                yield* this.pop();
+	                top = this.peek(1);
+	            } while (top?.type === 'flow-collection');
+	        }
+	        else if (fc.end.length === 0) {
+	            switch (this.type) {
+	                case 'comma':
+	                case 'explicit-key-ind':
+	                    if (!it || it.sep)
+	                        fc.items.push({ start: [this.sourceToken] });
+	                    else
+	                        it.start.push(this.sourceToken);
+	                    return;
+	                case 'map-value-ind':
+	                    if (!it || it.value)
+	                        fc.items.push({ start: [], key: null, sep: [this.sourceToken] });
+	                    else if (it.sep)
+	                        it.sep.push(this.sourceToken);
+	                    else
+	                        Object.assign(it, { key: null, sep: [this.sourceToken] });
+	                    return;
+	                case 'space':
+	                case 'comment':
+	                case 'newline':
+	                case 'anchor':
+	                case 'tag':
+	                    if (!it || it.value)
+	                        fc.items.push({ start: [this.sourceToken] });
+	                    else if (it.sep)
+	                        it.sep.push(this.sourceToken);
+	                    else
+	                        it.start.push(this.sourceToken);
+	                    return;
+	                case 'alias':
+	                case 'scalar':
+	                case 'single-quoted-scalar':
+	                case 'double-quoted-scalar': {
+	                    const fs = this.flowScalar(this.type);
+	                    if (!it || it.value)
+	                        fc.items.push({ start: [], key: fs, sep: [] });
+	                    else if (it.sep)
+	                        this.stack.push(fs);
+	                    else
+	                        Object.assign(it, { key: fs, sep: [] });
+	                    return;
+	                }
+	                case 'flow-map-end':
+	                case 'flow-seq-end':
+	                    fc.end.push(this.sourceToken);
+	                    return;
+	            }
+	            const bv = this.startBlockValue(fc);
+	            if (bv)
+	                this.stack.push(bv);
+	            else {
+	                yield* this.pop();
+	                yield* this.step();
+	            }
+	        }
+	        else {
+	            const parent = this.peek(2);
+	            if (parent.type === 'block-map' &&
+	                ((this.type === 'map-value-ind' && parent.indent === fc.indent) ||
+	                    (this.type === 'newline' &&
+	                        !parent.items[parent.items.length - 1].sep))) {
+	                yield* this.pop();
+	                yield* this.step();
+	            }
+	            else if (this.type === 'map-value-ind' &&
+	                parent.type !== 'flow-collection') {
+	                const prev = getPrevProps(parent);
+	                const start = getFirstKeyStartProps(prev);
+	                fixFlowSeqItems(fc);
+	                const sep = fc.end.splice(1, fc.end.length);
+	                sep.push(this.sourceToken);
+	                const map = {
+	                    type: 'block-map',
+	                    offset: fc.offset,
+	                    indent: fc.indent,
+	                    items: [{ start, key: fc, sep }]
+	                };
+	                this.onKeyLine = true;
+	                this.stack[this.stack.length - 1] = map;
+	            }
+	            else {
+	                yield* this.lineEnd(fc);
+	            }
+	        }
+	    }
+	    flowScalar(type) {
+	        if (this.onNewLine) {
+	            let nl = this.source.indexOf('\n') + 1;
+	            while (nl !== 0) {
+	                this.onNewLine(this.offset + nl);
+	                nl = this.source.indexOf('\n', nl) + 1;
+	            }
+	        }
+	        return {
+	            type,
+	            offset: this.offset,
+	            indent: this.indent,
+	            source: this.source
+	        };
+	    }
+	    startBlockValue(parent) {
+	        switch (this.type) {
+	            case 'alias':
+	            case 'scalar':
+	            case 'single-quoted-scalar':
+	            case 'double-quoted-scalar':
+	                return this.flowScalar(this.type);
+	            case 'block-scalar-header':
+	                return {
+	                    type: 'block-scalar',
+	                    offset: this.offset,
+	                    indent: this.indent,
+	                    props: [this.sourceToken],
+	                    source: ''
+	                };
+	            case 'flow-map-start':
+	            case 'flow-seq-start':
+	                return {
+	                    type: 'flow-collection',
+	                    offset: this.offset,
+	                    indent: this.indent,
+	                    start: this.sourceToken,
+	                    items: [],
+	                    end: []
+	                };
+	            case 'seq-item-ind':
+	                return {
+	                    type: 'block-seq',
+	                    offset: this.offset,
+	                    indent: this.indent,
+	                    items: [{ start: [this.sourceToken] }]
+	                };
+	            case 'explicit-key-ind': {
+	                this.onKeyLine = true;
+	                const prev = getPrevProps(parent);
+	                const start = getFirstKeyStartProps(prev);
+	                start.push(this.sourceToken);
+	                return {
+	                    type: 'block-map',
+	                    offset: this.offset,
+	                    indent: this.indent,
+	                    items: [{ start, explicitKey: true }]
+	                };
+	            }
+	            case 'map-value-ind': {
+	                this.onKeyLine = true;
+	                const prev = getPrevProps(parent);
+	                const start = getFirstKeyStartProps(prev);
+	                return {
+	                    type: 'block-map',
+	                    offset: this.offset,
+	                    indent: this.indent,
+	                    items: [{ start, key: null, sep: [this.sourceToken] }]
+	                };
+	            }
+	        }
+	        return null;
+	    }
+	    atIndentedComment(start, indent) {
+	        if (this.type !== 'comment')
+	            return false;
+	        if (this.indent <= indent)
+	            return false;
+	        return start.every(st => st.type === 'newline' || st.type === 'space');
+	    }
+	    *documentEnd(docEnd) {
+	        if (this.type !== 'doc-mode') {
+	            if (docEnd.end)
+	                docEnd.end.push(this.sourceToken);
+	            else
+	                docEnd.end = [this.sourceToken];
+	            if (this.type === 'newline')
+	                yield* this.pop();
+	        }
+	    }
+	    *lineEnd(token) {
+	        switch (this.type) {
+	            case 'comma':
+	            case 'doc-start':
+	            case 'doc-end':
+	            case 'flow-seq-end':
+	            case 'flow-map-end':
+	            case 'map-value-ind':
+	                yield* this.pop();
+	                yield* this.step();
+	                break;
+	            case 'newline':
+	                this.onKeyLine = false;
+	            case 'space':
+	            case 'comment':
+	            default:
+	                if (token.end)
+	                    token.end.push(this.sourceToken);
+	                else
+	                    token.end = [this.sourceToken];
+	                if (this.type === 'newline')
+	                    yield* this.pop();
+	        }
+	    }
+	}
+
+	function parseOptions(options) {
+	    const prettyErrors = options.prettyErrors !== false;
+	    const lineCounter = options.lineCounter || (prettyErrors && new LineCounter()) || null;
+	    return { lineCounter, prettyErrors };
+	}
+	function parseDocument(source, options = {}) {
+	    const { lineCounter, prettyErrors } = parseOptions(options);
+	    const parser = new Parser(lineCounter?.addNewLine);
+	    const composer = new Composer(options);
+	    let doc = null;
+	    for (const _doc of composer.compose(parser.parse(source), true, source.length)) {
+	        if (!doc)
+	            doc = _doc;
+	        else if (doc.options.logLevel !== 'silent') {
+	            doc.errors.push(new YAMLParseError(_doc.range.slice(0, 2), 'MULTIPLE_DOCS', 'Source contains multiple documents; please use YAML.parseAllDocuments()'));
+	            break;
+	        }
+	    }
+	    if (prettyErrors && lineCounter) {
+	        doc.errors.forEach(prettifyError(source, lineCounter));
+	        doc.warnings.forEach(prettifyError(source, lineCounter));
+	    }
+	    return doc;
+	}
+	function parse(src, reviver, options) {
+	    let _reviver = undefined;
+	    const doc = parseDocument(src, options);
+	    if (!doc)
+	        return null;
+	    doc.warnings.forEach(warning => warn(doc.options.logLevel, warning));
+	    if (doc.errors.length > 0) {
+	        if (doc.options.logLevel !== 'silent')
+	            throw doc.errors[0];
+	        else
+	            doc.errors = [];
+	    }
+	    return doc.toJS(Object.assign({ reviver: _reviver }, options));
+	}
 	function stringify(value, replacer, options) {
 	    let _replacer = null;
 	    if (Array.isArray(replacer)) {
@@ -16653,7 +18741,7 @@ ${fallback_html}`;
 	function plainText(children) {
 	  return children.map(child => child.value ?? plainText(child.children || [])).join("")
 	}
-	function inlineFrom(value, nodes) {
+	function inlineFrom$1(value, nodes) {
 	  const content = value.content || "";
 	  const marks = [...(value.marks || [])].sort((left, right) => {
 	    return left.start_offset - right.start_offset
@@ -16677,32 +18765,32 @@ ${fallback_html}`;
 	  const trailing = content.slice(cursor);
 	  return trailing ? [...children, { type: "text", value: trailing }] : children
 	}
-	function blockFrom(id, nodes) {
+	function blockFrom$1(id, nodes) {
 	  const node = nodes[id];
 	  if (!node) return null
 	  if (node.type === "paragraph") {
-	    return { type: "paragraph", children: inlineFrom(node.content, nodes) }
+	    return { type: "paragraph", children: inlineFrom$1(node.content, nodes) }
 	  }
 	  if (node.type === "heading") {
-	    return { type: "heading", depth: node.level || 2, children: inlineFrom(node.content, nodes) }
+	    return { type: "heading", depth: node.level || 2, children: inlineFrom$1(node.content, nodes) }
 	  }
 	  if (node.type === "list") {
 	    const children = node.items.nodes.map(itemId => ({
 	      type: "listItem",
 	      spread: false,
-	      children: [{ type: "paragraph", children: inlineFrom(nodes[itemId].content, nodes) }]
+	      children: [{ type: "paragraph", children: inlineFrom$1(nodes[itemId].content, nodes) }]
 	    }));
 	    return { type: "list", ordered: Boolean(node.ordered), spread: false, children }
 	  }
 	  if (node.type === "blockquote") {
-	    return { type: "blockquote", children: node.body.nodes.map(child => blockFrom(child, nodes)) }
+	    return { type: "blockquote", children: node.body.nodes.map(child => blockFrom$1(child, nodes)) }
 	  }
 	  if (node.type === "alert") {
 	    const marker = {
 	      type: "html",
 	      value: `[!${(node.variant || "note").toUpperCase()}]`
 	    };
-	    const body = node.body.nodes.map(child => blockFrom(child, nodes));
+	    const body = node.body.nodes.map(child => blockFrom$1(child, nodes));
 	    return { type: "blockquote", children: [marker, ...body] }
 	  }
 	  if (node.type === "code_block") {
@@ -16724,7 +18812,7 @@ ${fallback_html}`;
 	function serialize(doc, frontmatter = { title: null, properties: {} }) {
 	  const page = doc.nodes[doc.document_id];
 	  const children = page.body.nodes
-	    .map(id => blockFrom(id, doc.nodes))
+	    .map(id => blockFrom$1(id, doc.nodes))
 	    .filter(Boolean);
 	  const body = toMarkdown({ type: "root", children }, {
 	    extensions: [gfmStrikethroughToMarkdown(), highlightMarkToMarkdown],
@@ -16742,92 +18830,38 @@ ${fallback_html}`;
 	  return yaml + heading + body
 	}
 
-	function scalarFrom(element) {
-	  const text = element.textContent.trim();
-	  if (text === "true") return true
-	  if (text === "false") return false
-	  if (text === "null") return null
-	  if (text && !Number.isNaN(Number(text))) return Number(text)
-	  return text
-	}
-	function dateFrom(element) {
-	  const datetime = element.getAttribute("datetime");
-	  if (!datetime) return element.textContent.trim()
-	  if (datetime.endsWith("T00:00:00.000Z")) return datetime.slice(0, "0000-00-00".length)
-	  return datetime
-	}
-	function valueFrom(element) {
-	  const list = element.querySelector(":scope > ul");
-	  if (list) return [...list.children].map(item => valueFrom(item))
-	  const nested = element.querySelector(":scope > dl");
-	  if (nested) return objectFrom(nested)
-	  const time = element.querySelector(":scope > time");
-	  if (time) return dateFrom(time)
-	  const link = element.querySelector(":scope > a[href]");
-	  if (link) return link.getAttribute("href")
-	  return scalarFrom(element)
-	}
-	function objectFrom(list) {
-	  const terms = [...list.children];
-	  return terms.reduce((accumulated, node, index) => {
-	    if (node.tagName !== "DT") return accumulated
-	    const value = terms[index + 1];
-	    if (!value || value.tagName !== "DD") return accumulated
-	    return { ...accumulated, [node.textContent.trim()]: valueFrom(value) }
-	  }, {})
-	}
-	function readFrontmatter(main) {
-	  const children = [...main.children];
-	  const heading = children.find(child => child.tagName === "H1");
-	  const date = children.find(child => child.matches('time[itemprop="date"]'));
-	  const image = children.find(child => child.matches('picture[itemprop="image"]'));
-	  const description = children.find(child => child.matches('p[itemprop="description"]'));
-	  const known = {
-	    ...(date ? { date: dateFrom(date) } : {}),
-	    ...(image ? { image: image.getAttribute("data-original") } : {}),
-	    ...(description ? { description: description.textContent.trim() } : {})
-	  };
-	  const generic = children
-	    .filter(child => child.tagName === "DL")
-	    .reduce((accumulated, list) => ({ ...accumulated, ...objectFrom(list) }), {});
-	  return {
-	    title: heading ? heading.textContent.trim() : null,
-	    properties: { ...known, ...generic }
-	  }
-	}
-
 	const divider = ($$anchor) => {
-		var span = root$1();
+		var span = root$e();
 
 		append($$anchor, span);
 	};
 
-	var root$1 = from_html(`<span class="divider svelte-zh32e5" aria-hidden="true"></span>`);
-	var root_1 = from_html(`<span class="select-parent-group svelte-zh32e5"><button title="Select parent (Esc)" class="svelte-zh32e5">&#8598;</button> <!></span>`);
-	var root_2 = from_html(`<button title="Bold">B</button>`);
-	var root_3 = from_html(`<button title="Italic">I</button>`);
-	var root_4 = from_html(`<button title="Code">&lt;&gt;</button>`);
-	var root_5 = from_html(`<button title="Highlight">H</button>`);
-	var root_6 = from_html(`<button title="Strikethrough">S</button>`);
-	var root_7 = from_html(`<!> <!> <!> <!> <!>`, 1);
-	var root_8 = from_html(`<button title="Insert (↵)" class="svelte-zh32e5"><svg class="toolbar-icon svelte-zh32e5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M7.5 3V12M3 7.5H12" stroke="currentColor" stroke-linecap="square"></path></svg></button>`);
-	var root_9 = from_html(`<button title="Delete backwards (⌫)" class="svelte-zh32e5">&#9003;</button>`);
-	var root_10 = from_html(`<button title="Undo" class="svelte-zh32e5">&#8630;</button> <button title="Redo" class="svelte-zh32e5">&#8631;</button>`, 1);
-	var root_11 = from_html(`<!> <!>`, 1);
-	var root_12 = from_html(`<div><div class="toolbar-scroller svelte-zh32e5"><!></div></div>`);
-	var root_13 = from_html(`<!> <!> <!>`, 1);
+	var root$e = from_html(`<span class="divider svelte-zh32e5" aria-hidden="true"></span>`);
+	var root_1$2 = from_html(`<span class="select-parent-group svelte-zh32e5"><button title="Select parent (Esc)" class="svelte-zh32e5">&#8598;</button> <!></span>`);
+	var root_2$1 = from_html(`<button title="Bold">B</button>`);
+	var root_3$1 = from_html(`<button title="Italic">I</button>`);
+	var root_4$1 = from_html(`<button title="Code">&lt;&gt;</button>`);
+	var root_5$1 = from_html(`<button title="Highlight">H</button>`);
+	var root_6$1 = from_html(`<button title="Strikethrough">S</button>`);
+	var root_7$1 = from_html(`<!> <!> <!> <!> <!>`, 1);
+	var root_8$1 = from_html(`<button title="Insert (↵)" class="svelte-zh32e5"><svg class="toolbar-icon svelte-zh32e5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M7.5 3V12M3 7.5H12" stroke="currentColor" stroke-linecap="square"></path></svg></button>`);
+	var root_9$1 = from_html(`<button title="Delete backwards (⌫)" class="svelte-zh32e5">&#9003;</button>`);
+	var root_10$1 = from_html(`<button title="Undo" class="svelte-zh32e5">&#8630;</button> <button title="Redo" class="svelte-zh32e5">&#8631;</button>`, 1);
+	var root_11$1 = from_html(`<!> <!>`, 1);
+	var root_12$1 = from_html(`<div><div class="toolbar-scroller svelte-zh32e5"><!></div></div>`);
+	var root_13$1 = from_html(`<!> <!> <!>`, 1);
 	var root_14 = from_html(`<div class="contextual-tools svelte-zh32e5"><!> <!></div>`);
 	var root_15 = from_html(`<div class="contextual-tools svelte-zh32e5"><!></div> <!> <!>`, 1);
 	var root_16 = from_html(`<!> <div class="editor-toolbar bottom-toolbar svelte-zh32e5"><div class="toolbar-scroller svelte-zh32e5"><!> <div><!> <button class="toggle-editable svelte-zh32e5"> </button></div></div></div>`, 1);
 
-	const $$css = {
+	const $$css$3 = {
 		hash: 'svelte-zh32e5',
 		code: '\n	/* Both toolbars share one unified pill container: a single surface,\n	   border and shadow instead of per-button bubbles. The pill itself does\n	   not scroll — scrolling lives in the unpadded inner scroller below, so\n	   pinned (sticky) tools sit at the exact scrollport edge and scrolled\n	   content can never leak into the pill\'s padding or rounded corners. */.editor-toolbar.svelte-zh32e5 {display:flex;align-items:center;width:fit-content;padding:4px;color:var(--foreground, #111);background:var(--background, #fff);border:1px solid oklch(from var(--foreground, #111) l c h / 0.12);border-radius:9999px;box-shadow:0 1px 2px oklch(0% 0 0 / 0.12),\n			0 4px 16px oklch(0% 0 0 / 0.08);z-index:50;pointer-events:auto;max-width:calc(100vw - 2 * var(--s-4, 16px));}.toolbar-scroller.svelte-zh32e5 {display:flex;flex-direction:row;align-items:center;\n		/* No gap between buttons: adjacent hitboxes tile the toolbar without\n		   dead zones, the visual spacing comes from the icon padding inside\n		   each 36px button. */gap:0;min-width:0;overflow-x:auto;scrollbar-width:none;border-radius:9999px;}.bottom-toolbar.svelte-zh32e5 {position:fixed;bottom:max(var(--s-4, 16px), env(safe-area-inset-bottom, 0px));right:var(--s-4, 16px);}\n\n	@position-try --stay-in-viewport {position-area:none;position-anchor:none;top:calc(var(--top-toolbar-safe-area, 0px) + var(--s-2, 8px));right:auto;bottom:auto;left:auto;\n	}\n\n	/* Multi-node selection: when above the first node overflows, sit below\n	   the last selected node instead (--last-selected-node-anchor). */\n	@position-try --below-last-node {position-anchor:var(--last-selected-node-anchor);bottom:auto;top:anchor(bottom);margin-bottom:0;margin-top:var(--s-2, 8px);\n	}.floating-toolbar.svelte-zh32e5 {position:fixed;bottom:anchor(top);justify-self:anchor-center;margin-bottom:var(--s-2, 8px);position-visibility:always;position-try-fallbacks:--stay-in-viewport, flip-block;z-index:60;}.floating-toolbar.has-last-node-anchor.svelte-zh32e5 {position-try-fallbacks:--below-last-node, --stay-in-viewport, flip-block;}\n\n	/* The floating toolbar targets precise mouse interactions. On touch\n	   devices all tools live in the single bottom toolbar instead, so the\n	   virtual keyboard handling only has one element to care about. */\n	@media (hover: none), (pointer: coarse) {.floating-toolbar.svelte-zh32e5 {display:none;}.bottom-toolbar.svelte-zh32e5 {right:auto;left:50%;transform:translateX(-50%) translateY(calc(-1 * var(--keyboard-inset, 0px)));}\n	}.contextual-tools.svelte-zh32e5 {display:contents;}\n\n	@media (hover: hover) and (pointer: fine) {.bottom-toolbar.svelte-zh32e5 .contextual-tools:where(.svelte-zh32e5) {display:none;}\n	}.editor-toolbar.svelte-zh32e5 .save-group:where(.svelte-zh32e5) {position:sticky;right:0;z-index:1;display:flex;align-items:center;flex:none;background:var(--background, #fff);}.editor-toolbar.svelte-zh32e5 .save-group.has-leading-tools:where(.svelte-zh32e5) {margin-inline-start:4px;}.editor-toolbar.svelte-zh32e5 .save-group:where(.svelte-zh32e5) .divider:where(.svelte-zh32e5) {margin-inline-start:0;}.editor-toolbar.svelte-zh32e5 .divider:where(.svelte-zh32e5) {flex:none;width:1px;height:20px;margin-inline:4px;background:oklch(from var(--foreground, #111) l c h / 0.15);}.editor-toolbar.svelte-zh32e5 button:where(.svelte-zh32e5):not(.toggle-editable) {display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:36px;height:36px;min-width:36px;min-height:36px;aspect-ratio:1 / 1;padding:0;flex:0 0 36px;border:none;border-radius:50%;background:transparent;color:var(--foreground, #111);font-size:15px;font-weight:600;text-wrap:nowrap;cursor:pointer;pointer-events:auto;transition:background 150ms,\n			transform 150ms;outline:1px solid transparent;position:relative;}\n\n	@media (hover: hover) {.editor-toolbar.svelte-zh32e5 button:where(.svelte-zh32e5):not(.toggle-editable):hover:not(:disabled) {background:oklch(from var(--foreground, #111) l c h / 0.06);}\n	}.editor-toolbar.svelte-zh32e5 button:where(.svelte-zh32e5):not(.toggle-editable):active:not(:disabled) {background:oklch(from var(--foreground, #111) l c h / 0.09);transform:translateY(1px) scale(0.95);}.editor-toolbar.svelte-zh32e5 button:where(.svelte-zh32e5):not(.toggle-editable):focus-visible {outline:none;box-shadow:inset 0 0 0 1px var(--editing, #2563eb);}.editor-toolbar.svelte-zh32e5 button:where(.svelte-zh32e5):not(.toggle-editable):disabled {background:transparent;cursor:not-allowed;color:oklch(from var(--foreground, #111) l c h / 0.3);}.editor-toolbar.svelte-zh32e5 button:not(.toggle-editable).active:where(.svelte-zh32e5) {color:var(--editing, #2563eb);background:var(--editing-muted, oklch(0.6 0.15 250 / 0.12));}\n\n	/* Select-parent pinned to the left edge of the scroller, mirroring the\n	   keyboard tools on the right. */.editor-toolbar.svelte-zh32e5 .select-parent-group:where(.svelte-zh32e5) {position:sticky;left:0;z-index:1;display:flex;align-items:center;flex:none;background:var(--background, #fff);margin-inline-end:4px;}.editor-toolbar.svelte-zh32e5 .select-parent-group:where(.svelte-zh32e5) .divider:where(.svelte-zh32e5) {margin-inline-end:0;}.toggle-editable.svelte-zh32e5 {display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;height:36px;min-height:36px;flex:none;padding:0 1rem;border:none;border-radius:9999px;background:transparent;color:var(--editing, #2563eb);font-size:0.875rem;font-weight:600;line-height:1;text-decoration:none;cursor:pointer;pointer-events:auto;transition:background 150ms,\n			transform 150ms;outline:1px solid transparent;}\n\n	@media (hover: hover) {.toggle-editable.svelte-zh32e5:hover {background:oklch(from var(--editing, #2563eb) l c h / 0.08);}\n	}.toggle-editable.svelte-zh32e5:active {background:oklch(from var(--editing, #2563eb) l c h / 0.12);transform:translateY(1px) scale(0.97);}.toggle-editable.svelte-zh32e5:focus-visible {outline:none;box-shadow:inset 0 0 0 1px var(--editing, #2563eb);}.editor-toolbar.svelte-zh32e5 .toolbar-icon:where(.svelte-zh32e5) {width:var(--icon-size, 18px);height:var(--icon-size, 18px);color:currentColor;}'
 	};
 
 	function Toolbar($$anchor, $$props) {
 		push($$props, true);
-		append_styles$1($$anchor, $$css);
+		append_styles$1($$anchor, $$css$3);
 
 		const // Trimmed down from Svedit's demo Toolbar: no Icon/NodeNavigator components
 		// (this project doesn't have them), and only the commands this project's
@@ -16867,7 +18901,7 @@ ${fallback_html}`;
 
 			{
 				var consequent = ($$anchor) => {
-					var span_1 = root_1();
+					var span_1 = root_1$2();
 					var button = child(span_1);
 					var node_1 = sibling(button, 2);
 
@@ -16885,12 +18919,12 @@ ${fallback_html}`;
 		};
 
 		const mark_buttons = ($$anchor) => {
-			var fragment_1 = root_7();
+			var fragment_1 = root_7$1();
 			var node_2 = first_child(fragment_1);
 
 			{
 				var consequent_1 = ($$anchor) => {
-					var button_1 = root_2();
+					var button_1 = root_2$1();
 					let classes;
 
 					template_effect(() => {
@@ -16915,7 +18949,7 @@ ${fallback_html}`;
 
 			{
 				var consequent_2 = ($$anchor) => {
-					var button_2 = root_3();
+					var button_2 = root_3$1();
 					let classes_1;
 
 					template_effect(() => {
@@ -16940,7 +18974,7 @@ ${fallback_html}`;
 
 			{
 				var consequent_3 = ($$anchor) => {
-					var button_3 = root_4();
+					var button_3 = root_4$1();
 					let classes_2;
 
 					template_effect(() => {
@@ -16965,7 +18999,7 @@ ${fallback_html}`;
 
 			{
 				var consequent_4 = ($$anchor) => {
-					var button_4 = root_5();
+					var button_4 = root_5$1();
 					let classes_3;
 
 					template_effect(() => {
@@ -16990,7 +19024,7 @@ ${fallback_html}`;
 
 			{
 				var consequent_5 = ($$anchor) => {
-					var button_5 = root_6();
+					var button_5 = root_6$1();
 					let classes_4;
 
 					template_effect(() => {
@@ -17015,7 +19049,7 @@ ${fallback_html}`;
 		};
 
 		const insert_button = ($$anchor) => {
-			var button_6 = root_8();
+			var button_6 = root_8$1();
 
 			template_effect(() => button_6.disabled = !get$1(can_insert_default));
 			delegated('mousedown', button_6, insert_default_node);
@@ -17023,7 +19057,7 @@ ${fallback_html}`;
 		};
 
 		const delete_button = ($$anchor) => {
-			var button_7 = root_9();
+			var button_7 = root_9$1();
 
 			template_effect(() => button_7.disabled = !get$1(can_delete));
 			delegated('mousedown', button_7, delete_node_selection);
@@ -17031,7 +19065,7 @@ ${fallback_html}`;
 		};
 
 		const history_buttons = ($$anchor) => {
-			var fragment_2 = root_10();
+			var fragment_2 = root_10$1();
 			var button_8 = first_child(fragment_2);
 			var button_9 = sibling(button_8, 2);
 
@@ -17251,14 +19285,14 @@ ${fallback_html}`;
 				var node_8 = first_child(fragment_4);
 
 				key(node_8, () => get$1(floating_anchor).name, ($$anchor) => {
-					var div = root_12();
+					var div = root_12$1();
 					let classes_5;
 					var div_1 = child(div);
 					var node_9 = child(div_1);
 
 					{
 						var consequent_6 = ($$anchor) => {
-							var fragment_5 = root_11();
+							var fragment_5 = root_11$1();
 							var node_10 = first_child(fragment_5);
 
 							select_parent_button(node_10);
@@ -17270,7 +19304,7 @@ ${fallback_html}`;
 						};
 
 						var consequent_7 = ($$anchor) => {
-							var fragment_6 = root_11();
+							var fragment_6 = root_11$1();
 							var node_12 = first_child(fragment_6);
 
 							select_parent_button(node_12);
@@ -17321,7 +19355,7 @@ ${fallback_html}`;
 
 				{
 					var consequent_9 = ($$anchor) => {
-						var fragment_8 = root_13();
+						var fragment_8 = root_13$1();
 						var node_16 = first_child(fragment_8);
 
 						select_parent_button(node_16);
@@ -17342,7 +19376,7 @@ ${fallback_html}`;
 
 						{
 							var consequent_10 = ($$anchor) => {
-								var fragment_10 = root_11();
+								var fragment_10 = root_11$1();
 								var node_20 = first_child(fragment_10);
 
 								insert_button(node_20);
@@ -17362,7 +19396,7 @@ ${fallback_html}`;
 					};
 
 					var consequent_12 = ($$anchor) => {
-						var fragment_11 = root_11();
+						var fragment_11 = root_11$1();
 						var node_22 = first_child(fragment_11);
 
 						select_parent_button(node_22);
@@ -17440,64 +19474,41 @@ ${fallback_html}`;
 
 	delegate(['mousedown', 'click']);
 
-	var root = from_html(`<!> <!>`, 1);
+	var root$d = from_html(`<!> <!>`, 1);
 
 	function Editor($$anchor, $$props) {
-		push($$props, false);
+		push($$props, true);
 
-		let element = prop($$props, 'element', 8);
-		let session = mutable_source(null);
-		let unrecognised = [];
-		let editable = mutable_source(false);
-
-		// The title and frontmatter live in <main>, alongside section#content
-		// rather than inside it. They round trip unchanged for now - reading
-		// them is what lets a save reproduce the whole file.
-		let frontmatter = { title: null, properties: {} };
+		// Both props are read off the rendered page before this mounts, by
+		// main.js's startEditing: the session from section#content, the title
+		// and frontmatter from the <main> around it. Ingesting has to happen
+		// while the server output is still there, and section#content has to be
+		// emptied before this component is mounted into it - which is why
+		// neither belongs here.
+		//
+		// The frontmatter round trips unchanged for now; carrying it is what
+		// lets a save reproduce the whole file rather than just the body.
+		// The button that mounted this said Edit, so editing is already on and
+		// the toolbar's own toggle reads Save.
+		let editable = state(true);
 
 		const key_mapper = new KeyMapper();
 
 		setContext("key_mapper", key_mapper);
-
-		onMount(() => {
-			// Ingest reads the server-rendered DOM, so it has to run before
-			// anything clears it.
-			const main = element().closest("main");
-
-			if (main) frontmatter = readFrontmatter(main);
-
-			const result = create_session(element());
-
-			unrecognised = result.unrecognised;
-
-			if (!result.session) {
-				console.warn("[vowel] editor stayed read-only: #content holds elements the ingest allowlist " + "does not recognise:", unrecognised);
-
-				return;
-			}
-
-			// Svedit renders the document itself rather than hydrating over the
-			// server output, so the original children go before it mounts.
-			element().replaceChildren();
-
-			set$1(session, result.session);
-		});
 
 		// Experimental: the markdown is logged, not written. The whole file is
 		// reproduced - frontmatter, title and body - so wiring this to voot's
 		// write endpoint is now a matter of posting it rather than of teaching
 		// the server to preserve anything.
 		function save() {
-			const markdown = serialize(get$1(session).doc, frontmatter);
+			const markdown = serialize($$props.session.doc, $$props.frontmatter);
 
 			console.info("[vowel] markdown for %s\n\n%s", window.location.pathname, markdown);
 
 			return markdown;
 		}
 
-		init();
-
-		var fragment = comment();
+		var fragment = root$d();
 		var event_handler = user_derived(() => key_mapper.handle_keydown.bind(key_mapper));
 
 		event('keydown', $window, function (...$$args) {
@@ -17507,63 +19518,1795 @@ ${fallback_html}`;
 		var node = first_child(fragment);
 
 		{
-			var consequent = ($$anchor) => {
-				var fragment_1 = root();
-				var node_1 = first_child(fragment_1);
+			let $0 = user_derived(() => [$$props.session.doc.document_id]);
 
-				{
-					let $0 = derived_safe_equal(() => (
-						get$1(session),
-						untrack(() => [get$1(session).doc.document_id])
-					));
+			Svedit(node, {
+				get session() {
+					return $$props.session;
+				},
 
-					Svedit(node_1, {
-						get session() {
-							return get$1(session);
-						},
+				get path() {
+					return get$1($0);
+				},
 
-						get path() {
-							return get$1($0);
-						},
+				get editable() {
+					return get$1(editable);
+				},
 
-						get editable() {
-							return get$1(editable);
-						},
-
-						set editable($$value) {
-							set$1(editable, $$value);
-						},
-						$$legacy: true
-					});
+				set editable($$value) {
+					set$1(editable, $$value, true);
 				}
+			});
+		}
 
-				var node_2 = sibling(node_1, 2);
+		var node_1 = sibling(node, 2);
 
-				Toolbar(node_2, {
-					get session() {
-						return get$1(session);
-					},
-					save,
-					get editable() {
-						return get$1(editable);
-					},
+		Toolbar(node_1, {
+			get session() {
+				return $$props.session;
+			},
+			save,
+			get editable() {
+				return get$1(editable);
+			},
 
-					set editable($$value) {
-						set$1(editable, $$value);
+			set editable($$value) {
+				set$1(editable, $$value, true);
+			}
+		});
+
+		append($$anchor, fragment);
+		pop();
+	}
+
+	var root$c = from_html(`<div class="edit-launcher svelte-1g2xck"><button class="edit settings svelte-1g2xck" title="Typography and theme settings">Settings</button> <span class="divider svelte-1g2xck" aria-hidden="true"></span> <button class="edit svelte-1g2xck"> </button></div>`);
+
+	const $$css$2 = {
+		hash: 'svelte-1g2xck',
+		code: '\n	/* Same surface as .editor-toolbar in Toolbar.svelte. Duplicated rather\n	   than shared: scoped styles don\'t cross components, and a global\n	   stylesheet injected into someone else\'s page is a collision waiting\n	   to happen. */.edit-launcher.svelte-1g2xck {position:fixed;bottom:max(var(--s-4, 16px), env(safe-area-inset-bottom, 0px));right:var(--s-4, 16px);z-index:50;display:flex;align-items:center;width:fit-content;padding:4px;color:var(--foreground, #111);background:var(--background, #fff);border:1px solid oklch(from var(--foreground, #111) l c h / 0.12);border-radius:9999px;box-shadow:0 1px 2px oklch(0% 0 0 / 0.12),\n			0 4px 16px oklch(0% 0 0 / 0.08);pointer-events:auto;}\n\n	/* Matches .toggle-editable, down to leaving font-family alone: the\n	   toolbar\'s Save button inherits the UA button font too, and the two\n	   sit in the same corner one after the other. */.edit.svelte-1g2xck {display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;height:36px;min-height:36px;flex:none;padding:0 1rem;border:none;border-radius:9999px;background:transparent;color:var(--editing, #2563eb);font-size:0.875rem;font-weight:600;line-height:1;cursor:pointer;pointer-events:auto;transition:background 150ms,\n			transform 150ms;outline:1px solid transparent;}\n\n	@media (hover: hover) {.edit.svelte-1g2xck:hover:not(:disabled) {background:oklch(from var(--editing, #2563eb) l c h / 0.08);}\n	}.edit.svelte-1g2xck:active:not(:disabled) {background:oklch(from var(--editing, #2563eb) l c h / 0.12);transform:translateY(1px) scale(0.97);}.edit.svelte-1g2xck:focus-visible {outline:none;box-shadow:inset 0 0 0 1px var(--editing, #2563eb);}\n\n	/* Separates the two actions inside the one pill, the same hairline\n	   Toolbar.svelte uses between tool groups. */.divider.svelte-1g2xck {flex:none;width:1px;height:20px;margin-inline:2px;background:oklch(from var(--foreground, #111) l c h / 0.15);}\n\n	/* Secondary next to Edit: the same pill, in the text colour rather\n	   than the accent, so Edit stays the one obvious action. */.settings.svelte-1g2xck {color:var(--foreground, #111);font-weight:500;}\n\n	@media (hover: hover) {.settings.svelte-1g2xck:hover:not(:disabled) {background:oklch(from var(--foreground, #111) l c h / 0.06);}\n	}.settings.svelte-1g2xck:active:not(:disabled) {background:oklch(from var(--foreground, #111) l c h / 0.09);}.edit.svelte-1g2xck:disabled {color:oklch(from var(--foreground, #111) l c h / 0.4);cursor:not-allowed;}'
+	};
+
+	function EditButton($$anchor, $$props) {
+		push($$props, true);
+		append_styles$1($$anchor, $$css$2);
+
+		// The editor's entry point, and the only thing a previewed page carries
+		// until it is pressed: everything Svedit needs is reached through
+		// onedit (see main.js's startEditing), not from here.
+		//
+		// Styled as the same pill as Toolbar.svelte's bottom bar, which takes
+		// this corner over once editing starts - so pressing Edit reads as the
+		// button becoming the toolbar rather than as one widget replacing
+		// another.
+		let editing = state(false);
+
+		// Non-empty once a press found elements ingest could not read. The page
+		// can't be edited at all in that case (ingest fails whole-document),
+		// so the button stays put and says so instead of disappearing.
+		let unrecognised = state(proxy([]));
+
+		function start() {
+			const failed = $$props.onedit();
+
+			if (failed.length) {
+				set$1(unrecognised, failed, true);
+
+				return;
+			}
+
+			set$1(editing, true);
+		}
+
+		var fragment = comment();
+		var node = first_child(fragment);
+
+		{
+			var consequent = ($$anchor) => {
+				var div = root$c();
+				var button = child(div);
+				var button_1 = sibling(button, 4);
+				var text = only_child(button_1, true);
+
+				template_effect(
+					($0) => {
+						button_1.disabled = get$1(unrecognised).length > 0;
+						set_attribute(button_1, 'title', $0);
+						set_text(text, get$1(unrecognised).length ? "Can't edit" : 'Edit');
 					},
-					$$legacy: true
+					[
+						() => get$1(unrecognised).length
+							? `This page can't be edited yet: ${get$1(unrecognised).join(', ')}`
+							: 'Edit this page'
+					]
+				);
+
+				delegated('click', button, function (...$$args) {
+					$$props.onsettings?.apply(this, $$args);
 				});
 
-				append($$anchor, fragment_1);
+				delegated('click', button_1, start);
+				append($$anchor, div);
 			};
 
 			if_block(node, ($$render) => {
-				if (get$1(session)) $$render(consequent);
+				if (!get$1(editing)) $$render(consequent);
 			});
 		}
 
 		append($$anchor, fragment);
 		pop();
+	}
+
+	delegate(['click']);
+
+	const RAMP = "ramp";
+	const CHOICE = "choice";
+	const FLAG = "flag";
+	const sizeAxis = {
+	  id: "size",
+	  label: "Size",
+	  kind: RAMP,
+	  property: "font-size",
+	  variable: "fs",
+	  unit: "x",
+	  h1: { min: 1.75, max: 2.7, step: 0.05, default: 2.4 },
+	  h6: { min: 1, max: 1.5, step: 0.05, default: 1.05 },
+	  power: { min: 0.5, max: 4, step: 0.1, default: 2.3 }
+	};
+	const letterSpacingAxis = {
+	  id: "letter-spacing",
+	  label: "Letter spacing",
+	  kind: RAMP,
+	  property: "letter-spacing",
+	  variable: "ls",
+	  unit: "ch",
+	  h1: { min: -0.1, max: 0.1, step: 0.005, default: -0.06 },
+	  h6: { min: -0.1, max: 0.1, step: 0.005, default: 0.05 },
+	  power: { min: 0.5, max: 4, step: 0.1, default: 2 }
+	};
+	function weightAxis(min, max) {
+	  const clamp = value => Math.min(max, Math.max(min, value));
+	  return {
+	    id: "weight",
+	    label: "Weight",
+	    kind: RAMP,
+	    property: "font-weight",
+	    variable: "fw",
+	    unit: "",
+	    h1: { min, max, step: 1, default: clamp(900) },
+	    h6: { min, max, step: 1, default: clamp(700) },
+	    power: { min: 0.5, max: 4, step: 0.1, default: 2 }
+	  }
+	}
+	function widthAxis(min, max) {
+	  const clamp = value => Math.min(max, Math.max(min, value));
+	  return {
+	    id: "width",
+	    label: "Width",
+	    kind: RAMP,
+	    tag: "wdth",
+	    variable: "wdth",
+	    unit: "",
+	    h1: { min, max, step: 1, default: clamp(125) },
+	    h6: { min, max, step: 1, default: clamp(75) },
+	    power: { min: 0.5, max: 4, step: 0.1, default: 4 }
+	  }
+	}
+	function variationAxis(id, label, tag, min, max, step) {
+	  return {
+	    id,
+	    label,
+	    kind: RAMP,
+	    tag,
+	    variable: tag.toLowerCase(),
+	    unit: "",
+	    h1: { min, max, step, default: min },
+	    h6: { min, max, step, default: min },
+	    power: { min: 0.5, max: 4, step: 0.1, default: 2 }
+	  }
+	}
+	const families = [
+	  {
+	    name: "Bricolage",
+	    cssName: "Bricolage Grotesque",
+	    stack: "serif",
+	    faces: [{ file: "bricolage.ttf", style: "normal" }],
+	    axes: [sizeAxis, letterSpacingAxis, weightAxis(200, 800), widthAxis(75, 100)]
+	  },
+	  {
+	    name: "Pliant",
+	    cssName: "Pliant",
+	    stack: "sans-serif",
+	    faces: [
+	      { file: "pliant-regular.ttf", style: "normal" },
+	      { file: "pliant-italic.ttf", style: "italic" }
+	    ],
+	    axes: [sizeAxis, letterSpacingAxis, weightAxis(100, 900), widthAxis(100, 125)]
+	  },
+	  {
+	    name: "Emberly",
+	    cssName: "Emberly",
+	    stack: "serif",
+	    faces: [{ file: "emberly-regular.woff2", style: "normal" }],
+	    axes: [sizeAxis, letterSpacingAxis, weightAxis(100, 900), widthAxis(75, 100)]
+	  },
+	  {
+	    name: "Agrandir",
+	    cssName: "Agrandir Variable",
+	    stack: "sans-serif",
+	    faces: [{ file: "agrandir.woff2", style: "normal" }],
+	    axes: [sizeAxis, letterSpacingAxis, weightAxis(100, 900), widthAxis(50, 200)]
+	  },
+	  {
+	    name: "Bandeins Strange",
+	    cssName: "Bandeins Strange Variable",
+	    stack: "sans-serif",
+	    faces: [{ file: "bandeins-strange.woff2", style: "normal" }],
+	    axes: [sizeAxis, letterSpacingAxis, weightAxis(200, 800), widthAxis(100, 800)]
+	  },
+	  {
+	    name: "Recursive",
+	    cssName: "Recursive",
+	    stack: "sans-serif",
+	    faces: [{ file: "recursive.ttf", style: "normal" }],
+	    axes: [
+	      sizeAxis,
+	      letterSpacingAxis,
+	      weightAxis(300, 1000),
+	      variationAxis("casual", "Casual", "CASL", 0, 1, 0.05),
+	      variationAxis("monospace", "Monospace", "MONO", 0, 1, 0.05),
+	      {
+	        id: "forms",
+	        label: "Forms",
+	        kind: CHOICE,
+	        tag: "CRSV",
+	        options: [
+	          { label: "Roman", value: 0 },
+	          { label: "Auto", value: 0.5 },
+	          { label: "Cursive", value: 1 }
+	        ],
+	        default: 0.5
+	      }
+	    ]
+	  },
+	  {
+	    name: "Mona Sans",
+	    cssName: "Mona Sans",
+	    stack: "sans-serif",
+	    faces: [
+	      { file: "mona-sans-regular.ttf", style: "normal" },
+	      { file: "mona-sans-italic.ttf", style: "italic" }
+	    ],
+	    axes: [sizeAxis, letterSpacingAxis, weightAxis(200, 900), widthAxis(75, 125)]
+	  },
+	  {
+	    name: "Fraunces",
+	    cssName: "Fraunces",
+	    stack: "serif",
+	    faces: [
+	      { file: "fraunces-regular.ttf", style: "normal" },
+	      { file: "fraunces-italic.ttf", style: "italic" }
+	    ],
+	    axes: [
+	      sizeAxis,
+	      letterSpacingAxis,
+	      weightAxis(100, 900),
+	      variationAxis("softness", "Softness", "SOFT", 0, 100, 1),
+	      { id: "wonky", label: "Wonky", kind: FLAG, tag: "WONK", default: true }
+	    ]
+	  }
+	];
+	function findFamily(name) {
+	  if (typeof name !== "string") return null
+	  const wanted = name.trim().toLowerCase();
+	  return families.find(family => family.name.toLowerCase() === wanted) || null
+	}
+	function axisKeys(axis) {
+	  if (axis.kind !== RAMP) return { value: axis.id }
+	  return { h1: `h1-${axis.id}`, h6: `h6-${axis.id}`, power: `heading-${axis.id}` }
+	}
+	function numericValue(settings, key, range) {
+	  const raw = settings[key];
+	  const value = typeof raw === "number" ? raw : Number(raw);
+	  if (!Number.isFinite(value)) return range.default
+	  return Math.min(range.max, Math.max(range.min, value))
+	}
+	function rampValues(axis, settings) {
+	  const keys = axisKeys(axis);
+	  return {
+	    h1: numericValue(settings, keys.h1, axis.h1),
+	    h6: numericValue(settings, keys.h6, axis.h6),
+	    power: numericValue(settings, keys.power, axis.power)
+	  }
+	}
+	function fixedValue(axis, settings) {
+	  const raw = settings[axisKeys(axis).value];
+	  if (axis.kind === FLAG) return (raw === undefined ? axis.default : Boolean(raw)) ? 1 : 0
+	  const match = axis.options.find(option => (
+	    String(option.label).toLowerCase() === String(raw).toLowerCase() || option.value === raw
+	  ));
+	  return match ? match.value : axis.default
+	}
+
+	const fallbackColors = ["#00edc6", "#5119ff"];
+
+	const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n)?/;
+	function splitFrontmatter(text) {
+	  const match = text.match(FRONTMATTER);
+	  if (!match) return { data: {}, body: text, had: false }
+	  const data = parse(match[1]) || {};
+	  return { data, body: text.slice(match[0].length), had: true }
+	}
+	function joinFrontmatter(data, body) {
+	  return `---\n${stringify(data)}---\n${body.replace(/^\r?\n/, "")}`
+	}
+	function themeObject(theme) {
+	  if (theme && typeof theme === "object" && !Array.isArray(theme)) return { ...theme }
+	  if (typeof theme === "string") return { name: theme }
+	  return {}
+	}
+	async function readSettings(path = "/settings.md") {
+	  const response = await fetch(path, { cache: "no-store" });
+	  if (!response.ok) throw new Error(`could not read ${path} (${response.status})`)
+	  return splitFrontmatter(await response.text())
+	}
+	async function writeSettings(filePath, data) {
+	  const response = await fetch("/", {
+	    method: "POST",
+	    headers: { "Content-Type": "application/json" },
+	    body: JSON.stringify({ type: "file", filePath, data })
+	  });
+	  if (!response.ok) {
+	    const detail = await response.json().catch(() => ({}));
+	    throw new Error(detail.error || `write failed (${response.status})`)
+	  }
+	  return response.json()
+	}
+
+	var root_1$1 = from_html(`<p class="note svelte-14cc0vj">Reading settings.md…</p>`);
+	var root_2 = from_html(`<label class="field svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="text" class="svelte-14cc0vj"/></label>`);
+	var root_3 = from_html(`<label class="field color svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="color" class="svelte-14cc0vj"/> <input type="text" class="hex svelte-14cc0vj" spellcheck="false"/></label>`);
+	var root_4 = from_html(`<option> </option>`);
+	var root_5 = from_html(`<p class="note svelte-14cc0vj">Pick a font to set a heading scale.</p>`);
+	var root_6 = from_html(`<label class="slider svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="range" class="svelte-14cc0vj"/> <output class="svelte-14cc0vj"> </output></label>`);
+	var root_7 = from_html(`<fieldset class="svelte-14cc0vj"><legend class="svelte-14cc0vj"> </legend> <!></fieldset>`);
+	var root_8 = from_html(`<label class="field svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <select class="svelte-14cc0vj"></select></label>`);
+	var root_9 = from_html(`<label class="field check svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="checkbox"/></label>`);
+	var root_10 = from_html(`<p class="note svelte-14cc0vj">Sizes and spacing preview as you drag. The font and colors apply on save.</p> <!>`, 1);
+	var root_11 = from_html(`<section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Site</h3> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Colors</h3> <p class="note svelte-14cc0vj">Two seeds; every shade on the site is generated from them.</p> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Typography</h3> <label class="field svelte-14cc0vj"><span class="svelte-14cc0vj">Font</span> <select class="svelte-14cc0vj"><option>None</option><!></select></label> <!></section>`, 1);
+	var root_12 = from_html(`<p class="error svelte-14cc0vj"> </p>`);
+	var root_13 = from_html(`<aside class="settings-drawer svelte-14cc0vj" aria-label="Site settings"><header class="svelte-14cc0vj"><h2 class="svelte-14cc0vj">Settings</h2> <button class="close svelte-14cc0vj" title="Close settings">&#10005;</button></header> <!> <!> <footer class="svelte-14cc0vj"><button class="save svelte-14cc0vj"> </button></footer></aside>`);
+
+	const $$css$1 = {
+		hash: 'svelte-14cc0vj',
+		code: '\n	/* Full height down the left edge. No backdrop and nothing fixed over\n	   the page: the site stays usable while you edit, which is what makes\n	   the live preview worth having. The page is not pushed aside either -\n	   that would mean writing to the host document\'s own layout. */.settings-drawer.svelte-14cc0vj {\n		/* Physical, not logical: the drawer is injected into someone\n		   else\'s document and would flip to the right edge on an RTL\n		   page, which is not what "left" means here. */position:fixed;top:0;bottom:0;left:0;z-index:70;box-sizing:border-box;display:flex;flex-direction:column;width:min(340px, 100vw);padding:16px;overflow-y:auto;overscroll-behavior:contain;color:var(--foreground, #111);background:var(--background, #fff);border-right:1px solid oklch(from var(--foreground, #111) l c h / 0.12);box-shadow:0 0 24px oklch(0% 0 0 / 0.12);font-size:0.8125rem;line-height:1.4;}header.svelte-14cc0vj {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;}h2.svelte-14cc0vj {margin:0;font-size:1rem;font-weight:600;letter-spacing:0;}h3.svelte-14cc0vj {margin:0 0 8px;font-size:0.6875rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:oklch(from var(--foreground, #111) l c h / 0.55);}section.svelte-14cc0vj {padding-block:14px;border-top:1px solid oklch(from var(--foreground, #111) l c h / 0.1);}.close.svelte-14cc0vj {flex:none;width:28px;height:28px;padding:0;border:none;border-radius:50%;background:transparent;color:inherit;font-size:0.75rem;cursor:pointer;}\n\n	@media (hover: hover) {.close.svelte-14cc0vj:hover {background:oklch(from var(--foreground, #111) l c h / 0.06);}\n	}.note.svelte-14cc0vj {margin:0 0 10px;color:oklch(from var(--foreground, #111) l c h / 0.6);}.error.svelte-14cc0vj {margin:10px 0 0;color:oklch(0.55 0.2 25);}.field.svelte-14cc0vj {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}.field.svelte-14cc0vj > span:where(.svelte-14cc0vj) {flex:none;width:5.5rem;color:oklch(from var(--foreground, #111) l c h / 0.6);}.field.check.svelte-14cc0vj {justify-content:flex-start;}input[type=\'text\'].svelte-14cc0vj,\n	select.svelte-14cc0vj {flex:1;min-width:0;box-sizing:border-box;height:30px;padding:0 6px;color:inherit;background:transparent;border:1px solid oklch(from var(--foreground, #111) l c h / 0.2);border-radius:8px;font:inherit;}input[type=\'text\'].svelte-14cc0vj:focus-visible,\n	select.svelte-14cc0vj:focus-visible {outline:none;border-color:var(--editing, #2563eb);box-shadow:inset 0 0 0 1px var(--editing, #2563eb);}\n\n	/* The swatch and its hex edit the same value; the swatch is for\n	   choosing, the field is for pasting one you already have. */.field.color.svelte-14cc0vj input[type=\'color\']:where(.svelte-14cc0vj) {flex:none;width:34px;height:30px;padding:2px;background:transparent;border:1px solid oklch(from var(--foreground, #111) l c h / 0.2);border-radius:8px;cursor:pointer;}.hex.svelte-14cc0vj {font-family:ui-monospace, SFMono-Regular, Menlo, monospace;text-transform:lowercase;}fieldset.svelte-14cc0vj {margin:0 0 10px;padding:8px 10px;border:1px solid oklch(from var(--foreground, #111) l c h / 0.12);border-radius:10px;}legend.svelte-14cc0vj {padding:0 4px;font-weight:600;}.slider.svelte-14cc0vj {display:grid;grid-template-columns:2.25rem 1fr 3.25rem;align-items:center;gap:6px;}.slider.svelte-14cc0vj span:where(.svelte-14cc0vj) {color:oklch(from var(--foreground, #111) l c h / 0.6);}.slider.svelte-14cc0vj input:where(.svelte-14cc0vj) {width:100%;min-width:0;}output.svelte-14cc0vj {font-variant-numeric:tabular-nums;text-align:right;color:oklch(from var(--foreground, #111) l c h / 0.6);}\n\n	/* Sticks to the bottom of the drawer, above the scrolling content. */footer.svelte-14cc0vj {position:sticky;bottom:0;display:flex;justify-content:flex-end;margin-top:auto;padding-top:12px;padding-bottom:4px;background:var(--background, #fff);}.save.svelte-14cc0vj {height:32px;padding:0 1rem;border:none;border-radius:9999px;background:var(--editing, #2563eb);color:var(--background, #fff);font-size:0.8125rem;font-weight:600;cursor:pointer;}.save.svelte-14cc0vj:disabled {opacity:0.5;cursor:not-allowed;}'
+	};
+
+	function SettingsPanel($$anchor, $$props) {
+		push($$props, true);
+		append_styles$1($$anchor, $$css$1);
+
+		// The settings drawer.
+		//
+		// Full height down the left edge, and deliberately **not** modal: no
+		// backdrop, the page behind stays scrollable and clickable. Live
+		// preview is the whole point - you drag a slider and watch the
+		// headings resize - so anything that blocks the page would defeat it.
+		//
+		// Every control is derived from data rather than hardcoded: the site
+		// fields from `siteFields` below, the typography controls from the
+		// font catalogue, so a family only ever offers axes it actually has.
+		let loading = state(true);
+
+		let error = state(null);
+		let saving = state(false);
+
+		// The whole file, so a save rewrites only what changed and leaves
+		// every other key - and the body - alone.
+		let file = state(proxy({ data: {}, body: '' }));
+
+		// Held apart from `data` until a theme field is actually edited, so a
+		// site that wrote `theme: default` keeps that spelling unless it has a
+		// reason not to. Editing only the title must not silently rewrite the
+		// theme into its object form.
+		let editedTheme = state(null);
+
+		const theme = user_derived(() => get$1(editedTheme) ?? themeObject(get$1(file).data.theme));
+		const family = user_derived(() => findFamily(get$1(theme).font));
+		const colors = user_derived(() => [0, 1].map((index) => get$1(theme).colors?.[index] ?? fallbackColors[index]));
+
+		// Top-level frontmatter keys, in the order they read as a form. Only
+		// settings vowel actually consumes are here - `author` is in both demo
+		// settings.md files and is read by nothing, so it isn't offered.
+		const siteFields = [
+			{
+				key: 'title',
+				label: 'Title',
+				hint: 'The site name, shown in the header'
+			},
+
+			{
+				key: 'tagline',
+				label: 'Tagline',
+				hint: 'Shown as the homepage hero'
+			},
+
+			{
+				key: 'breadcrumb',
+				label: 'Breadcrumb',
+				hint: 'Label for the site root in navigation'
+			},
+
+			{
+				key: 'domain',
+				label: 'Domain',
+				hint: 'Needed for the sitemap and feed'
+			},
+
+			{
+				key: 'icon',
+				label: 'Icon',
+				hint: 'An emoji, or a path to an image'
+			},
+			{ key: 'logo', label: 'Logo', hint: 'Path to an SVG or image' },
+			{
+				key: 'wordmark',
+				label: 'Wordmark',
+				hint: 'Path to an SVG or image'
+			}
+		];
+
+		// Setting a ramp variable on the document is the whole of live
+		// preview: --*-delta is a calc() over these, so all six heading levels
+		// and the header recompute themselves.
+		const preview = user_derived(() => {
+			if (!get$1(family)) return [];
+
+			return get$1(family).axes.filter((axis) => axis.kind === RAMP).flatMap((axis) => {
+				const { h1, h6, power } = rampValues(axis, get$1(theme));
+
+				const value = (amount) => axis.unit === 'x'
+					? `calc(var(--base-font-size) * ${amount})`
+					: `${amount}${axis.unit}`;
+
+				return [
+					[`--${axis.variable}-start`, value(h6)],
+					[`--${axis.variable}-end`, value(h1)],
+					[`--${axis.variable}-power`, String(power)]
+				];
+			});
+		});
+
+		user_effect(() => {
+			const root = document.documentElement;
+
+			for (const [name, value] of get$1(preview)) root.style.setProperty(name, value);
+
+			// The font family, the colour scheme and the non-ramped axes all
+			// need a rebuild to see: the other seven fonts aren't served, and
+			// the colour ramps are generated by colorhorse on the server.
+		});
+
+		user_effect(() => {
+			readSettings().then((result) => set$1(file, result, true)).catch((e) => set$1(error, e.message, true)).finally(() => set$1(loading, false));
+		});
+
+		function setField(key, value) {
+			const data = { ...get$1(file).data };
+
+			if (value === '') delete data[key]; else data[key] = value;
+
+			set$1(file, { ...get$1(file), data }, true);
+		}
+
+		function setTheme(key, value) {
+			set$1(editedTheme, { ...get$1(theme), [key]: value }, true);
+		}
+
+		/** Both seeds are written together - colorhorse takes a pair. */
+		function setColor(index, value) {
+			setTheme('colors', get$1(colors).map((current, position) => position === index ? value : current));
+		}
+
+		async function save() {
+			set$1(saving, true);
+			set$1(error, null);
+
+			const data = get$1(editedTheme)
+				? { ...get$1(file).data, theme: get$1(editedTheme) }
+				: get$1(file).data;
+
+			try {
+				await writeSettings('settings.md', joinFrontmatter(data, get$1(file).body));
+
+				// No reload: the write lands in sourceFolder, the watcher
+				// rebuilds and voot's live-reload client patches the page - the
+				// same path a hand edit takes.
+				$$props.onclose();
+			} catch(e) {
+				set$1(error, e.message, true);
+			} finally {
+				set$1(saving, false);
+			}
+		}
+
+		var aside = root_13();
+		var header = child(aside);
+		var button = sibling(child(header), 2);
+
+		var node = sibling(header, 2);
+
+		{
+			var consequent = ($$anchor) => {
+				var p = root_1$1();
+
+				append($$anchor, p);
+			};
+
+			var alternate_1 = ($$anchor) => {
+				var fragment = root_11();
+				var section = first_child(fragment);
+				var node_1 = sibling(child(section), 2);
+
+				each(node_1, 17, () => siteFields, (field) => field.key, ($$anchor, field) => {
+					var label_1 = root_2();
+					var span = child(label_1);
+					var text = only_child(span, true);
+					var input = sibling(span, 2);
+
+					template_effect(() => {
+						set_text(text, get$1(field).label);
+						set_value(input, get$1(file).data[get$1(field).key] ?? '');
+						set_attribute(input, 'placeholder', get$1(field).hint);
+						set_attribute(input, 'title', get$1(field).hint);
+					});
+
+					delegated('input', input, (event) => setField(get$1(field).key, event.currentTarget.value));
+					append($$anchor, label_1);
+				});
+
+				var section_1 = sibling(section, 2);
+				var node_2 = sibling(child(section_1), 4);
+
+				each(node_2, 18, () => ['One', 'Two'], (label) => label, ($$anchor, label, index) => {
+					var label_2 = root_3();
+					var span_1 = child(label_2);
+					var text_1 = only_child(span_1, true);
+					var input_1 = sibling(span_1, 2);
+
+					var input_2 = sibling(input_1, 2);
+
+					template_effect(() => {
+						set_text(text_1, label);
+						set_value(input_1, get$1(colors)[get$1(index)]);
+						set_value(input_2, get$1(colors)[get$1(index)]);
+					});
+
+					delegated('input', input_1, (event) => setColor(get$1(index), event.currentTarget.value));
+					delegated('input', input_2, (event) => setColor(get$1(index), event.currentTarget.value));
+					append($$anchor, label_2);
+				});
+
+				var section_2 = sibling(section_1, 2);
+				var label_3 = sibling(child(section_2), 2);
+				var select = sibling(child(label_3), 2);
+				var option_1 = child(select);
+
+				option_1.value = option_1.__value = '';
+
+				var node_3 = sibling(option_1);
+
+				each(node_3, 17, () => families, (option) => option.name, ($$anchor, option) => {
+					var option_2 = root_4();
+					var text_2 = only_child(option_2, true);
+					var option_2_value = {};
+
+					template_effect(() => {
+						set_text(text_2, get$1(option).name);
+
+						if (option_2_value !== (option_2_value = get$1(option).name)) {
+							option_2.value = (option_2.__value = option_2_value) ?? '';
+						}
+					});
+
+					append($$anchor, option_2);
+				});
+
+				var select_value;
+
+				init_select(select);
+
+				var node_4 = sibling(label_3, 2);
+
+				{
+					var consequent_1 = ($$anchor) => {
+						var p_1 = root_5();
+
+						append($$anchor, p_1);
+					};
+
+					var alternate = ($$anchor) => {
+						var fragment_1 = root_10();
+						var node_5 = sibling(first_child(fragment_1), 2);
+
+						each(node_5, 17, () => get$1(family).axes, (axis) => axis.id, ($$anchor, axis) => {
+							const keys = user_derived(() => axisKeys(get$1(axis)));
+							var fragment_2 = comment();
+							var node_6 = first_child(fragment_2);
+
+							{
+								var consequent_2 = ($$anchor) => {
+									const current = user_derived(() => rampValues(get$1(axis), get$1(theme)));
+									var fieldset = root_7();
+									var legend = child(fieldset);
+									var text_3 = only_child(legend, true);
+									var node_7 = sibling(legend, 2);
+
+									each(
+										node_7,
+										17,
+										() => [
+											['h1', 'h1', get$1(axis).h1],
+											['h6', 'h6', get$1(axis).h6],
+											['power', 'Scale', get$1(axis).power]
+										],
+										([part, label, range]) => part,
+										($$anchor, $$item) => {
+											var $$array = user_derived(() => to_array(get$1($$item), 3));
+											let part = () => get$1($$array)[0];
+											let label = () => get$1($$array)[1];
+											let range = () => get$1($$array)[2];
+											var label_4 = root_6();
+											var span_2 = child(label_4);
+											var text_4 = only_child(span_2, true);
+											var input_3 = sibling(span_2, 2);
+
+											var output = sibling(input_3, 2);
+											var text_5 = only_child(output);
+
+											template_effect(() => {
+												set_text(text_4, label());
+												set_attribute(input_3, 'min', range().min);
+												set_attribute(input_3, 'max', range().max);
+												set_attribute(input_3, 'step', range().step);
+												set_value(input_3, get$1(current)[part()]);
+												set_text(text_5, `${get$1(current)[part()] ?? ''}${get$1(axis).unit ?? ''}`);
+											});
+
+											delegated('input', input_3, (event) => setTheme(get$1(keys)[part()], Number(event.currentTarget.value)));
+											append($$anchor, label_4);
+										}
+									);
+									template_effect(() => set_text(text_3, get$1(axis).label));
+									append($$anchor, fieldset);
+								};
+
+								var consequent_3 = ($$anchor) => {
+									const current = user_derived(() => fixedValue(get$1(axis), get$1(theme)));
+									var label_5 = root_8();
+									var span_3 = child(label_5);
+									var text_6 = only_child(span_3, true);
+									var select_1 = sibling(span_3, 2);
+
+									each(select_1, 21, () => get$1(axis).options, (option) => option.value, ($$anchor, option) => {
+										var option_3 = root_4();
+										var text_7 = only_child(option_3, true);
+										var option_3_value = {};
+
+										template_effect(
+											($0) => {
+												set_text(text_7, get$1(option).label);
+
+												if (option_3_value !== (option_3_value = $0)) {
+													option_3.value = (option_3.__value = option_3_value) ?? '';
+												}
+											},
+											[() => String(get$1(option).value)]
+										);
+
+										append($$anchor, option_3);
+									});
+
+									var select_1_value;
+
+									init_select(select_1);
+
+									template_effect(
+										($0) => {
+											set_text(text_6, get$1(axis).label);
+
+											if (select_1_value !== (select_1_value = $0)) {
+												(
+													select_1.value = (select_1.__value = select_1_value) ?? '',
+													select_option(select_1, select_1_value)
+												);
+											}
+										},
+										[() => String(get$1(current))]
+									);
+
+									delegated('change', select_1, (event) => setTheme(get$1(keys).value, get$1(axis).options.find((option) => String(option.value) === event.currentTarget.value)?.label));
+									append($$anchor, label_5);
+								};
+
+								var consequent_4 = ($$anchor) => {
+									var label_6 = root_9();
+									var span_4 = child(label_6);
+									var text_8 = only_child(span_4, true);
+									var input_4 = sibling(span_4, 2);
+
+									template_effect(
+										($0) => {
+											set_text(text_8, get$1(axis).label);
+											set_checked(input_4, $0);
+										},
+										[() => fixedValue(get$1(axis), get$1(theme)) === 1]
+									);
+
+									delegated('change', input_4, (event) => setTheme(get$1(keys).value, event.currentTarget.checked));
+									append($$anchor, label_6);
+								};
+
+								if_block(node_6, ($$render) => {
+									if (get$1(axis).kind === RAMP) $$render(consequent_2); else if (get$1(axis).kind === CHOICE) $$render(consequent_3, 1); else if (get$1(axis).kind === FLAG) $$render(consequent_4, 2);
+								});
+							}
+
+							append($$anchor, fragment_2);
+						});
+
+						append($$anchor, fragment_1);
+					};
+
+					if_block(node_4, ($$render) => {
+						if (!get$1(family)) $$render(consequent_1); else $$render(alternate, -1);
+					});
+				}
+
+				template_effect(() => {
+					if (select_value !== (select_value = get$1(theme).font ?? '')) {
+						(
+							select.value = (select.__value = select_value) ?? '',
+							select_option(select, select_value)
+						);
+					}
+				});
+
+				delegated('change', select, (event) => setTheme('font', event.currentTarget.value));
+				append($$anchor, fragment);
+			};
+
+			if_block(node, ($$render) => {
+				if (get$1(loading)) $$render(consequent); else $$render(alternate_1, -1);
+			});
+		}
+
+		var node_8 = sibling(node, 2);
+
+		{
+			var consequent_5 = ($$anchor) => {
+				var p_2 = root_12();
+				var text_9 = only_child(p_2, true);
+
+				template_effect(() => set_text(text_9, get$1(error)));
+				append($$anchor, p_2);
+			};
+
+			if_block(node_8, ($$render) => {
+				if (get$1(error)) $$render(consequent_5);
+			});
+		}
+
+		var footer = sibling(node_8, 2);
+		var button_1 = child(footer);
+		var text_10 = only_child(button_1, true);
+
+		template_effect(() => {
+			button_1.disabled = get$1(saving) || get$1(loading);
+			set_text(text_10, get$1(saving) ? 'Saving…' : 'Save');
+		});
+
+		delegated('click', button, function (...$$args) {
+			$$props.onclose?.apply(this, $$args);
+		});
+
+		delegated('click', button_1, save);
+		append($$anchor, aside);
+		pop();
+	}
+
+	delegate(['click', 'input', 'change']);
+
+	function Overlays($$anchor) {
+		// Overlays component for custom UI only (link previews, image editors, etc.)
+		// Node selection rendering is now handled by the library's NodeSelectionMarkers.
+	}
+
+	const SEGMENT_SEPARATOR = "_";
+	const ESCAPED_UNDERSCORE = "--";
+	function unescapeSegment(segment) {
+	  return segment.replaceAll(ESCAPED_UNDERSCORE, SEGMENT_SEPARATOR)
+	}
+	function folderFromClasses(classList) {
+	  const dirClassList = classList.filter(name => name.startsWith(SEGMENT_SEPARATOR));
+	  if (!dirClassList.length) return null
+	  const deepest = dirClassList.reduce((longest, name) => {
+	    return name.length > longest.length ? name : longest
+	  }, "");
+	  const segments = deepest.slice(1).split(SEGMENT_SEPARATOR).filter(Boolean);
+	  return segments.map(unescapeSegment).join("/")
+	}
+	function globParams(classList) {
+	  const folder = folderFromClasses(classList);
+	  if (folder === null) return null
+	  const limitClass = classList.find(name => name.startsWith("limit-"));
+	  const tagClass = classList.find(name => name.startsWith("tag-"));
+	  return {
+	    folder,
+	    recursive: classList.includes("recursive"),
+	    limit: limitClass ? limitClass.slice("limit-".length) : null,
+	    tag: tagClass ? tagClass.slice("tag-".length) : null
+	  }
+	}
+	function globDirective({ folder, recursive, limit, tag }) {
+	  const base = "/" + [folder, recursive ? "**" : "*"].filter(Boolean).join("/");
+	  const countParam = limit ? [`count=${limit}`] : [];
+	  const tagParam = tag ? [`tag=${tag}`] : [];
+	  const query = [...countParam, ...tagParam].join("&");
+	  return query ? `${base}?${query}` : base
+	}
+
+	const TEXT_NODE = 3;
+	const ELEMENT_NODE = 1;
+	const MARK_TYPES = {
+	  STRONG: "strong",
+	  B: "strong",
+	  EM: "emphasis",
+	  I: "emphasis",
+	  CODE: "inline_code",
+	  MARK: "highlight",
+	  DEL: "strikethrough",
+	  S: "strikethrough",
+	  A: "link"
+	};
+	const HEADING_LEVELS = {
+	  H1: 1,
+	  H2: 2,
+	  H3: 3,
+	  H4: 4,
+	  H5: 5,
+	  H6: 6
+	};
+	function classList(element) {
+	  return [...element.classList]
+	}
+	function expansionDirective(element) {
+	  const classes = classList(element);
+	  if (element.tagName === "UL" && classes.some(name => name.startsWith("_"))) {
+	    const params = globParams(classes);
+	    return params && globDirective(params)
+	  }
+	  if (element.tagName === "ARTICLE" && classes.includes("reference")) {
+	    const link = element.querySelector("a[href]");
+	    return link && link.getAttribute("href")
+	  }
+	  if (element.tagName === "A" && classes.includes("link-preview")) {
+	    return element.getAttribute("href")
+	  }
+	  if (element.tagName === "ARTICLE" && classes.includes("link-preview")) {
+	    const link = element.querySelector("a[href]");
+	    return link && link.getAttribute("href")
+	  }
+	  return null
+	}
+	function inlineFrom(domNode, context, insideMark) {
+	  if (domNode.nodeType === TEXT_NODE) {
+	    return { content: domNode.nodeValue, marks: [] }
+	  }
+	  if (domNode.nodeType !== ELEMENT_NODE) {
+	    return { content: "", marks: [] }
+	  }
+	  if (domNode.tagName === "BR") {
+	    return { content: "\n", marks: [] }
+	  }
+	  const markType = insideMark ? null : MARK_TYPES[domNode.tagName];
+	  const children = [...domNode.childNodes].map(child => {
+	    return inlineFrom(child, context, insideMark || Boolean(markType))
+	  });
+	  const combined = children.reduce((accumulated, result) => {
+	    const shifted = result.marks.map(mark => ({
+	      ...mark,
+	      start_offset: mark.start_offset + accumulated.content.length,
+	      end_offset: mark.end_offset + accumulated.content.length
+	    }));
+	    return {
+	      content: accumulated.content + result.content,
+	      marks: [...accumulated.marks, ...shifted]
+	    }
+	  }, { content: "", marks: [] });
+	  if (!markType) return combined
+	  const markId = context.createMark(markType, domNode);
+	  return {
+	    content: combined.content,
+	    marks: [{ start_offset: 0, end_offset: combined.content.length, node_id: markId }]
+	  }
+	}
+	function trimValue({ content, marks }) {
+	  const leading = content.length - content.trimStart().length;
+	  const trimmed = content.trim();
+	  const clamped = marks
+	    .map(mark => ({
+	      ...mark,
+	      start_offset: Math.max(0, Math.min(mark.start_offset - leading, trimmed.length)),
+	      end_offset: Math.max(0, Math.min(mark.end_offset - leading, trimmed.length))
+	    }))
+	    .filter(mark => mark.end_offset > mark.start_offset);
+	  return { content: trimmed, marks: clamped, annotations: [] }
+	}
+	function textValue(element, context) {
+	  return trimValue(inlineFrom(element, context, false))
+	}
+	function pictureIn(element) {
+	  if (element.tagName === "PICTURE") return element
+	  return element.querySelector("picture")
+	}
+	function blockFrom(element, context) {
+	  const directive = expansionDirective(element);
+	  if (directive) {
+	    return context.create({
+	      type: "embed",
+	      directive,
+	      html: element.outerHTML
+	    })
+	  }
+	  const tag = element.tagName;
+	  if (tag === "P") {
+	    const picture = pictureIn(element);
+	    if (picture && !element.textContent.trim()) return imageFrom(picture, null, element, context)
+	    return context.create({
+	      type: "paragraph",
+	      content: textValue(element, context)
+	    })
+	  }
+	  if (HEADING_LEVELS[tag]) {
+	    return context.create({
+	      type: "heading",
+	      level: HEADING_LEVELS[tag],
+	      content: textValue(element, context)
+	    })
+	  }
+	  if (tag === "UL" || tag === "OL") {
+	    const items = [...element.children].map(child => {
+	      if (child.tagName !== "LI") return null
+	      return context.create({
+	        type: "list_item",
+	        content: textValue(child, context)
+	      })
+	    });
+	    if (items.some(id => !id)) return null
+	    return context.create({
+	      type: "list",
+	      ordered: tag === "OL",
+	      items: { nodes: items, marks: [], annotations: [] }
+	    })
+	  }
+	  if (tag === "ASIDE" && classList(element).includes("alert")) {
+	    const variant = classList(element).find(name => name !== "alert");
+	    const body = [...element.children]
+	      .filter(child => child.tagName !== "H2")
+	      .map(child => blockFrom(child, context));
+	    if (body.some(id => !id)) return null
+	    return context.create({
+	      type: "alert",
+	      variant: variant || "note",
+	      body: { nodes: body, marks: [], annotations: [] }
+	    })
+	  }
+	  if (tag === "BLOCKQUOTE") {
+	    const body = [...element.children].map(child => blockFrom(child, context));
+	    if (body.some(id => !id)) return null
+	    return context.create({
+	      type: "blockquote",
+	      body: { nodes: body, marks: [], annotations: [] }
+	    })
+	  }
+	  if (tag === "PRE") {
+	    const code = element.querySelector("code");
+	    const language = code
+	      ? (classList(code).find(name => name.startsWith("language-")) || "").slice("language-".length)
+	      : "";
+	    return context.create({
+	      type: "code_block",
+	      language,
+	      code: (code || element).textContent.replace(/\n+$/, "")
+	    })
+	  }
+	  if (tag === "HR") {
+	    return context.create({ type: "thematic_break" })
+	  }
+	  if (tag === "FIGURE") {
+	    const picture = pictureIn(element);
+	    const caption = element.querySelector("figcaption");
+	    if (picture) return imageFrom(picture, caption, element, context)
+	  }
+	  if (tag === "PICTURE") {
+	    return imageFrom(element, null, element, context)
+	  }
+	  context.unrecognised.push(tag.toLowerCase() + (element.className ? `.${element.className}` : ""));
+	  return null
+	}
+	function imageFrom(picture, caption, outer, context) {
+	  const img = picture.querySelector("img");
+	  const source = picture.getAttribute("data-original");
+	  if (!source) {
+	    context.unrecognised.push("picture (no data-original)");
+	    return null
+	  }
+	  return context.create({
+	    type: "image",
+	    source,
+	    alt: img ? (img.getAttribute("alt") || "") : "",
+	    caption: caption ? caption.textContent : "",
+	    html: outer.outerHTML
+	  })
+	}
+	function ingest(contentElement, generateId) {
+	  const nodes = {};
+	  const unrecognised = [];
+	  const context = {
+	    unrecognised,
+	    create(node) {
+	      const id = generateId();
+	      nodes[id] = { ...node, id };
+	      return id
+	    },
+	    createMark(type, element) {
+	      const properties = type === "link"
+	        ? { href: element.getAttribute("href") || "" }
+	        : {};
+	      return context.create({ type, ...properties })
+	    }
+	  };
+	  const body = [...contentElement.children].map(child => blockFrom(child, context));
+	  if (unrecognised.length) return { doc: null, unrecognised }
+	  const pageId = generateId();
+	  nodes[pageId] = {
+	    id: pageId,
+	    type: "page",
+	    body: { nodes: body.filter(Boolean), marks: [], annotations: [] }
+	  };
+	  return { doc: { document_id: pageId, nodes }, unrecognised: [] }
+	}
+
+	var root$b = from_html(`<div class="page"><!></div>`);
+
+	const $$css = {
+		hash: 'svelte-xibch9',
+		code: '.body-node-array {display:grid;grid-template-columns:1fr;--row: 0;}'
+	};
+
+	function Page($$anchor, $$props) {
+		append_styles$1($$anchor, $$css);
+
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				var div = root$b();
+				var node = child(div);
+
+				{
+					let $0 = user_derived(() => [...$$props.path, 'body']);
+
+					NodeArrayProperty(node, {
+						class: 'body-node-array',
+						get path() {
+							return get$1($0);
+						}
+					});
+				}
+				append($$anchor, div);
+			},
+			$$slots: { default: true }
+		});
+	}
+
+	function Paragraph($$anchor, $$props) {
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "content"]);
+
+					TextProperty($$anchor, {
+						tag: 'p',
+						get path() {
+							return get$1($0);
+						},
+						placeholder: 'Paragraph'
+					});
+				}
+			},
+			$$slots: { default: true }
+		});
+	}
+
+	function Heading($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		const tag = user_derived(() => `h${get$1(node).level || 2}`);
+
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "content"]);
+
+					TextProperty($$anchor, {
+						get tag() {
+							return get$1(tag);
+						},
+
+						get path() {
+							return get$1($0);
+						},
+						placeholder: 'Heading'
+					});
+				}
+			},
+			$$slots: { default: true }
+		});
+
+		pop();
+	}
+
+	function List($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		const tag = user_derived(() => get$1(node).ordered ? "ol" : "ul");
+
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "items"]);
+
+					NodeArrayProperty($$anchor, {
+						get tag() {
+							return get$1(tag);
+						},
+
+						get path() {
+							return get$1($0);
+						}
+					});
+				}
+			},
+			$$slots: { default: true }
+		});
+
+		pop();
+	}
+
+	function ListItem($$anchor, $$props) {
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "content"]);
+
+					TextProperty($$anchor, {
+						tag: 'li',
+						get path() {
+							return get$1($0);
+						},
+						placeholder: 'List item'
+					});
+				}
+			},
+			$$slots: { default: true }
+		});
+	}
+
+	function Blockquote($$anchor, $$props) {
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "body"]);
+
+					NodeArrayProperty($$anchor, {
+						tag: 'blockquote',
+						get path() {
+							return get$1($0);
+						}
+					});
+				}
+			},
+			$$slots: { default: true }
+		});
+	}
+
+	var root$a = from_html(`<aside><h2 contenteditable="false"> </h2> <!></aside>`);
+
+	function Alert($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		const variant = user_derived(() => get$1(node).variant || "note");
+		const label = user_derived(() => get$1(variant).charAt(0).toUpperCase() + get$1(variant).slice(1));
+
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				var aside = root$a();
+				var h2 = child(aside);
+				var text = only_child(h2, true);
+				var node_1 = sibling(h2, 2);
+
+				{
+					let $0 = user_derived(() => [...$$props.path, "body"]);
+
+					NodeArrayProperty(node_1, {
+						get path() {
+							return get$1($0);
+						}
+					});
+				}
+
+				template_effect(() => {
+					set_class(aside, 1, `alert ${get$1(variant) ?? ''}`);
+					set_text(text, get$1(label));
+				});
+
+				append($$anchor, aside);
+			},
+			$$slots: { default: true }
+		});
+
+		pop();
+	}
+
+	var root$9 = from_html(`<code contenteditable="false"> </code>`);
+
+	function CodeBlock($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "code"]);
+
+					CustomProperty($$anchor, {
+						tag: 'pre',
+						get path() {
+							return get$1($0);
+						},
+
+						children: ($$anchor, $$slotProps) => {
+							var code = root$9();
+							var text = only_child(code, true);
+
+							template_effect(() => {
+								set_class(code, 1, clsx(get$1(node).language ? `language-${get$1(node).language}` : ""));
+								set_text(text, get$1(node).code);
+							});
+
+							append($$anchor, code);
+						},
+						$$slots: { default: true }
+					});
+				}
+			},
+			$$slots: { default: true }
+		});
+
+		pop();
+	}
+
+	var root$8 = from_html(`<hr contenteditable="false"/>`);
+
+	function ThematicBreak($$anchor, $$props) {
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				var hr = root$8();
+
+				append($$anchor, hr);
+			},
+			$$slots: { default: true }
+		});
+	}
+
+	var root$7 = from_html(`<div contenteditable="false"></div>`);
+
+	function Image($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "source"]);
+
+					CustomProperty($$anchor, {
+						get path() {
+							return get$1($0);
+						},
+
+						children: ($$anchor, $$slotProps) => {
+							var div = root$7();
+
+							html$1(div, () => get$1(node).html, true);
+							append($$anchor, div);
+						},
+						$$slots: { default: true }
+					});
+				}
+			},
+			$$slots: { default: true }
+		});
+
+		pop();
+	}
+
+	var root$6 = from_html(`<div contenteditable="false" class="embed"></div>`);
+
+	function Embed($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+
+		Node$1($$anchor, {
+			get path() {
+				return $$props.path;
+			},
+
+			children: ($$anchor, $$slotProps) => {
+				{
+					let $0 = user_derived(() => [...$$props.path, "directive"]);
+
+					CustomProperty($$anchor, {
+						get path() {
+							return get$1($0);
+						},
+
+						children: ($$anchor, $$slotProps) => {
+							var div = root$6();
+
+							html$1(div, () => get$1(node).html, true);
+							template_effect(() => set_attribute(div, 'title', get$1(node).directive));
+							append($$anchor, div);
+						},
+						$$slots: { default: true }
+					});
+				}
+			},
+			$$slots: { default: true }
+		});
+
+		pop();
+	}
+
+	var root$5 = from_html(`<strong> </strong>`);
+
+	function Strong($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		var strong = root$5();
+		var text = only_child(strong, true);
+
+		template_effect(() => {
+			set_attribute(strong, 'id', get$1(node).id);
+			set_attribute(strong, 'data-node-id', get$1(node).id);
+			set_text(text, $$props.content);
+		});
+
+		append($$anchor, strong);
+		pop();
+	}
+
+	var root$4 = from_html(`<em> </em>`);
+
+	function Emphasis($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		var em = root$4();
+		var text = only_child(em, true);
+
+		template_effect(() => {
+			set_attribute(em, 'id', get$1(node).id);
+			set_attribute(em, 'data-node-id', get$1(node).id);
+			set_text(text, $$props.content);
+		});
+
+		append($$anchor, em);
+		pop();
+	}
+
+	var root$3 = from_html(`<code> </code>`);
+
+	function InlineCode($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		var code = root$3();
+		var text = only_child(code, true);
+
+		template_effect(() => {
+			set_attribute(code, 'id', get$1(node).id);
+			set_attribute(code, 'data-node-id', get$1(node).id);
+			set_text(text, $$props.content);
+		});
+
+		append($$anchor, code);
+		pop();
+	}
+
+	var root$2 = from_html(`<mark> </mark>`);
+
+	function Highlight($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		var mark = root$2();
+		var text = only_child(mark, true);
+
+		template_effect(() => {
+			set_attribute(mark, 'id', get$1(node).id);
+			set_attribute(mark, 'data-node-id', get$1(node).id);
+			set_text(text, $$props.content);
+		});
+
+		append($$anchor, mark);
+		pop();
+	}
+
+	var root$1 = from_html(`<del> </del>`);
+
+	function Strikethrough($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		var del = root$1();
+		var text = only_child(del, true);
+
+		template_effect(() => {
+			set_attribute(del, 'id', get$1(node).id);
+			set_attribute(del, 'data-node-id', get$1(node).id);
+			set_text(text, $$props.content);
+		});
+
+		append($$anchor, del);
+		pop();
+	}
+
+	var root = from_html(`<div class="link"> </div>`);
+	var root_1 = from_html(`<a> </a>`);
+
+	function Link($$anchor, $$props) {
+		push($$props, true);
+
+		const svedit = getContext("svedit");
+		const node = user_derived(() => svedit.session.get($$props.path));
+		var fragment = comment();
+		var node_1 = first_child(fragment);
+
+		{
+			var consequent = ($$anchor) => {
+				var div = root();
+				var text = only_child(div, true);
+
+				template_effect(() => {
+					set_attribute(div, 'data-node-id', get$1(node).id);
+					set_attribute(div, 'data-href', get$1(node).href);
+					set_text(text, $$props.content);
+				});
+
+				append($$anchor, div);
+			};
+
+			var alternate = ($$anchor) => {
+				var a = root_1();
+				var text_1 = only_child(a, true);
+
+				template_effect(() => {
+					set_attribute(a, 'id', get$1(node).id);
+					set_attribute(a, 'data-node-id', get$1(node).id);
+					set_attribute(a, 'href', get$1(node).href);
+					set_text(text_1, $$props.content);
+				});
+
+				append($$anchor, a);
+			};
+
+			if_block(node_1, ($$render) => {
+				if (svedit.editable) $$render(consequent); else $$render(alternate, -1);
+			});
+		}
+
+		append($$anchor, fragment);
+		pop();
+	}
+
+	const INLINE_MARKS = ["strong", "emphasis", "inline_code", "highlight", "strikethrough", "link"];
+	const BLOCK_TYPES = [
+	  "paragraph",
+	  "heading",
+	  "list",
+	  "blockquote",
+	  "alert",
+	  "code_block",
+	  "thematic_break",
+	  "image",
+	  "embed"
+	];
+	const document_schema = define_document_schema({
+	  page: {
+	    kind: "document",
+	    properties: {
+	      body: {
+	        type: "node_array",
+	        node_types: BLOCK_TYPES,
+	        default_node_type: "paragraph"
+	      }
+	    }
+	  },
+	  paragraph: {
+	    kind: "text",
+	    properties: {
+	      content: { type: "text", mark_types: INLINE_MARKS, allow_newlines: true }
+	    }
+	  },
+	  heading: {
+	    kind: "text",
+	    properties: {
+	      content: { type: "text", mark_types: INLINE_MARKS, allow_newlines: false },
+	      level: { type: "integer", min: 1, max: 6, default: 2 }
+	    }
+	  },
+	  list: {
+	    kind: "block",
+	    properties: {
+	      items: { type: "node_array", node_types: ["list_item"], default_node_type: "list_item" },
+	      ordered: { type: "boolean", default: false }
+	    }
+	  },
+	  list_item: {
+	    kind: "text",
+	    properties: {
+	      content: { type: "text", mark_types: INLINE_MARKS, allow_newlines: false }
+	    }
+	  },
+	  blockquote: {
+	    kind: "block",
+	    properties: {
+	      body: { type: "node_array", node_types: BLOCK_TYPES, default_node_type: "paragraph" }
+	    }
+	  },
+	  alert: {
+	    kind: "block",
+	    properties: {
+	      variant: { type: "string", default: "note" },
+	      body: { type: "node_array", node_types: BLOCK_TYPES, default_node_type: "paragraph" }
+	    }
+	  },
+	  code_block: {
+	    kind: "block",
+	    properties: {
+	      code: { type: "string", default: "" },
+	      language: { type: "string", default: "" }
+	    }
+	  },
+	  thematic_break: {
+	    kind: "block",
+	    properties: {}
+	  },
+	  image: {
+	    kind: "block",
+	    properties: {
+	      source: { type: "string", default: "" },
+	      alt: { type: "string", default: "" },
+	      caption: { type: "string", default: "" },
+	      html: { type: "string", default: "" }
+	    }
+	  },
+	  embed: {
+	    kind: "block",
+	    properties: {
+	      directive: { type: "string", default: "" },
+	      html: { type: "string", default: "" }
+	    }
+	  },
+	  strong: { kind: "mark", properties: {} },
+	  emphasis: { kind: "mark", properties: {} },
+	  inline_code: { kind: "mark", properties: {} },
+	  highlight: { kind: "mark", properties: {} },
+	  strikethrough: { kind: "mark", properties: {} },
+	  link: { kind: "mark", properties: { href: { type: "string", default: "" } } }
+	});
+	function generate_id(length = 16) {
+	  const id_alphabet = "abcdefghijklmnopqrstuvwxyz";
+	  const random_values = crypto.getRandomValues(new Uint8Array(length));
+	  return [...random_values].map(value => id_alphabet[value % id_alphabet.length]).join("")
+	}
+	const session_config = {
+	  generate_id,
+	  system_components: {
+	    overlays: Overlays
+	  },
+	  node_components: {
+	    page: Page,
+	    paragraph: Paragraph,
+	    heading: Heading,
+	    list: List,
+	    list_item: ListItem,
+	    blockquote: Blockquote,
+	    alert: Alert,
+	    code_block: CodeBlock,
+	    thematic_break: ThematicBreak,
+	    image: Image,
+	    embed: Embed,
+	    strong: Strong,
+	    emphasis: Emphasis,
+	    inline_code: InlineCode,
+	    highlight: Highlight,
+	    strikethrough: Strikethrough,
+	    link: Link
+	  },
+	  create_commands_and_keymap: (context) => {
+	    const commands = {
+	      select_all: new SelectAllCommand(context),
+	      insert_default_node: new InsertDefaultNodeCommand(context),
+	      add_new_line: new AddNewLineCommand(context),
+	      break_text_node: new BreakTextNodeCommand(context),
+	      undo: new UndoCommand(context),
+	      redo: new RedoCommand(context),
+	      select_parent: new SelectParentCommand(context),
+	      toggle_strong: new ToggleMarkCommand("strong", context),
+	      toggle_emphasis: new ToggleMarkCommand("emphasis", context),
+	      toggle_inline_code: new ToggleMarkCommand("inline_code", context),
+	      toggle_highlight: new ToggleMarkCommand("highlight", context),
+	      toggle_strikethrough: new ToggleMarkCommand("strikethrough", context)
+	    };
+	    const keymap = define_keymap({
+	      "meta+a,ctrl+a": [commands.select_all],
+	      enter: [commands.break_text_node, commands.insert_default_node],
+	      "shift+enter": [commands.add_new_line, commands.insert_default_node],
+	      "meta+z,ctrl+z": [commands.undo],
+	      "meta+shift+z,ctrl+shift+z": [commands.redo],
+	      escape: [commands.select_parent],
+	      "meta+b,ctrl+b": [commands.toggle_strong],
+	      "meta+i,ctrl+i": [commands.toggle_emphasis]
+	    });
+	    return { commands, keymap }
+	  },
+	  inserters: {
+	    paragraph: function (tr, content = { content: "", marks: [], annotations: [] }) {
+	      const new_paragraph = {
+	        id: session_config.generate_id(),
+	        type: "paragraph",
+	        content
+	      };
+	      tr.create(new_paragraph);
+	      tr.insert_nodes([new_paragraph.id]);
+	      tr.set_selection({
+	        type: "text",
+	        path: [...tr.selection.path, tr.selection.focus_offset - 1, "content"],
+	        anchor_offset: 0,
+	        focus_offset: 0
+	      });
+	    }
+	  }
+	};
+	function create_session(element) {
+	  const { doc, unrecognised } = ingest(element, generate_id);
+	  if (!doc) return { session: null, unrecognised }
+	  const filled = fill_document_defaults(doc, document_schema);
+	  return { session: new Session(document_schema, filled, session_config), unrecognised: [] }
+	}
+
+	function scalarFrom(element) {
+	  const text = element.textContent.trim();
+	  if (text === "true") return true
+	  if (text === "false") return false
+	  if (text === "null") return null
+	  if (text && !Number.isNaN(Number(text))) return Number(text)
+	  return text
+	}
+	function dateFrom(element) {
+	  const datetime = element.getAttribute("datetime");
+	  if (!datetime) return element.textContent.trim()
+	  if (datetime.endsWith("T00:00:00.000Z")) return datetime.slice(0, "0000-00-00".length)
+	  return datetime
+	}
+	function valueFrom(element) {
+	  const list = element.querySelector(":scope > ul");
+	  if (list) return [...list.children].map(item => valueFrom(item))
+	  const nested = element.querySelector(":scope > dl");
+	  if (nested) return objectFrom(nested)
+	  const time = element.querySelector(":scope > time");
+	  if (time) return dateFrom(time)
+	  const link = element.querySelector(":scope > a[href]");
+	  if (link) return link.getAttribute("href")
+	  return scalarFrom(element)
+	}
+	function objectFrom(list) {
+	  const terms = [...list.children];
+	  return terms.reduce((accumulated, node, index) => {
+	    if (node.tagName !== "DT") return accumulated
+	    const value = terms[index + 1];
+	    if (!value || value.tagName !== "DD") return accumulated
+	    return { ...accumulated, [node.textContent.trim()]: valueFrom(value) }
+	  }, {})
+	}
+	function readFrontmatter(main) {
+	  const children = [...main.children];
+	  const heading = children.find(child => child.tagName === "H1");
+	  const date = children.find(child => child.matches('time[itemprop="date"]'));
+	  const image = children.find(child => child.matches('picture[itemprop="image"]'));
+	  const description = children.find(child => child.matches('p[itemprop="description"]'));
+	  const known = {
+	    ...(date ? { date: dateFrom(date) } : {}),
+	    ...(image ? { image: image.getAttribute("data-original") } : {}),
+	    ...(description ? { description: description.textContent.trim() } : {})
+	  };
+	  const generic = children
+	    .filter(child => child.tagName === "DL")
+	    .reduce((accumulated, list) => ({ ...accumulated, ...objectFrom(list) }), {});
+	  return {
+	    title: heading ? heading.textContent.trim() : null,
+	    properties: { ...known, ...generic }
+	  }
 	}
 
 	function openSocket() {
@@ -17610,8 +21353,40 @@ ${fallback_html}`;
 
 	openSocket();
 	const content = document.getElementById("content");
+	const noFrontmatter = { title: null, properties: {} };
+	function startEditing() {
+	  const { session, unrecognised } = create_session(content);
+	  if (!session) {
+	    console.warn(
+	      "[vowel] editor stayed read-only: #content holds elements the ingest allowlist " +
+	      "does not recognise:", unrecognised
+	    );
+	    return unrecognised
+	  }
+	  const main = content.closest("main");
+	  const frontmatter = main ? readFrontmatter(main) : noFrontmatter;
+	  content.replaceChildren();
+	  mount(Editor, { target: content, props: { session, frontmatter } });
+	  return []
+	}
+	const settings = { panel: null };
+	function closeSettings() {
+	  if (!settings.panel) return
+	  unmount(settings.panel);
+	  settings.panel = null;
+	}
+	function toggleSettings() {
+	  if (settings.panel) return closeSettings()
+	  settings.panel = mount(SettingsPanel, {
+	    target: document.body,
+	    props: { onclose: closeSettings }
+	  });
+	}
 	if (content) {
-	  mount(Editor, { target: content, props: { element: content } });
+	  mount(EditButton, {
+	    target: document.body,
+	    props: { onedit: startEditing, onsettings: toggleSettings }
+	  });
 	}
 
 })();

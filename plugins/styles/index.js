@@ -1,4 +1,3 @@
-import path from "node:path"
 import { transform } from "lightningcss"
 
 /** @import * as Votive from "votive" */
@@ -26,25 +25,20 @@ function writeCSS(target, settings, api, config) {
 
 
 
-/** @type {Votive.ReadText} */
-function readCSS(text, filePath, targetPath, api, config) {
+/** @type {Votive.ProcessorRead} */
+function readCSS(source) {
   const metadata = {}
   const abstract = {
-    css: text
+    css: source.text
   }
 
   return {
     metadata,
     abstract,
-    // filePath is the absolute source path (see readSources.js's plugin
-    // contract) - html/index.js's `href: /${sheet}` build expects a
-    // sourceFolder-relative, routable reference instead (matching the
-    // bare "reset.css"/"typography.css" built-ins below in
-    // markdown/index.js), or it renders a broken `//absolute/fs/path`
-    // href (a protocol-relative URL the browser tries to fetch from a
-    // host named "workspaces", not a real stylesheet - found via a real
-    // build, not by inspection).
-    settings: { stylesheets: [path.relative(config.sourceFolder, filePath)] }
+    // Already project-relative, which is exactly the routable reference
+    // html/index.js's `href: /${sheet}` build wants (matching the bare
+    // "reset.css"/"typography.css" built-ins in markdown/index.js).
+    settings: { stylesheets: [source.path] }
   }
 }
 

@@ -1,4 +1,5 @@
 import xml from "xml"
+import { listTargets } from "./../../utils.js"
 
 /** @import * as Votive from "votive" */
 
@@ -68,7 +69,7 @@ const processor = {
 
     } else if (target.path === "feed.xml") {
 
-      const pages = api.targets({
+      const pages = listTargets(api, {
         query: {
           "!": {
             rss_item: false

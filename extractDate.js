@@ -13,13 +13,24 @@ function monthIndex(month) {
   return Number(month) - 1
 }
 
+// Deliberately unanchored: a caller may want the date out of a longer
+// string. Use dateSpan() to tell "this text *is* a date" from "this text
+// mentions one".
+const DATE_PATTERN = /(?:\b(?<first_segment>(?<first_MMM_or_MMMM>January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)|(?<first_YYYY>\d\d\d\d)|(?<first_do>(?:\d|[0-3]\d)(?:st|nd|rd|th))|(?<first_dd_or_MM_or_yy>[0-3]\d)|(?<first_d_or_M>\d))(?<first_delimiter>\.| |, |\/|-)?)(?:\b(?<second_segment>(?<second_MMM_or_MMMM>January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)|(?<second_YYYY>\d\d\d\d)|(?<second_do>(\d\d)(:?st|nd|rd|th))|(?<second_dd_or_MM_or_yy>[0-3]\d)|(?<second_d_or_M>\d))(?<second_delimiter>\.| |, |\/|-)?)(?:\b(?<third_segment>(?<third_MMM_or_MMMM>January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)|(?<third_YYYY>\d\d\d\d)|(?<third_do>(\d\d)(?:st|nd|rd|th))|(?<third_dd_or_MM_or_yy>[0-3]\d)|(?<third_d_or_M>\d)))(?<time>(?<time_delimiter>T|\ | at )(?<H_or_HH>[0-2]?\d):(?<MM>[0-6]\d)(?::(?<SS>00))?(?:\.(?<SSS>\d\d\d))?(?<Z>Z|(?:\+(\d\d):(\d\d)))?(?<meridiam_indicator>am|pm)?)?/i
+
+/**
+ * The part of `text` that looks like a date, or undefined.
+ * @param {string} text
+ */
+function dateSpan(text) {
+  return DATE_PATTERN.exec(text)?.[0]
+}
+
 /**
  * @param {string} text
  */
 function extractDate(text) {
-  const dateRegex = /(?:\b(?<first_segment>(?<first_MMM_or_MMMM>January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)|(?<first_YYYY>\d\d\d\d)|(?<first_do>(?:\d|[0-3]\d)(?:st|nd|rd|th))|(?<first_dd_or_MM_or_yy>[0-3]\d)|(?<first_d_or_M>\d))(?<first_delimiter>\.| |, |\/|-)?)(?:\b(?<second_segment>(?<second_MMM_or_MMMM>January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)|(?<second_YYYY>\d\d\d\d)|(?<second_do>(\d\d)(:?st|nd|rd|th))|(?<second_dd_or_MM_or_yy>[0-3]\d)|(?<second_d_or_M>\d))(?<second_delimiter>\.| |, |\/|-)?)(?:\b(?<third_segment>(?<third_MMM_or_MMMM>January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)|(?<third_YYYY>\d\d\d\d)|(?<third_do>(\d\d)(?:st|nd|rd|th))|(?<third_dd_or_MM_or_yy>[0-3]\d)|(?<third_d_or_M>\d)))(?<time>(?<time_delimiter>T|\ | at )(?<H_or_HH>[0-2]?\d):(?<MM>[0-6]\d)(?::(?<SS>00))?(?:\.(?<SSS>\d\d\d))?(?<Z>Z|(?:\+(\d\d):(\d\d)))?(?<meridiam_indicator>am|pm)?)?/i
-
-  const dateMatch = dateRegex.exec(text)
+  const dateMatch = DATE_PATTERN.exec(text)
   if(!dateMatch) return
 
   const data = {
@@ -132,4 +143,5 @@ function extractDate(text) {
 }
 
 export default extractDate
+export { extractDate, dateSpan }
 

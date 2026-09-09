@@ -66,7 +66,7 @@ export function toTitleCase(string) {
   if (!string) return
   return string.split(" ").map(word => {
     const letters = word.split("")
-    letters[0] = letters[0].toUpperCase()
+    letters[0] = letters[0]?.toUpperCase()
     return letters.join("")
   }).join(" ")
 }
@@ -77,4 +77,24 @@ export function createHashtagPage(tag) {
   const hast = toHast(mdast)
 
   return hast
+}
+
+/**
+ * Every listing in vowel goes through here rather than calling
+ * `api.targets()` directly.
+ *
+ * A virtual target (`write: false`) has no file on disk and therefore no
+ * URL to link to. Votive keeps it because a plugin may still want to read
+ * it back, and votive is right not to care why it is virtual - that is
+ * vowel's business. Two of vowel's own features produce them, and both
+ * are meant to be invisible: `html_file: false`, and the public target a
+ * `secret_key` page leaves behind, whose prettyURL is the secret path.
+ * Listing that one publishes the secret.
+ *
+ * @param {{targets: (query: object) => any[]}} api
+ * @param {object} query
+ */
+export function listTargets(api, query) {
+  const targets = api.targets(query)
+  return targets.filter(target => target.write !== 0)
 }
