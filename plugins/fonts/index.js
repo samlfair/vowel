@@ -17,7 +17,7 @@ async function writeFile(target) {
   // bundle. Resolved here rather than stored, for the same reason
   // target.buffer() resolves rather than stores: an absolute path in the
   // database stops being true the moment anything moves.
-  return { data: await readFile(path.join(BUNDLED_FONTS, target.abstract.bundled)) }
+  return { data: await readFile(path.join(BUNDLED_FONTS, target.metadata.bundled)) }
 }
 
 /** @type {Votive.ProcessorRead} */
@@ -25,7 +25,6 @@ function readFont() {
   // Nothing to record: the bytes are reachable from the target's own
   // `source` at write time.
   return {
-    abstract: {},
     metadata: {}
   }
 }
@@ -34,6 +33,7 @@ function readFont() {
 const fontsReader = {
   format: "buffer",
   extensions: [".woff", ".woff2", ".ttf", ".otf"],
+  router: ({ name, dir, ext }) => ({ name, dir, ext }),
   readFile: readFont,
   writeFile
 }
@@ -41,12 +41,7 @@ const fontsReader = {
 /** @type {Votive.VotivePlugin} */
 const vowelFontsPlugin = {
   name: "vowel-fonts",
-  processors: [fontsReader],
-  router: ({ name, dir, ext }) => {
-    return {
-      name, dir, ext
-    }
-  }
+  processors: [fontsReader]
 }
 
 export default vowelFontsPlugin

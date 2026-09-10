@@ -2,6 +2,7 @@
 
 /** @type {Votive.VotiveProcessor} */
 const iconReader = {
+  router: ({ name, dir, ext }) => ({ name, dir, ext }),
   syntax: "icon",
   filter: {
     extensions: [".ico"]
@@ -15,12 +16,7 @@ const iconReader = {
 /** @type {Votive.VotivePlugin} */
 const vowelIconsPlugin = {
   name: "vowel-icons",
-  processors: [iconReader],
-  router: ({ name, dir, ext }) => {
-    return {
-      name, dir, ext
-    }
-  }
+  processors: [iconReader]
 }
 
 export default vowelIconsPlugin

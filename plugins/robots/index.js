@@ -6,18 +6,14 @@
 const processor = {
   extensions: [".txt"],
   format: "text",
-  writeFile: (target) => ({ data: target.abstract.content })
+  writeFile: (target) => ({ data: target.data }),
+  router: ({ name, dir, ext }) => ({ name, dir, ext })
 }
 
 /** @type {Votive.VotivePlugin} */
 const plugin = {
   name: "vowel-robots",
-  processors: [processor],
-  router: ({ name, dir, ext }) => {
-    return {
-      name, dir, ext
-    }
-  }
+  processors: [processor]
 }
 
 export default plugin

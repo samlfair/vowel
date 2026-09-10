@@ -21,8 +21,10 @@ function render(markdown) {
     buffer: () => Buffer.from(markdown)
   }
 
-  const result = processor.readFile(source, api, config)
-  return { html: toHtml(result.abstract), metadata: result.metadata }
+  // The hook takes (subject, context), and the parsed tree now rides in
+  // metadata as the hastAbstract convention rather than being a column.
+  const result = processor.readFile(source, { api, settings: undefined, config })
+  return { html: toHtml(result.metadata.hastAbstract), metadata: result.metadata }
 }
 
 test("dates: markup around a date disqualifies it as metadata", () => {

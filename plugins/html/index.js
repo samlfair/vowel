@@ -183,7 +183,7 @@ function makeFrontmatter(metadata, api, config) {
 }
 
 /** @type {Votive.ProcessorWrite} */
-function writeFile(target, settings, api, config) {
+function writeFile(target, { settings, api, config }) {
 
   /** @param {string} relativePath */
   function resolvePath(relativePath) {
@@ -296,8 +296,8 @@ function writeFile(target, settings, api, config) {
         // Bonus over Math.random(): api.target() registers a real
         // dependency from this page to the stylesheet it references.
         const stylesheetTarget = api.target(sheet)
-        const cacheBuster = stylesheetTarget?.abstract?.css
-          ? hash("MD5", stylesheetTarget.abstract.css).slice(0, 8)
+        const cacheBuster = stylesheetTarget?.data
+          ? hash("MD5", stylesheetTarget.data).slice(0, 8)
           : ""
         treeStyleSheets.push(
           h('link', {
@@ -316,7 +316,7 @@ function writeFile(target, settings, api, config) {
 
       api.createTarget({
         path: "syntax-highlighting.css",
-        abstract: { css: syntaxHighlightingStyles },
+        data: syntaxHighlightingStyles,
         metadata: {},
         extension: "css"
       })

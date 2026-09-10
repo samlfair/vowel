@@ -4,7 +4,7 @@ import fs from "fs/promises"
 /** @type {Votive.ProcessorWrite} */
 async function writeFile(target) {
   return {
-    data: target.abstract.svg
+    data: target.data
   }
 }
 
@@ -14,10 +14,11 @@ async function writeFile(target) {
 const processor = {
   extensions: [".svg"],
   format: "text",
+  router: ({ name, dir, ext }) => ({ name, dir, ext }),
   readFile: ({ text }) => {
     const monochrome = text.includes("currentColor") || Boolean(text.match(/#000\b/))
     return {
-      abstract: { svg: text },
+      data: text,
       metadata: { monochrome }
     }
   },
@@ -27,12 +28,7 @@ const processor = {
 /** @type {Votive.VotivePlugin} */
 const plugin = {
   name: "vowel-vectors",
-  processors: [processor],
-  router: ({ name, dir, ext }) => {
-    return {
-      name, dir, ext
-    }
-  }
+  processors: [processor]
 }
 
 export default plugin

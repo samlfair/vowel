@@ -6,9 +6,10 @@ import { listTargets } from "./../../utils.js"
 
 /** @type {Votive.VotiveProcessor} */
 const processor = {
+  router: ({ name, dir, ext }) => ({ name, dir, ext }),
   extensions: [".xml"],
   format: "text",
-  writeFile: (target, settings, api) => {
+  writeFile: (target, { settings, api }) => {
     if (target.path === "sitemap.xml") {
       // FIXME move the filter to SQLite
       const pages = api
@@ -197,12 +198,7 @@ const processor = {
 /** @type {Votive.VotivePlugin} */
 const vowelXMLPlugin = {
   name: "vowel-xml",
-  processors: [processor],
-  router: ({ name, dir, ext }) => {
-    return {
-      name, dir, ext
-    }
-  }
+  processors: [processor]
 }
 
 export default vowelXMLPlugin

@@ -27,45 +27,47 @@ function isExternalLinkParagraph(node) {
 }
 
 /**
- * Walks a target's abstract for link-preview paragraphs and queues one
+ * Walks a target's hast abstract for link-preview paragraphs and queues one
  * fetch task per URL found, so the write side (html/index.js) can render
  * a preview card once the data is cached. Deliberately does not fetch
  * anything itself - tasks are only ever run when the caller invokes
  * runFetches() (see votive's fetchURLs.js), and a URL already cached
  * (success or in a failure cooldown) is skipped automatically, so this
  * never re-fetches the same link on every build.
- * @type {Votive.ReadAbstract}
+ * @type {Votive.ProcessorTransform}
  */
-function transformFile(abstract, settings, api, config, targetFilePath) {
+function transformFile(target, context) {
   const urls = []
 
   function walk(node) {
     if (!node || typeof node !== "object") return
     if (isExternalLinkParagraph(node)) {
       urls.push({
-        data: node.children[0].value,
-        runner: "text",
-        target: targetFilePath
+        url: node.children[0].value,
+        target: target.path
       })
       return
     }
     if (Array.isArray(node.children)) node.children.forEach(walk)
   }
 
-  walk(abstract)
+  // The parsed tree is a metadata convention; a plugin that can't find
+  // it would parse target.data instead.
+  walk(target.metadata.hastAbstract)
 
-  return { abstract, urls }
+  return { urls }
 }
 
 /**
  * Parses a fetched page into the flat shape link-preview rendering
  * wants, preferring OpenGraph, then standard meta tags, then Twitter
  * Card, for each field independently.
- * @param {string} html
- * @returns {{ title: string, description: string, image: string | undefined }}
+ * The body method is lazy, so a plugin that only wanted headers would
+ * never read it; this one wants the HTML.
+ * @type {Votive.ProcessorReadURL}
  */
-function parseLinkPreview(html) {
-  const meta = parseURLMetadata(html)
+async function parseLinkPreview(response) {
+  const meta = parseURLMetadata(await response.text())
   return {
     title: meta.openGraph.title || meta.title || meta.twitterCard.title || "",
     description: meta.openGraph.description || meta.description || meta.twitterCard.description || "",

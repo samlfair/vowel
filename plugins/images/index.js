@@ -7,10 +7,12 @@ import {createImagePath, imageSizes, imageExts } from "./../../utils.js"
 
 
 /** @type {Votive.ProcessorWrite} */
-async function writeImage(target, settings, api, config) {
-  const { uuid, sourcePath } = target.abstract
+async function writeImage(target, { settings, config }) {
+  const { uuid } = target.metadata
 
-  const defaultFormat = path.extname(sourcePath)
+  // target.source is the same project-relative path the abstract used to
+  // duplicate as `sourcePath`.
+  const defaultFormat = path.extname(target.source)
 
   // target.path is the routed *target* path (relative to targetFolder,
   // e.g. for writing/routing) - never a real, readable filesystem path,
@@ -54,23 +56,16 @@ async function writeImage(target, settings, api, config) {
 function readImagePath(source) {
   const uuid = randomUUID()
 
-  const data = {
-    metadata: {},
-    abstract: {
-      // Project-relative, like everything else stored - only ever read
-      // back for its extension below.
-      sourcePath: source.path,
-      uuid
-    }
-  }
-
-  return data
+  // sourcePath is redundant with target.source, which carries the same
+  // project-relative path.
+  return { metadata: { uuid } }
 }
 
 /** @type {Votive.VotiveProcessor} */
 const jpegLoader = {
   format: "buffer",
   extensions: [".jpeg", ".jpg", ".png", ".webp", ".gif"],
+  router: ({ name, dir, ext }) => ({ name, dir, ext }),
   readFile: readImagePath,
   writeFile: writeImage
 }
@@ -78,12 +73,7 @@ const jpegLoader = {
 /** @type {Votive.VotivePlugin} */
 const vowelImagesPlugin = {
   name: "vowel-jpeg",
-  processors: [jpegLoader],
-  router: ({ name, dir, ext }) => {
-    return {
-      name, dir, ext
-    }
-  }
+  processors: [jpegLoader]
 }
 
 export default vowelImagesPlugin

@@ -96,5 +96,5 @@ export function createHashtagPage(tag) {
  */
 export function listTargets(api, query) {
   const targets = api.targets(query)
-  return targets.filter(target => target.write !== 0)
+  return targets.filter(target => target.write !== false)
 }

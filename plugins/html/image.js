@@ -58,7 +58,7 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
   const relativePath = imagePath.startsWith("/") ? path.relative("/", imagePath) : imagePath
   const image = api.target(relativePath)
   if (!image) return
-  const formats = createImagePaths(image.abstract.sourcePath, "./", image.abstract.uuid)
+  const formats = createImagePaths(image.source, "./", image.metadata.uuid)
 
   const sources = formats.map((format, index) => {
     const isImg = index === formats.length - 1

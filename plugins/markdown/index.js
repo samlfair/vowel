@@ -31,7 +31,7 @@ const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
 /** @import * as Vowel from "./../../index.js" */
 
 /** @type {Votive.ProcessorRead} */
-function readFile(source, api, config) {
+function readFile(source, { api, config }) {
   // Both project-relative (see SourceInput in votive/lib/bundle.js), so
   // filePath answers routing-shaped questions directly: `=== "settings.md"`
   // means the project's root settings file, and pathInfo.dir is a folder
@@ -160,7 +160,6 @@ function readFile(source, api, config) {
         // without needing to check whether it already exists first.
         api.createTarget({
           path: `tags.html`,
-          abstract: hast,
           metadata: {
             breadcrumb: "Tags",
             title: "Tags",
@@ -182,7 +181,7 @@ function readFile(source, api, config) {
             const title = toTitleCase(hashtag)
             metadata.tags.push(hashtag)
 
-            const abstract = createHashtagPage(hashtag)
+            const hashtagPage = createHashtagPage(hashtag)
 
             const tagMetadata = {
               breadcrumb: title,
@@ -190,12 +189,11 @@ function readFile(source, api, config) {
               prettyURL: `/tags/${hashtag}`,
               type: "tag",
               tag: hashtag,
-              hastAbstract: abstract,
+              hastAbstract: hashtagPage,
             }
 
             const created = api.createTarget({
               path: `tags/${hashtag}.html`,
-              abstract,
               metadata: tagMetadata
             })
 
@@ -210,7 +208,6 @@ function readFile(source, api, config) {
     if (metadata.fm_domain) {
       api.createTarget({
         path: "sitemap.xml",
-        abstract: {},
         metadata: {
           domain: metadata.fm_domain,
           title: metadata.title
@@ -219,7 +216,6 @@ function readFile(source, api, config) {
 
       api.createTarget({
         path: "feed.xml",
-        abstract: {},
         metadata: {
           domain: metadata.fm_domain,
           title: metadata.title
@@ -254,8 +250,7 @@ function readFile(source, api, config) {
   if (secretFilePath) {
     api.createTarget({
       path: secretFilePath,
-      abstract: hast,
-      metadata: targetMetadata,
+      metadata: { ...targetMetadata, hastAbstract: hast },
       // Attributed to the same source file the routed target has, so
       // this behaves exactly as it did when readFile relocated its own
       // target: relative-link resolution and targetBySource() lookups
@@ -276,15 +271,18 @@ function readFile(source, api, config) {
     // collide on a single target, leaving whichever was read last.
     api.createTarget({
       path: filePath,
-      abstract: { text: string },
+      data: string,
       metadata: {}
     })
   }
 
   return {
-    abstract: hast,
+    // `data` is the target's content - the markdown the page is made
+    // from. The parsed tree rides alongside as a metadata convention;
+    // a consumer unsure of its structure parses `data` instead.
+    data: string,
     write: secretFilePath ? false : (metadata.html_file ?? true),
-    metadata: targetMetadata,
+    metadata: { ...targetMetadata, hastAbstract: hast },
     settings: pathInfo.base === "settings.md" ? metadata : undefined
   }
 }
@@ -298,27 +296,24 @@ function readFile(source, api, config) {
  */
 function writeMarkdown(target) {
   return {
-    data: target.abstract.text,
+    data: target.data,
     encoding: "utf-8"
   }
 }
 
 
 
-/** @type {Votive.ReadAbstract} */
-function transformFile(abstract, settings, api, config) {
-  const urls = []
-  return { abstract, urls }
+/** @type {Votive.ProcessorTransform} */
+function transformFile(target, context) {
+  return { urls: [] }
 }
 
-/** @type {Votive.ReadFolder} */
-function readFolder(folder, settings, api, config, isRoot) {
+/** @type {Votive.ProcessorReadFolder} */
+function readFolder({ path: folder, isRoot }, { settings, api, config }) {
   if (folder === "") {
     api.createTarget({
       path: "robots.txt",
-      abstract: {
-        content: generateRobots()
-      },
+      data: generateRobots(),
       metadata: {}
     })
   }
@@ -328,7 +323,6 @@ function readFolder(folder, settings, api, config, isRoot) {
   if(!pageNotFound) {
     const abstract = toHast(fromMarkdown(`# 404\n\nPage not found.`))
     api.createTarget({
-      abstract,
       metadata: {
         title: "Page not found",
         breadcrumb: "404",
@@ -374,7 +368,6 @@ function readFolder(folder, settings, api, config, isRoot) {
 
       const abstract = toHast(fromMarkdown(`# ${title}\n\n${indexPath}`))
       api.createTarget({
-        abstract,
         path: aliasPath,
         extension: ".html",
         metadata: {
@@ -393,7 +386,6 @@ function readFolder(folder, settings, api, config, isRoot) {
 
       const abstract = toHast(fromMarkdown(`# ${title}\n\n${indexPath}`))
       api.createTarget({
-        abstract,
         path: "index.html",
         extension: "html",
         metadata: {
@@ -440,7 +432,7 @@ function readFolder(folder, settings, api, config, isRoot) {
 
         api.createTarget({
           path: "reset.css",
-          abstract: { css: resetStyles },
+          data: resetStyles,
           metadata: {},
           extension: "css"
         })
@@ -453,7 +445,7 @@ function readFolder(folder, settings, api, config, isRoot) {
 
           api.createTarget({
             path: "typography.css",
-            abstract: { css: typeStyles },
+            data: typeStyles,
             metadata: {},
             extension: "css"
           })
@@ -470,7 +462,7 @@ function readFolder(folder, settings, api, config, isRoot) {
 
             api.createTarget({
               path: "type.css",
-              abstract: { css: dynamicType.css },
+              data: dynamicType.css,
               metadata: {},
               extension: "css"
             })
@@ -483,8 +475,7 @@ function readFolder(folder, settings, api, config, isRoot) {
               // time, so no machine-specific path is stored.
               api.createTarget({
                 path: file,
-                abstract: { bundled: file },
-                metadata: {}
+                metadata: { bundled: file }
               })
             }
           }
@@ -504,7 +495,7 @@ function readFolder(folder, settings, api, config, isRoot) {
 
             api.createTarget({
               path: "colors.css",
-              abstract: { css: colorScheme },
+              data: colorScheme,
               metadata: {},
               extension: "css"
             })
@@ -516,7 +507,7 @@ function readFolder(folder, settings, api, config, isRoot) {
 
             api.createTarget({
               path: "default.css",
-              abstract: { css: defaultStyles },
+              data: defaultStyles,
               metadata: {},
               extension: "css"
             })
@@ -598,6 +589,7 @@ function router(args) {
 const readMarkdown = {
   extensions: [".md"],
   format: "text",
+  router,
   readFile,
   writeFile: writeMarkdown,
   transformFile,
@@ -609,8 +601,7 @@ const readMarkdown = {
 /** @type {Votive.VotivePlugin} */
 const vowelMarkdownPlugin = {
   name: "vowel",
-  processors: [readMarkdown],
-  router
+  processors: [readMarkdown]
 }
 
 export default vowelMarkdownPlugin
