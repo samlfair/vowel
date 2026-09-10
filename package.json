@@ -85,7 +85,6 @@
     "unist-util-visit-parents": "^6.0.0",
     "unpic": "^4.2.2",
     "url-metadata": "^5.4.1",
-    "voot": "file:../voot",
     "votive": "file:../votive",
     "xast-util-sitemap": "^2.0.0",
     "xast-util-to-xml": "^4.0.0",

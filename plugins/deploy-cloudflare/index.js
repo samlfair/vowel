@@ -32,7 +32,7 @@ async function removeSettingsFiles(folder) {
  * happens to already be running against this config - a command's
  * context (config, notify) has no reference to a live server's own build
  * queue, and this needs to behave identically whether triggered from the
- * CLI (no server at all, see voot's runCommand) or a live "Publish"
+ * CLI (no server at all, see votive's runCommand) or a live "Publish"
  * button over WS. Modest redundant cost when a dev server IS already
  * running (bundle() is cheap when nothing's stale), traded for one
  * deploy command that works the same everywhere.

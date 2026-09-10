@@ -267,7 +267,7 @@ function readFile(source, api, config) {
   // settings.md is routed nowhere (router() returns false for it), so
   // its own text is emitted as a target here instead. That is what puts
   // it on the served site, where the settings panel can GET it, edit the
-  // frontmatter and POST the result back to voot's write endpoint - a
+  // frontmatter and POST the result back to votive's write endpoint - a
   // read path without a new endpoint. See writeMarkdown below for what
   // actually writes it.
   if (pathInfo.base === "settings.md") {

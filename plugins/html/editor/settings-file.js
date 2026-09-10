@@ -2,7 +2,7 @@
 //
 // vowel emits settings.md as a target of its own (see the markdown
 // plugin's readFile), so the previewed site serves the real file, and
-// voot's POST endpoint writes it back. That pair is the whole read/write
+// votive's POST endpoint writes it back. That pair is the whole read/write
 // path - no bespoke endpoint, and the panel edits the same file a person
 // would open in an editor.
 
@@ -56,7 +56,7 @@ export async function readSettings(path = "/settings.md") {
 }
 
 /**
- * Writes the file back through voot's write endpoint, which resolves the
+ * Writes the file back through votive's write endpoint, which resolves the
  * path under sourceFolder and refuses anything outside it. The rebuild
  * needs no trigger: the same watcher that sees a hand edit sees this one.
  * @param {string} filePath

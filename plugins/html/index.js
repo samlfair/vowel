@@ -284,7 +284,7 @@ function writeFile(target, settings, api, config) {
         // Content hash, not Math.random() - a random value here changed
         // on every rebuild regardless of whether the CSS actually did,
         // which meant this <link>'s href always differed from the
-        // previous build, which meant voot/client.js's head-diff always
+        // previous build, which meant the live-reload client's head-diff always
         // saw a "change" and always fell back to a full page reload
         // instead of a selective DOM patch. See
         // tasks/css-cache-buster-bug.md. Hashing the raw source (stored
@@ -863,7 +863,7 @@ function writeFile(target, settings, api, config) {
 }
 
 /**
- * Injects voot's live-reload client and the dev-preview save widget into
+ * Injects votive's live-reload client and the dev-preview save widget into
  * a served HTML page - dev-server only, never touches what's written to
  * disk. This is the one place the CLI's own browser tab and an embedder
  * pointing a native window at the same server (vowel-desktop) actually

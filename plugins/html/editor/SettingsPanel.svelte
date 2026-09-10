@@ -116,7 +116,7 @@
 		try {
 			await writeSettings('settings.md', joinFrontmatter(data, file.body));
 			// No reload: the write lands in sourceFolder, the watcher
-			// rebuilds and voot's live-reload client patches the page - the
+			// rebuilds and votive's live-reload client patches the page - the
 			// same path a hand edit takes.
 			onclose();
 		} catch (e) {

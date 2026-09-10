@@ -7,7 +7,7 @@ import cleanup from "rollup-plugin-cleanup"
 // committed at ../bundle/index.js -
 // vowel/plugins/html/index.js reads that file's contents once at plugin
 // load time and injects it into every previewed page's
-// handlePreviewRequest, the same way it already inlines voot's
+// handlePreviewRequest, the same way it already inlines votive's
 // openSocket() reload client. Rebuild with `npm run build:editor` from
 // vowel's root after editing anything in this folder.
 export default {

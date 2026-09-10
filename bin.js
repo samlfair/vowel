@@ -198,14 +198,14 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
 /**
  * Runs one registered command directly and exits - no dev server, no
  * wizard, no cache-wiping. Reuses the exact handler a live "Publish"
- * button would trigger over WS (see voot's runCommand/handleCommand) -
+ * button would trigger over WS (see votive's runCommand/handleCommand) -
  * this is just the other invocation path for the same registered
  * function, meant for CI/automated use (e.g. `vowel --command deploy`).
  * @param {string} name
  * @param {string} [payloadJSON]
  */
 async function runCLICommand(name, payloadJSON) {
-  const { runCommand } = await import("voot")
+  const { runCommand } = await import("votive")
 
   let payload
   try {

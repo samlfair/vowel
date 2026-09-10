@@ -23,7 +23,7 @@
   setContext("key_mapper", key_mapper)
 
   // Experimental: the markdown is logged, not written. The whole file is
-  // reproduced - frontmatter, title and body - so wiring this to voot's
+  // reproduced - frontmatter, title and body - so wiring this to votive's
   // write endpoint is now a matter of posting it rather than of teaching
   // the server to preserve anything.
   function save() {
