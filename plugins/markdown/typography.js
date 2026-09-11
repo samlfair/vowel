@@ -9,7 +9,7 @@
 // Emitted into its own cascade layer, after typography, so it overrides
 // TypographyStyles.css without either file knowing about the other.
 
-import { families, findFamily, rampValues, fixedValue, RAMP } from "./fonts.js"
+import { families, findFamily, findTextFamily, rampValues, fixedValue, numericValue, RAMP } from "./fonts.js"
 
 // 16px on a small screen, 18px on a large one.
 const BASE_FONT_SIZE = "clamp(1rem, 0.875rem + 0.333vw, 1.125rem)"
@@ -109,8 +109,10 @@ function fontFaces(family) {
 export function typographyCSS(theme) {
   const settings = theme && typeof theme === "object" && !Array.isArray(theme) ? theme : {}
   const family = findFamily(settings.font)
+  const bodyFamily = findTextFamily(settings["body-font"])
 
-  if (!family) return null
+  if (!family && !bodyFamily) return null
+  if (!family) return bodyOnlyCSS(bodyFamily, settings)
 
   const ramped = family.axes.filter(axis => axis.kind === RAMP)
   const fixed = family.axes.filter(axis => axis.kind !== RAMP)
@@ -173,11 +175,16 @@ export function typographyCSS(theme) {
     levelRule(HEADER_TAGLINE, 2)
   ]
 
+  // The body family's faces, unless it is the display family, whose
+  // faces are already declared above.
+  const bodyFaces = bodyFamily && bodyFamily !== family ? fontFaces(bodyFamily) : []
+
   const css = [
     `/* Generated from theme.font in settings.md - edit the settings, not this file. */`,
     `@layer reset, typography, default, dynamic-typography;`,
     ``,
     ...fontFaces(family),
+    ...bodyFaces,
     ``,
     `@layer dynamic-typography {`,
     `  :root {`,
@@ -194,9 +201,51 @@ export function typographyCSS(theme) {
     ...[...headingRules, ...headerRules].map(rule => (
       rule.split("\n").map(line => `  ${line}`).join("\n")
     )),
+    ...(bodyFamily ? bodyRules(bodyFamily, settings).map(line => `  ${line}`) : []),
     `}`
   ].join("\n")
 
+  const files = [...family.faces, ...(bodyFamily && bodyFamily !== family ? bodyFamily.faces : [])]
+  return { css, files: files.map(face => face.file) }
+}
+
+/**
+ * Body text is one size and one weight: no ramp, no six steps. The
+ * family and a single `body-weight` (clamped to what the face has;
+ * <strong> still needs room above it, which is the author's problem to
+ * notice) are all that is set. TypographyStyles.css's `html` rule keeps
+ * the system stack for everything this doesn't name.
+ * @param {any} family
+ * @param {Record<string, unknown>} settings
+ */
+function bodyRules(family, settings) {
+  const weight = family.axes.find(axis => axis.id === "weight")
+  const range = weight ? { min: weight.h1.min, max: weight.h1.max, default: 400 } : { min: 100, max: 900, default: 400 }
+  return [
+    `body {`,
+    `  font-family: "${family.cssName}", ${family.stack};`,
+    `  font-weight: ${numericValue(settings, "body-weight", range)};`,
+    `}`
+  ]
+}
+
+/**
+ * A body font with no display font configured: faces and the body rule,
+ * nothing about headings.
+ * @param {any} family
+ * @param {Record<string, unknown>} settings
+ */
+function bodyOnlyCSS(family, settings) {
+  const css = [
+    `/* Generated from theme.body-font in settings.md - edit the settings, not this file. */`,
+    `@layer reset, typography, default, dynamic-typography;`,
+    ``,
+    ...fontFaces(family),
+    ``,
+    `@layer dynamic-typography {`,
+    ...bodyRules(family, settings).map(line => `  ${line}`),
+    `}`
+  ].join("\n")
   return { css, files: family.faces.map(face => face.file) }
 }
 

@@ -18850,7 +18850,7 @@ ${fallback_html}`;
 	var root_11$1 = from_html(`<!> <!>`, 1);
 	var root_12$1 = from_html(`<div><div class="toolbar-scroller svelte-zh32e5"><!></div></div>`);
 	var root_13$1 = from_html(`<!> <!> <!>`, 1);
-	var root_14 = from_html(`<div class="contextual-tools svelte-zh32e5"><!> <!></div>`);
+	var root_14$1 = from_html(`<div class="contextual-tools svelte-zh32e5"><!> <!></div>`);
 	var root_15 = from_html(`<div class="contextual-tools svelte-zh32e5"><!></div> <!> <!>`, 1);
 	var root_16 = from_html(`<!> <div class="editor-toolbar bottom-toolbar svelte-zh32e5"><div class="toolbar-scroller svelte-zh32e5"><!> <div><!> <button class="toggle-editable svelte-zh32e5"> </button></div></div></div>`, 1);
 
@@ -19420,7 +19420,7 @@ ${fallback_html}`;
 
 				{
 					var consequent_13 = ($$anchor) => {
-						var div_5 = root_14();
+						var div_5 = root_14$1();
 						var node_26 = child(div_5);
 
 						divider(node_26);
@@ -19766,6 +19766,7 @@ ${fallback_html}`;
 	    name: "Pliant",
 	    cssName: "Pliant",
 	    stack: "sans-serif",
+	    text: true,
 	    faces: [
 	      { file: "pliant-regular.ttf", style: "normal" },
 	      { file: "pliant-italic.ttf", style: "italic" }
@@ -19797,6 +19798,7 @@ ${fallback_html}`;
 	    name: "Recursive",
 	    cssName: "Recursive",
 	    stack: "sans-serif",
+	    text: true,
 	    faces: [{ file: "recursive.ttf", style: "normal" }],
 	    axes: [
 	      sizeAxis,
@@ -19822,6 +19824,7 @@ ${fallback_html}`;
 	    name: "Mona Sans",
 	    cssName: "Mona Sans",
 	    stack: "sans-serif",
+	    text: true,
 	    faces: [
 	      { file: "mona-sans-regular.ttf", style: "normal" },
 	      { file: "mona-sans-italic.ttf", style: "italic" }
@@ -19850,6 +19853,7 @@ ${fallback_html}`;
 	  const wanted = name.trim().toLowerCase();
 	  return families.find(family => family.name.toLowerCase() === wanted) || null
 	}
+	const textFamilies = families.filter(family => family.text);
 	function axisKeys(axis) {
 	  if (axis.kind !== RAMP) return { value: axis.id }
 	  return { h1: `h1-${axis.id}`, h6: `h6-${axis.id}`, power: `heading-${axis.id}` }
@@ -19883,15 +19887,16 @@ ${fallback_html}`;
 	var root_2 = from_html(`<label class="field svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="text" class="svelte-14cc0vj"/></label>`);
 	var root_3 = from_html(`<label class="field color svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="color" class="svelte-14cc0vj"/> <input type="text" class="hex svelte-14cc0vj" spellcheck="false"/></label>`);
 	var root_4 = from_html(`<option> </option>`);
-	var root_5 = from_html(`<p class="note svelte-14cc0vj">Pick a font to set a heading scale.</p>`);
-	var root_6 = from_html(`<label class="slider svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="range" class="svelte-14cc0vj"/> <output class="svelte-14cc0vj"> </output></label>`);
-	var root_7 = from_html(`<fieldset class="svelte-14cc0vj"><legend class="svelte-14cc0vj"> </legend> <!></fieldset>`);
-	var root_8 = from_html(`<label class="field svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <select class="svelte-14cc0vj"></select></label>`);
-	var root_9 = from_html(`<label class="field check svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="checkbox"/></label>`);
-	var root_10 = from_html(`<p class="note svelte-14cc0vj">Sizes and spacing preview as you drag. The font and colors apply on save.</p> <!>`, 1);
-	var root_11 = from_html(`<section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Site</h3> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Colors</h3> <p class="note svelte-14cc0vj">Two seeds; every shade on the site is generated from them.</p> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Typography</h3> <label class="field svelte-14cc0vj"><span class="svelte-14cc0vj">Font</span> <select class="svelte-14cc0vj"><option>None</option><!></select></label> <!></section>`, 1);
-	var root_12 = from_html(`<p class="error svelte-14cc0vj"> </p>`);
-	var root_13 = from_html(`<aside class="settings-drawer svelte-14cc0vj" aria-label="Site settings" data-vowel-client=""><header class="svelte-14cc0vj"><h2 class="svelte-14cc0vj">Settings</h2> <button class="close svelte-14cc0vj" title="Close settings">&#10005;</button></header> <!> <!> <footer class="svelte-14cc0vj"><button class="save svelte-14cc0vj"> </button></footer></aside>`);
+	var root_5 = from_html(`<label class="field svelte-14cc0vj"><span class="svelte-14cc0vj">Body weight</span> <input type="number" min="100" max="900" step="10"/></label>`);
+	var root_6 = from_html(`<p class="note svelte-14cc0vj">Pick a font to set a heading scale.</p>`);
+	var root_7 = from_html(`<label class="slider svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="range" class="svelte-14cc0vj"/> <output class="svelte-14cc0vj"> </output></label>`);
+	var root_8 = from_html(`<fieldset class="svelte-14cc0vj"><legend class="svelte-14cc0vj"> </legend> <!></fieldset>`);
+	var root_9 = from_html(`<label class="field svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <select class="svelte-14cc0vj"></select></label>`);
+	var root_10 = from_html(`<label class="field check svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="checkbox"/></label>`);
+	var root_11 = from_html(`<p class="note svelte-14cc0vj">Sizes and spacing preview as you drag. The font and colors apply on save.</p> <!>`, 1);
+	var root_12 = from_html(`<section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Site</h3> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Colors</h3> <p class="note svelte-14cc0vj">Two seeds; every shade on the site is generated from them.</p> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Typography</h3> <label class="field svelte-14cc0vj"><span class="svelte-14cc0vj">Font</span> <select class="svelte-14cc0vj"><option>None</option><!></select></label> <label class="field svelte-14cc0vj"><span class="svelte-14cc0vj">Body font</span> <select class="svelte-14cc0vj"><option>System</option><!></select></label> <!> <!></section>`, 1);
+	var root_13 = from_html(`<p class="error svelte-14cc0vj"> </p>`);
+	var root_14 = from_html(`<aside class="settings-drawer svelte-14cc0vj" aria-label="Site settings" data-vowel-client=""><header class="svelte-14cc0vj"><h2 class="svelte-14cc0vj">Settings</h2> <button class="close svelte-14cc0vj" title="Close settings">&#10005;</button></header> <!> <!> <footer class="svelte-14cc0vj"><button class="save svelte-14cc0vj"> </button></footer></aside>`);
 
 	const $$css$1 = {
 		hash: 'svelte-14cc0vj',
@@ -20046,7 +20051,7 @@ ${fallback_html}`;
 			}
 		}
 
-		var aside = root_13();
+		var aside = root_14();
 		var header = child(aside);
 		var button = sibling(child(header), 2);
 
@@ -20060,7 +20065,7 @@ ${fallback_html}`;
 			};
 
 			var alternate_1 = ($$anchor) => {
-				var fragment = root_11();
+				var fragment = root_12();
 				var section = first_child(fragment);
 				var node_1 = sibling(child(section), 2);
 
@@ -20132,34 +20137,78 @@ ${fallback_html}`;
 
 				init_select(select);
 
-				var node_4 = sibling(label_3, 2);
+				var label_4 = sibling(label_3, 2);
+				var select_1 = sibling(child(label_4), 2);
+				var option_3 = child(select_1);
+
+				option_3.value = option_3.__value = '';
+
+				var node_4 = sibling(option_3);
+
+				each(node_4, 17, () => textFamilies, (option) => option.name, ($$anchor, option) => {
+					var option_4 = root_4();
+					var text_3 = only_child(option_4, true);
+					var option_4_value = {};
+
+					template_effect(() => {
+						set_text(text_3, get$1(option).name);
+
+						if (option_4_value !== (option_4_value = get$1(option).name)) {
+							option_4.value = (option_4.__value = option_4_value) ?? '';
+						}
+					});
+
+					append($$anchor, option_4);
+				});
+
+				var select_1_value;
+
+				init_select(select_1);
+
+				var node_5 = sibling(label_4, 2);
 
 				{
 					var consequent_1 = ($$anchor) => {
-						var p_1 = root_5();
+						var label_5 = root_5();
+						var input_3 = sibling(child(label_5), 2);
+						template_effect(() => set_value(input_3, get$1(theme)['body-weight'] ?? 400));
+						delegated('change', input_3, (event) => setTheme('body-weight', Number(event.currentTarget.value)));
+						append($$anchor, label_5);
+					};
+
+					if_block(node_5, ($$render) => {
+						if (get$1(theme)['body-font']) $$render(consequent_1);
+					});
+				}
+
+				var node_6 = sibling(node_5, 2);
+
+				{
+					var consequent_2 = ($$anchor) => {
+						var p_1 = root_6();
 
 						append($$anchor, p_1);
 					};
 
 					var alternate = ($$anchor) => {
-						var fragment_1 = root_10();
-						var node_5 = sibling(first_child(fragment_1), 2);
+						var fragment_1 = root_11();
+						var node_7 = sibling(first_child(fragment_1), 2);
 
-						each(node_5, 17, () => get$1(family).axes, (axis) => axis.id, ($$anchor, axis) => {
+						each(node_7, 17, () => get$1(family).axes, (axis) => axis.id, ($$anchor, axis) => {
 							const keys = user_derived(() => axisKeys(get$1(axis)));
 							var fragment_2 = comment();
-							var node_6 = first_child(fragment_2);
+							var node_8 = first_child(fragment_2);
 
 							{
-								var consequent_2 = ($$anchor) => {
+								var consequent_3 = ($$anchor) => {
 									const current = user_derived(() => rampValues(get$1(axis), get$1(theme)));
-									var fieldset = root_7();
+									var fieldset = root_8();
 									var legend = child(fieldset);
-									var text_3 = only_child(legend, true);
-									var node_7 = sibling(legend, 2);
+									var text_4 = only_child(legend, true);
+									var node_9 = sibling(legend, 2);
 
 									each(
-										node_7,
+										node_9,
 										17,
 										() => [
 											['h1', 'h1', get$1(axis).h1],
@@ -20172,99 +20221,99 @@ ${fallback_html}`;
 											let part = () => get$1($$array)[0];
 											let label = () => get$1($$array)[1];
 											let range = () => get$1($$array)[2];
-											var label_4 = root_6();
-											var span_2 = child(label_4);
-											var text_4 = only_child(span_2, true);
-											var input_3 = sibling(span_2, 2);
+											var label_6 = root_7();
+											var span_2 = child(label_6);
+											var text_5 = only_child(span_2, true);
+											var input_4 = sibling(span_2, 2);
 
-											var output = sibling(input_3, 2);
-											var text_5 = only_child(output);
+											var output = sibling(input_4, 2);
+											var text_6 = only_child(output);
 
 											template_effect(() => {
-												set_text(text_4, label());
-												set_attribute(input_3, 'min', range().min);
-												set_attribute(input_3, 'max', range().max);
-												set_attribute(input_3, 'step', range().step);
-												set_value(input_3, get$1(current)[part()]);
-												set_text(text_5, `${get$1(current)[part()] ?? ''}${get$1(axis).unit ?? ''}`);
+												set_text(text_5, label());
+												set_attribute(input_4, 'min', range().min);
+												set_attribute(input_4, 'max', range().max);
+												set_attribute(input_4, 'step', range().step);
+												set_value(input_4, get$1(current)[part()]);
+												set_text(text_6, `${get$1(current)[part()] ?? ''}${get$1(axis).unit ?? ''}`);
 											});
 
-											delegated('input', input_3, (event) => setTheme(get$1(keys)[part()], Number(event.currentTarget.value)));
-											append($$anchor, label_4);
+											delegated('input', input_4, (event) => setTheme(get$1(keys)[part()], Number(event.currentTarget.value)));
+											append($$anchor, label_6);
 										}
 									);
-									template_effect(() => set_text(text_3, get$1(axis).label));
+									template_effect(() => set_text(text_4, get$1(axis).label));
 									append($$anchor, fieldset);
 								};
 
-								var consequent_3 = ($$anchor) => {
+								var consequent_4 = ($$anchor) => {
 									const current = user_derived(() => fixedValue(get$1(axis), get$1(theme)));
-									var label_5 = root_8();
-									var span_3 = child(label_5);
-									var text_6 = only_child(span_3, true);
-									var select_1 = sibling(span_3, 2);
+									var label_7 = root_9();
+									var span_3 = child(label_7);
+									var text_7 = only_child(span_3, true);
+									var select_2 = sibling(span_3, 2);
 
-									each(select_1, 21, () => get$1(axis).options, (option) => option.value, ($$anchor, option) => {
-										var option_3 = root_4();
-										var text_7 = only_child(option_3, true);
-										var option_3_value = {};
+									each(select_2, 21, () => get$1(axis).options, (option) => option.value, ($$anchor, option) => {
+										var option_5 = root_4();
+										var text_8 = only_child(option_5, true);
+										var option_5_value = {};
 
 										template_effect(
 											($0) => {
-												set_text(text_7, get$1(option).label);
+												set_text(text_8, get$1(option).label);
 
-												if (option_3_value !== (option_3_value = $0)) {
-													option_3.value = (option_3.__value = option_3_value) ?? '';
+												if (option_5_value !== (option_5_value = $0)) {
+													option_5.value = (option_5.__value = option_5_value) ?? '';
 												}
 											},
 											[() => String(get$1(option).value)]
 										);
 
-										append($$anchor, option_3);
+										append($$anchor, option_5);
 									});
 
-									var select_1_value;
+									var select_2_value;
 
-									init_select(select_1);
+									init_select(select_2);
 
 									template_effect(
 										($0) => {
-											set_text(text_6, get$1(axis).label);
+											set_text(text_7, get$1(axis).label);
 
-											if (select_1_value !== (select_1_value = $0)) {
+											if (select_2_value !== (select_2_value = $0)) {
 												(
-													select_1.value = (select_1.__value = select_1_value) ?? '',
-													select_option(select_1, select_1_value)
+													select_2.value = (select_2.__value = select_2_value) ?? '',
+													select_option(select_2, select_2_value)
 												);
 											}
 										},
 										[() => String(get$1(current))]
 									);
 
-									delegated('change', select_1, (event) => setTheme(get$1(keys).value, get$1(axis).options.find((option) => String(option.value) === event.currentTarget.value)?.label));
-									append($$anchor, label_5);
+									delegated('change', select_2, (event) => setTheme(get$1(keys).value, get$1(axis).options.find((option) => String(option.value) === event.currentTarget.value)?.label));
+									append($$anchor, label_7);
 								};
 
-								var consequent_4 = ($$anchor) => {
-									var label_6 = root_9();
-									var span_4 = child(label_6);
-									var text_8 = only_child(span_4, true);
-									var input_4 = sibling(span_4, 2);
+								var consequent_5 = ($$anchor) => {
+									var label_8 = root_10();
+									var span_4 = child(label_8);
+									var text_9 = only_child(span_4, true);
+									var input_5 = sibling(span_4, 2);
 
 									template_effect(
 										($0) => {
-											set_text(text_8, get$1(axis).label);
-											set_checked(input_4, $0);
+											set_text(text_9, get$1(axis).label);
+											set_checked(input_5, $0);
 										},
 										[() => fixedValue(get$1(axis), get$1(theme)) === 1]
 									);
 
-									delegated('change', input_4, (event) => setTheme(get$1(keys).value, event.currentTarget.checked));
-									append($$anchor, label_6);
+									delegated('change', input_5, (event) => setTheme(get$1(keys).value, event.currentTarget.checked));
+									append($$anchor, label_8);
 								};
 
-								if_block(node_6, ($$render) => {
-									if (get$1(axis).kind === RAMP) $$render(consequent_2); else if (get$1(axis).kind === CHOICE) $$render(consequent_3, 1); else if (get$1(axis).kind === FLAG) $$render(consequent_4, 2);
+								if_block(node_8, ($$render) => {
+									if (get$1(axis).kind === RAMP) $$render(consequent_3); else if (get$1(axis).kind === CHOICE) $$render(consequent_4, 1); else if (get$1(axis).kind === FLAG) $$render(consequent_5, 2);
 								});
 							}
 
@@ -20274,8 +20323,8 @@ ${fallback_html}`;
 						append($$anchor, fragment_1);
 					};
 
-					if_block(node_4, ($$render) => {
-						if (!get$1(family)) $$render(consequent_1); else $$render(alternate, -1);
+					if_block(node_6, ($$render) => {
+						if (!get$1(family)) $$render(consequent_2); else $$render(alternate, -1);
 					});
 				}
 
@@ -20286,9 +20335,17 @@ ${fallback_html}`;
 							select_option(select, select_value)
 						);
 					}
+
+					if (select_1_value !== (select_1_value = get$1(theme)['body-font'] ?? '')) {
+						(
+							select_1.value = (select_1.__value = select_1_value) ?? '',
+							select_option(select_1, select_1_value)
+						);
+					}
 				});
 
 				delegated('change', select, (event) => setTheme('font', event.currentTarget.value));
+				delegated('change', select_1, (event) => setTheme('body-font', event.currentTarget.value));
 				append($$anchor, fragment);
 			};
 
@@ -20297,29 +20354,29 @@ ${fallback_html}`;
 			});
 		}
 
-		var node_8 = sibling(node, 2);
+		var node_10 = sibling(node, 2);
 
 		{
-			var consequent_5 = ($$anchor) => {
-				var p_2 = root_12();
-				var text_9 = only_child(p_2, true);
+			var consequent_6 = ($$anchor) => {
+				var p_2 = root_13();
+				var text_10 = only_child(p_2, true);
 
-				template_effect(() => set_text(text_9, get$1(error)));
+				template_effect(() => set_text(text_10, get$1(error)));
 				append($$anchor, p_2);
 			};
 
-			if_block(node_8, ($$render) => {
-				if (get$1(error)) $$render(consequent_5);
+			if_block(node_10, ($$render) => {
+				if (get$1(error)) $$render(consequent_6);
 			});
 		}
 
-		var footer = sibling(node_8, 2);
+		var footer = sibling(node_10, 2);
 		var button_1 = child(footer);
-		var text_10 = only_child(button_1, true);
+		var text_11 = only_child(button_1, true);
 
 		template_effect(() => {
 			button_1.disabled = get$1(saving) || get$1(loading);
-			set_text(text_10, get$1(saving) ? 'Saving…' : 'Save');
+			set_text(text_11, get$1(saving) ? 'Saving…' : 'Save');
 		});
 
 		delegated('click', button, function (...$$args) {

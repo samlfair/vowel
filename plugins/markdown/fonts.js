@@ -131,6 +131,7 @@ export const families = [
     name: "Pliant",
     cssName: "Pliant",
     stack: "sans-serif",
+    text: true,
     faces: [
       { file: "pliant-regular.ttf", style: "normal" },
       { file: "pliant-italic.ttf", style: "italic" }
@@ -166,6 +167,7 @@ export const families = [
     name: "Recursive",
     cssName: "Recursive",
     stack: "sans-serif",
+    text: true,
     faces: [{ file: "recursive.ttf", style: "normal" }],
     axes: [
       sizeAxis,
@@ -191,6 +193,7 @@ export const families = [
     name: "Mona Sans",
     cssName: "Mona Sans",
     stack: "sans-serif",
+    text: true,
     faces: [
       { file: "mona-sans-regular.ttf", style: "normal" },
       { file: "mona-sans-italic.ttf", style: "italic" }
@@ -226,6 +229,26 @@ export function findFamily(name) {
   if (typeof name !== "string") return null
   const wanted = name.trim().toLowerCase()
   return families.find(family => family.name.toLowerCase() === wanted) || null
+}
+
+/**
+ * The families plausible for body text - marked `text: true` in the
+ * catalogue: a real italic or a slant for <em>, and a text-sized end
+ * to whatever axes they have. The body picker offers only these, on
+ * the same principle as the axis controls: only what the font can
+ * actually do. Deliberately minimal (tasks/2-in-progress/body-fonts.md:
+ * "don't put too much effort into it, we're going to change it soon").
+ */
+export const textFamilies = families.filter(family => family.text)
+
+/**
+ * A body family by name, or null - including for a name that is a
+ * display-only family.
+ * @param {unknown} name
+ */
+export function findTextFamily(name) {
+  const family = findFamily(name)
+  return family && family.text ? family : null
 }
 
 /**

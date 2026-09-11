@@ -186,3 +186,26 @@ test("fonts: every ramped axis declares a full range and a default inside it", (
     }
   }
 })
+
+test("body font: a text family sets body { font-family, font-weight } and ships its faces alongside the display font's", () => {
+  const result = typographyCSS({ name: "Default", font: "Fraunces", "body-font": "Mona Sans", "body-weight": 450 })
+  assert.match(result.css, /body \{\n\s+font-family: "Mona Sans", sans-serif;\n\s+font-weight: 450;/)
+  assert.deepStrictEqual(result.files, ["fraunces-regular.ttf", "fraunces-italic.ttf", "mona-sans-regular.ttf", "mona-sans-italic.ttf"])
+})
+
+test("body font: a display-only family is refused, and the body weight is clamped to the face", () => {
+  assert.strictEqual(typographyCSS({ name: "Default", "body-font": "Emberly" }), null)
+  const result = typographyCSS({ name: "Default", "body-font": "Pliant", "body-weight": 5000 })
+  assert.match(result.css, /font-weight: 900;/)
+})
+
+test("body font: without a display font, only the body rule and its faces are emitted; the same family for both declares its faces once", () => {
+  const bodyOnly = typographyCSS({ name: "Default", "body-font": "Recursive" })
+  assert.ok(bodyOnly.css.includes("body {"))
+  assert.ok(!bodyOnly.css.includes("h1"))
+  assert.deepStrictEqual(bodyOnly.files, ["recursive.ttf"])
+
+  const both = typographyCSS({ name: "Default", font: "Recursive", "body-font": "Recursive" })
+  assert.strictEqual((both.css.match(/@font-face/g) || []).length, 1)
+  assert.deepStrictEqual(both.files, ["recursive.ttf"])
+})

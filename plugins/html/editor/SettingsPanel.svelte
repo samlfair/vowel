@@ -11,6 +11,7 @@
 	// font catalogue, so a family only ever offers axes it actually has.
 	import {
 		families,
+		textFamilies,
 		findFamily,
 		axisKeys,
 		rampValues,
@@ -185,6 +186,30 @@
 					{/each}
 				</select>
 			</label>
+
+			<label class="field">
+				<span>Body font</span>
+				<select value={theme['body-font'] ?? ''} onchange={(event) => setTheme('body-font', event.currentTarget.value)}>
+					<option value="">System</option>
+					{#each textFamilies as option (option.name)}
+						<option value={option.name}>{option.name}</option>
+					{/each}
+				</select>
+			</label>
+
+			{#if theme['body-font']}
+				<label class="field">
+					<span>Body weight</span>
+					<input
+						type="number"
+						min="100"
+						max="900"
+						step="10"
+						value={theme['body-weight'] ?? 400}
+						onchange={(event) => setTheme('body-weight', Number(event.currentTarget.value))}
+					/>
+				</label>
+			{/if}
 
 			{#if !family}
 				<p class="note">Pick a font to set a heading scale.</p>
