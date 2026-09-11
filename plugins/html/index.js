@@ -16,7 +16,7 @@ import { h } from 'hastscript'
 import { readFileSync } from "fs"
 import { testURL, testHashtags, createHashtagPage, toTitleCase, hashtagRegexSingle, createImagePaths, imageSizes, imageExts } from "./../../utils.js"
 import extractDate from "./../../extractDate.js"
-import { reservedProperties } from "./../markdown/metadata.js"
+import { reservedProperties, hiddenProperties } from "./../markdown/metadata.js"
 import { toString as hastToString } from 'hast-util-to-string'
 import { unified } from "unified"
 import { EXIT, SKIP, visit } from "unist-util-visit"
@@ -172,8 +172,10 @@ function makeValue(value) {
 function makeFrontmatter(metadata, api, config) {
   const handled = ["title", "date", "image", "description"]
 
+  // hiddenProperties never render: the editor takes frontmatter from
+  // the source file, so nothing is lost by leaving a key off the page.
   const properties = (metadata.frontmatter_keys || []).filter(key => {
-    return !handled.includes(key)
+    return !handled.includes(key) && !hiddenProperties.includes(key)
   })
 
   const known = []

@@ -19474,6 +19474,39 @@ ${fallback_html}`;
 
 	delegate(['mousedown', 'click']);
 
+	const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n)?/;
+	function splitFrontmatter(text) {
+	  const match = text.match(FRONTMATTER);
+	  if (!match) return { data: {}, body: text, had: false }
+	  const data = parse(match[1]) || {};
+	  return { data, body: text.slice(match[0].length), had: true }
+	}
+	function joinFrontmatter(data, body) {
+	  return `---\n${stringify(data)}---\n${body.replace(/^\r?\n/, "")}`
+	}
+	function themeObject(theme) {
+	  if (theme && typeof theme === "object" && !Array.isArray(theme)) return { ...theme }
+	  if (typeof theme === "string") return { name: theme }
+	  return {}
+	}
+	async function readSettings(path = "/settings.md") {
+	  const response = await fetch(path, { cache: "no-store" });
+	  if (!response.ok) throw new Error(`could not read ${path} (${response.status})`)
+	  return splitFrontmatter(await response.text())
+	}
+	async function writeSettings(filePath, data) {
+	  const response = await fetch("/", {
+	    method: "POST",
+	    headers: { "Content-Type": "application/json" },
+	    body: JSON.stringify({ type: "file", filePath, data })
+	  });
+	  if (!response.ok) {
+	    const detail = await response.json().catch(() => ({}));
+	    throw new Error(detail.error || `write failed (${response.status})`)
+	  }
+	  return response.json()
+	}
+
 	var root$d = from_html(`<!> <!>`, 1);
 
 	function Editor($$anchor, $$props) {
@@ -19496,16 +19529,32 @@ ${fallback_html}`;
 
 		setContext("key_mapper", key_mapper);
 
-		// Experimental: the markdown is logged, not written. The whole file is
-		// reproduced - frontmatter, title and body - so wiring this to votive's
-		// write endpoint is now a matter of posting it rather than of teaching
-		// the server to preserve anything.
-		function save() {
-			const markdown = serialize($$props.session.doc, $$props.frontmatter);
+		// Frontmatter from the source, body from the editor. The source is
+		// fetched at save time (GET <page>?source, votive's read half of the
+		// write endpoint) rather than when the editor opened, so a hand edit
+		// made meanwhile is less likely to be clobbered. Taking the
+		// frontmatter from the source rather than the rendered page is what
+		// lets a hidden key (secret_key) survive a save without ever being on
+		// the page. The title is the one key that isn't kept: it is written
+		// back as a `#` heading, never as `title:`, so a file whose title
+		// lived only in frontmatter gains a heading and loses the key.
+		async function save() {
+			const response = await fetch(`${window.location.pathname}?source`, { cache: "no-store" });
 
-			console.info("[vowel] markdown for %s\n\n%s", window.location.pathname, markdown);
+			if (!response.ok) {
+				const detail = await response.json().catch(() => ({}));
 
-			return markdown;
+				console.error("[vowel] not saved:", detail.error || `no source for ${window.location.pathname} (${response.status})`);
+
+				return;
+			}
+
+			const { path, text } = await response.json();
+			const { title: ignoredTitle, ...properties } = splitFrontmatter(text).data;
+			const markdown = serialize($$props.session.doc, { title: $$props.frontmatter.title, properties });
+
+			await writeSettings(path, markdown);
+			console.info("[vowel] saved %s", path);
 		}
 
 		var fragment = root$d();
@@ -19829,39 +19878,6 @@ ${fallback_html}`;
 	}
 
 	const fallbackColors = ["#00edc6", "#5119ff"];
-
-	const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n)?/;
-	function splitFrontmatter(text) {
-	  const match = text.match(FRONTMATTER);
-	  if (!match) return { data: {}, body: text, had: false }
-	  const data = parse(match[1]) || {};
-	  return { data, body: text.slice(match[0].length), had: true }
-	}
-	function joinFrontmatter(data, body) {
-	  return `---\n${stringify(data)}---\n${body.replace(/^\r?\n/, "")}`
-	}
-	function themeObject(theme) {
-	  if (theme && typeof theme === "object" && !Array.isArray(theme)) return { ...theme }
-	  if (typeof theme === "string") return { name: theme }
-	  return {}
-	}
-	async function readSettings(path = "/settings.md") {
-	  const response = await fetch(path, { cache: "no-store" });
-	  if (!response.ok) throw new Error(`could not read ${path} (${response.status})`)
-	  return splitFrontmatter(await response.text())
-	}
-	async function writeSettings(filePath, data) {
-	  const response = await fetch("/", {
-	    method: "POST",
-	    headers: { "Content-Type": "application/json" },
-	    body: JSON.stringify({ type: "file", filePath, data })
-	  });
-	  if (!response.ok) {
-	    const detail = await response.json().catch(() => ({}));
-	    throw new Error(detail.error || `write failed (${response.status})`)
-	  }
-	  return response.json()
-	}
 
 	var root_1$1 = from_html(`<p class="note svelte-14cc0vj">Reading settings.md…</p>`);
 	var root_2 = from_html(`<label class="field svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="text" class="svelte-14cc0vj"/></label>`);

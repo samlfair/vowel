@@ -12,6 +12,18 @@ import path from "node:path"
 
 // Frontmatter keys that are vowel's own controls rather than content, and
 // so keep their bare name instead of being prefixed.
+/**
+ * Frontmatter keys that are recorded in metadata but never rendered into
+ * the page. The editor reproduces a file's frontmatter from the source
+ * (GET <page>?source), not from what it rendered, so a key can be kept
+ * out of the page without being lost on save. `secret_key` is the case
+ * that forced it: the page rendered its own key, and the secret URLs of
+ * every page sharing that key follow from it.
+ */
+export const hiddenProperties = [
+  "secret_key"
+]
+
 export const reservedProperties = [
   "rss_item",
   "sitemap_item",

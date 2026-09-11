@@ -3,6 +3,7 @@
   import { Svedit, KeyMapper } from "svedit"
   import serialize from "./serialize.js"
   import Toolbar from "./Toolbar.svelte"
+  import { splitFrontmatter, writeSettings as writeFile } from "./settings-file.js"
 
   // Both props are read off the rendered page before this mounts, by
   // main.js's startEditing: the session from section#content, the title
@@ -22,14 +23,27 @@
   const key_mapper = new KeyMapper()
   setContext("key_mapper", key_mapper)
 
-  // Experimental: the markdown is logged, not written. The whole file is
-  // reproduced - frontmatter, title and body - so wiring this to votive's
-  // write endpoint is now a matter of posting it rather than of teaching
-  // the server to preserve anything.
-  function save() {
-    const markdown = serialize(session.doc, frontmatter)
-    console.info("[vowel] markdown for %s\n\n%s", window.location.pathname, markdown)
-    return markdown
+  // Frontmatter from the source, body from the editor. The source is
+  // fetched at save time (GET <page>?source, votive's read half of the
+  // write endpoint) rather than when the editor opened, so a hand edit
+  // made meanwhile is less likely to be clobbered. Taking the
+  // frontmatter from the source rather than the rendered page is what
+  // lets a hidden key (secret_key) survive a save without ever being on
+  // the page. The title is the one key that isn't kept: it is written
+  // back as a `#` heading, never as `title:`, so a file whose title
+  // lived only in frontmatter gains a heading and loses the key.
+  async function save() {
+    const response = await fetch(`${window.location.pathname}?source`, { cache: "no-store" })
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}))
+      console.error("[vowel] not saved:", detail.error || `no source for ${window.location.pathname} (${response.status})`)
+      return
+    }
+    const { path, text } = await response.json()
+    const { title: ignoredTitle, ...properties } = splitFrontmatter(text).data
+    const markdown = serialize(session.doc, { title: frontmatter.title, properties })
+    await writeFile(path, markdown)
+    console.info("[vowel] saved %s", path)
   }
 </script>
 
