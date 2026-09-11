@@ -81,20 +81,31 @@ export function createHashtagPage(tag) {
 
 /**
  * Every listing in vowel goes through here rather than calling
- * `api.targets()` directly.
+ * `api.targets()` directly. All five call sites - the tag pages, the
+ * breadcrumb family, glob expansions, the nav and the feed - are listing
+ * *pages*, which is what the name says and what the two filters mean
+ * together.
  *
- * A virtual target (`write: false`) has no file on disk and therefore no
- * URL to link to. Votive keeps it because a plugin may still want to read
- * it back, and votive is right not to care why it is virtual - that is
- * vowel's business. Two of vowel's own features produce them, and both
+ * **Virtual targets** (`write: false`) have no file on disk and therefore
+ * no URL to link to. Votive keeps them because a plugin may still want to
+ * read one back, and votive is right not to care why it is virtual - that
+ * is vowel's business. Two of vowel's own features produce them, and both
  * are meant to be invisible: `html_file: false`, and the public target a
  * `secret_key` page leaves behind, whose prettyURL is the secret path.
  * Listing that one publishes the secret.
  *
+ * **Non-HTML targets** are not pages either. Several reach a listing:
+ * the `"0"` placeholder a source whose router returned false collapses
+ * to (which carries that source's metadata, so it renders as a real
+ * entry); every folder's `settings.md`, emitted as its own target so the
+ * settings panel can fetch it; and copy-through assets - fonts, images -
+ * which became visible once votive stopped hiding targets that had no
+ * abstract. None has a title, so each renders as an empty `<article>`.
+ *
  * @param {{targets: (query: object) => any[]}} api
  * @param {object} query
  */
-export function listTargets(api, query) {
+export function listPages(api, query) {
   const targets = api.targets(query)
-  return targets.filter(target => target.write !== false)
+  return targets.filter(target => target.write !== false && target.extension === ".html")
 }

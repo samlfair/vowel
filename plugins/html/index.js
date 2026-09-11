@@ -25,7 +25,7 @@ import slug from "rehype-slug"
 import createDynamicImage from "./image.js"
 import { isExternalLinkParagraph } from "../urls/index.js"
 import { globClasses } from "./editor/directives.js"
-import { listTargets } from "./../../utils.js"
+import { listPages } from "./../../utils.js"
 
 /** @import * as Votive from "votive" */
 /** @import * as Vowel from "./../../index.js" */
@@ -210,7 +210,7 @@ function writeFile(target, { settings, api, config }) {
   if (target.metadata.type === "tag") {
     if (!target.metadata.tag) return false
 
-    const pages = listTargets(api, {
+    const pages = listPages(api, {
       recursive: true,
       query: {
         tags: target.metadata.tag
@@ -260,7 +260,7 @@ function writeFile(target, { settings, api, config }) {
 
   const family = [...ancestorFolders, targetAsDir].flatMap(folder => {
     // FIXME typing
-    return listTargets(api, {
+    return listPages(api, {
       folder: Array.isArray(folder) ? path.join(...folder) : folder,
       recursive: false,
       query: {
@@ -605,7 +605,7 @@ function writeFile(target, { settings, api, config }) {
           ? { tags: tag }
           : {}
 
-        const targets = listTargets(api, {
+        const targets = listPages(api, {
           folder,
           recursive,
           query,
@@ -736,7 +736,7 @@ function writeFile(target, { settings, api, config }) {
     }
   })
 
-  const everything = listTargets(api, {
+  const everything = listPages(api, {
     folder: "",
     recursive: true,
   }).filter(target => target.path
