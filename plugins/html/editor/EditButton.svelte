@@ -29,7 +29,7 @@
 </script>
 
 {#if !editing}
-	<div class="edit-launcher">
+	<div class="edit-launcher" data-vowel-client>
 		<button
 			class="edit settings"
 			onclick={onsettings}

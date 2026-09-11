@@ -127,7 +127,7 @@
 	}
 </script>
 
-<aside class="settings-drawer" aria-label="Site settings">
+<aside class="settings-drawer" aria-label="Site settings" data-vowel-client>
 	<header>
 		<h2>Settings</h2>
 		<button class="close" onclick={onclose} title="Close settings">&#10005;</button>

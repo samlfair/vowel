@@ -19497,7 +19497,7 @@ ${fallback_html}`;
 		setContext("key_mapper", key_mapper);
 
 		// Experimental: the markdown is logged, not written. The whole file is
-		// reproduced - frontmatter, title and body - so wiring this to voot's
+		// reproduced - frontmatter, title and body - so wiring this to votive's
 		// write endpoint is now a matter of posting it rather than of teaching
 		// the server to preserve anything.
 		function save() {
@@ -19559,7 +19559,7 @@ ${fallback_html}`;
 		pop();
 	}
 
-	var root$c = from_html(`<div class="edit-launcher svelte-1g2xck"><button class="edit settings svelte-1g2xck" title="Typography and theme settings">Settings</button> <span class="divider svelte-1g2xck" aria-hidden="true"></span> <button class="edit svelte-1g2xck"> </button></div>`);
+	var root$c = from_html(`<div class="edit-launcher svelte-1g2xck" data-vowel-client=""><button class="edit settings svelte-1g2xck" title="Typography and theme settings">Settings</button> <span class="divider svelte-1g2xck" aria-hidden="true"></span> <button class="edit svelte-1g2xck"> </button></div>`);
 
 	const $$css$2 = {
 		hash: 'svelte-1g2xck',
@@ -19875,7 +19875,7 @@ ${fallback_html}`;
 	var root_10 = from_html(`<p class="note svelte-14cc0vj">Sizes and spacing preview as you drag. The font and colors apply on save.</p> <!>`, 1);
 	var root_11 = from_html(`<section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Site</h3> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Colors</h3> <p class="note svelte-14cc0vj">Two seeds; every shade on the site is generated from them.</p> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Typography</h3> <label class="field svelte-14cc0vj"><span class="svelte-14cc0vj">Font</span> <select class="svelte-14cc0vj"><option>None</option><!></select></label> <!></section>`, 1);
 	var root_12 = from_html(`<p class="error svelte-14cc0vj"> </p>`);
-	var root_13 = from_html(`<aside class="settings-drawer svelte-14cc0vj" aria-label="Site settings"><header class="svelte-14cc0vj"><h2 class="svelte-14cc0vj">Settings</h2> <button class="close svelte-14cc0vj" title="Close settings">&#10005;</button></header> <!> <!> <footer class="svelte-14cc0vj"><button class="save svelte-14cc0vj"> </button></footer></aside>`);
+	var root_13 = from_html(`<aside class="settings-drawer svelte-14cc0vj" aria-label="Site settings" data-vowel-client=""><header class="svelte-14cc0vj"><h2 class="svelte-14cc0vj">Settings</h2> <button class="close svelte-14cc0vj" title="Close settings">&#10005;</button></header> <!> <!> <footer class="svelte-14cc0vj"><button class="save svelte-14cc0vj"> </button></footer></aside>`);
 
 	const $$css$1 = {
 		hash: 'svelte-14cc0vj',
@@ -20020,7 +20020,7 @@ ${fallback_html}`;
 				await writeSettings('settings.md', joinFrontmatter(data, get$1(file).body));
 
 				// No reload: the write lands in sourceFolder, the watcher
-				// rebuilds and voot's live-reload client patches the page - the
+				// rebuilds and votive's live-reload client patches the page - the
 				// same path a hand edit takes.
 				$$props.onclose();
 			} catch(e) {
@@ -21336,19 +21336,89 @@ ${fallback_html}`;
 	      location.reload();
 	      return
 	    }
-	    const parser = new DOMParser();
-	    const oldHead = parser.parseFromString(document.documentElement.outerHTML, "text/html").head.innerHTML;
-	    const newHead = parser.parseFromString(target.data, "text/html").head.innerHTML;
-	    if (oldHead !== newHead) {
-	      location.reload();
-	    } else {
-	      const body = document.querySelector("body");
-	      const newBody = document.createElement("body");
-	      const content = target.data.match(/<body.*?>([\s\S]*)/);
-	      newBody.innerHTML = content[1];
-	      body.replaceWith(newBody);
-	    }
+	    const next = new DOMParser().parseFromString(target.data, "text/html");
+	    patchHead(document.head, next.head);
+	    patchBody(document.body, next.body);
 	  });
+	}
+	function patchHead(head, nextHead) {
+	  const nextTitle = nextHead.querySelector("title");
+	  if (nextTitle && document.title !== nextTitle.textContent) document.title = nextTitle.textContent;
+	  const isTitle = element => element.tagName === "TITLE";
+	  const remaining = new Map();
+	  for (const element of head.children) {
+	    if (isTitle(element)) continue
+	    const key = element.outerHTML;
+	    if (!remaining.has(key)) remaining.set(key, []);
+	    remaining.get(key).push(element);
+	  }
+	  const keep = new Set();
+	  const pending = [];
+	  const place = (clone, before) => {
+	    before ? head.insertBefore(clone, before) : head.appendChild(clone);
+	    keep.add(clone);
+	  };
+	  for (const element of nextHead.children) {
+	    if (isTitle(element)) continue
+	    const matches = remaining.get(element.outerHTML);
+	    const existing = matches && matches.shift();
+	    if (existing) {
+	      pending.forEach(clone => place(clone, existing));
+	      pending.length = 0;
+	      keep.add(existing);
+	      continue
+	    }
+	    pending.push(document.importNode(element, true));
+	  }
+	  pending.forEach(clone => place(clone, null));
+	  for (const element of [...head.children]) {
+	    if (isTitle(element) || keep.has(element)) continue
+	    element.remove();
+	  }
+	}
+	function patchBody(body, nextBody) {
+	  const editing = document.documentElement.dataset.vowelEditing === "true";
+	  const keyOf = element => element.id ? `${element.tagName}#${element.id}` : element.tagName;
+	  const incoming = [...nextBody.children].filter(wasProduced);
+	  const produced = new Set(incoming.map(keyOf));
+	  const current = new Map();
+	  for (const element of body.children) {
+	    if (!wasProduced(element)) continue
+	    const key = keyOf(element);
+	    if (produced.has(key) && !current.has(key)) current.set(key, element);
+	  }
+	  const placed = new Set();
+	  let cursor = null;
+	  for (const element of incoming) {
+	    const key = keyOf(element);
+	    const existing = current.get(key);
+	    if (existing && editing && existing.tagName === "MAIN") {
+	      placed.add(existing);
+	      cursor = existing;
+	      continue
+	    }
+	    const fresh = document.importNode(element, true);
+	    if (existing) {
+	      existing.replaceWith(fresh);
+	    } else if (cursor) {
+	      cursor.after(fresh);
+	    } else {
+	      body.prepend(fresh);
+	    }
+	    placed.add(fresh);
+	    cursor = fresh;
+	  }
+	  for (const [, element] of current) {
+	    if (!placed.has(element) && element.isConnected) element.remove();
+	  }
+	  for (const element of [...body.children]) {
+	    if (!produced.has(keyOf(element)) && wasProduced(element)) element.remove();
+	  }
+	}
+	function wasProduced(element) {
+	  if (element.tagName === "SCRIPT") return false
+	  if (element.hasAttribute("data-vowel-client")) return false
+	  return ["HEADER", "MAIN", "ASIDE", "FOOTER", "NAV"].includes(element.tagName) || Boolean(element.id)
 	}
 
 	openSocket();
@@ -21367,6 +21437,7 @@ ${fallback_html}`;
 	  const frontmatter = main ? readFrontmatter(main) : noFrontmatter;
 	  content.replaceChildren();
 	  mount(Editor, { target: content, props: { session, frontmatter } });
+	  document.documentElement.dataset.vowelEditing = "true";
 	  return []
 	}
 	const settings = { panel: null };

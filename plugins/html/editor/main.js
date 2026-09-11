@@ -55,6 +55,11 @@ function startEditing() {
   content.replaceChildren()
   mount(Editor, { target: content, props: { session, frontmatter } })
 
+  // Tells the live-reload patch (socket.js) to leave <main> alone: the
+  // editor's own content is the newer of the two, and a rebuild it
+  // triggered by saving must not replace it under the cursor.
+  document.documentElement.dataset.vowelEditing = "true"
+
   return []
 }
 
