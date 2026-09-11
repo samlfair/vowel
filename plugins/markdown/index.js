@@ -71,7 +71,6 @@ function readFile(source, { api, config }) {
   // means the project's root settings file, and pathInfo.dir is a folder
   // within the site rather than somewhere on this machine.
   const { path: filePath, target: targetPath, text: string } = source
-  const urls = []
 
   const mdast = fromMarkdown(string, {
     // Micromark extensions
@@ -128,16 +127,9 @@ function readFile(source, { api, config }) {
     if (node.type === "text" && parent.children.length === 1 && parent.type === "paragraph") {
       const validURL = testURL(node.value)
 
-      if (validURL) {
-
-        urls.push({
-          data: node.value,
-          runner: "text",
-          target: targetPath
-        })
-
-        return
-      }
+      // A bare URL paragraph is a link preview; the urls plugin asks for
+      // it on the transform side and the html plugin renders it.
+      if (validURL) return
 
       const hashtags = testHashtags(node.value)
 
@@ -339,7 +331,7 @@ function writeMarkdown(target) {
 
 /** @type {Votive.ProcessorTransform} */
 function transformFile(target, context) {
-  return { urls: [] }
+  return {}
 }
 
 /** @type {Votive.ProcessorReadFolder} */
@@ -557,7 +549,6 @@ function readFolder({ path: folder, isRoot }, { settings, api, config }) {
   newSettings.breadcrumbs = breadcrumb
 
   return {
-    urls: [],
     settings: newSettings,
     targets: []
   }

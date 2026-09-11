@@ -681,7 +681,7 @@ function writeFile(target, { settings, api, config }) {
   try {
     visit(abstract, isExternalLinkParagraph, ({ children: [child] }, i, p) => {
       const url = child.value
-      const preview = api.url.get(url)
+      const preview = api.url(url)
       if (!preview) return
 
       const card = h('a.link-preview', { href: url, target: "_blank", rel: "noopener noreferrer" }, [
@@ -733,7 +733,7 @@ function writeFile(target, { settings, api, config }) {
     /* URLs */ if (node.type === "text" && parent.tagName === 'p' && parent.children.length === 1) {
       const validURL = testURL(node.value)
       if (validURL) {
-        const metadata = api.url.get(node.value)
+        const metadata = api.url(node.value)
         if (metadata) {
           parent.tagName = "article"
           // Marks this <article> as an expansion of a bare URL rather than

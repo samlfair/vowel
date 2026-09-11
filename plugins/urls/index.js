@@ -27,25 +27,20 @@ function isExternalLinkParagraph(node) {
 }
 
 /**
- * Walks a target's hast abstract for link-preview paragraphs and queues one
- * fetch task per URL found, so the write side (html/index.js) can render
- * a preview card once the data is cached. Deliberately does not fetch
- * anything itself - tasks are only ever run when the caller invokes
- * runFetches() (see votive's fetchURLs.js), and a URL already cached
- * (success or in a failure cooldown) is skipped automatically, so this
- * never re-fetches the same link on every build.
+ * Walks a target's hast abstract for link-preview paragraphs and asks
+ * for each URL found, so the write side (html/index.js) can render a
+ * preview card once the data is cached. api.url() fetches nothing
+ * itself: an unknown URL is queued for the build's deferred pass and
+ * parsed by this processor's readURL (parseLinkPreview below), a cached
+ * one comes straight back, and one in its failure cooldown is neither -
+ * so this never re-fetches the same link on every build.
  * @type {Votive.ProcessorTransform}
  */
-function transformFile(target, context) {
-  const urls = []
-
+function transformFile(target, { api }) {
   function walk(node) {
     if (!node || typeof node !== "object") return
     if (isExternalLinkParagraph(node)) {
-      urls.push({
-        url: node.children[0].value,
-        target: target.path
-      })
+      api.url(node.children[0].value)
       return
     }
     if (Array.isArray(node.children)) node.children.forEach(walk)
@@ -54,8 +49,6 @@ function transformFile(target, context) {
   // The parsed tree is a metadata convention; a plugin that can't find
   // it would parse target.data instead.
   walk(target.metadata.hastAbstract)
-
-  return { urls }
 }
 
 /**

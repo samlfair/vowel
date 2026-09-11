@@ -68,8 +68,7 @@ const processor = {
       const sitemap = createSitemap(pages, domain)
 
       return {
-        data: sitemap,
-        urls: []
+        data: sitemap
       }
 
     } else if (target.path === "feed.xml") {
