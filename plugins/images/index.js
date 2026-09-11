@@ -25,8 +25,13 @@ async function writeImage(target, { settings, config }) {
   const buffer = target.buffer()
   const image = sharp(buffer)
 
+  // `return` matters: without it flatMap collected undefined per size,
+  // Promise.all below resolved at once, and every sharp write was
+  // fire-and-forget - finishing after the build reported done, after
+  // close(), and potentially after deploy had already handed the folder
+  // to wrangler.
   const images = imageSizes.flatMap(size => {
-    [...imageExts, defaultFormat].map(ext => {
+    return [...imageExts, defaultFormat].map(ext => {
       // target.path (routed, relative to targetFolder) here too - the
       // resized variants belong alongside where this image's target
       // itself routed to, not mirrored under its absolute source
