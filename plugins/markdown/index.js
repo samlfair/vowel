@@ -445,7 +445,7 @@ function readFolder({ path: folder, isRoot }, { settings, api, config }) {
     // was `settings.fm_theme`, a label nothing has ever written, so a
     // configured theme had never once been seen here - the fallthrough
     // happens to also produce "default", which is what hid it.
-    const themeSetting = settings.theme?.[0]?.at(-1)
+    const themeSetting = settings.last("theme")
     const themeIsConfig = themeSetting && typeof themeSetting === "object" && !Array.isArray(themeSetting)
     const themeConfig = themeIsConfig ? themeSetting : { name: themeSetting }
 
@@ -534,14 +534,14 @@ function readFolder({ path: folder, isRoot }, { settings, api, config }) {
     // one, and the html plugin's siteTitle() falls back to the index
     // page's title itself, tracked, when nothing did.
 
-    const tagline = settings.fm_tagline?.[0]?.at(-1)
-      || settings.inferred_description?.[0]?.at(-1)
+    const tagline = settings.last("fm_tagline")
+      || settings.last("inferred_description")
 
     if (tagline) {
       newSettings.tagline = tagline
     }
 
-    const icon = settings.fm_icon?.[0]?.at(-1)
+    const icon = settings.last("fm_icon")
 
     if (icon) {
       newSettings.icon = icon

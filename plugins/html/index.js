@@ -42,14 +42,6 @@ const editorClientScript = readFileSync(path.join(import.meta.dirname, "bundle/i
  * @param {array} array
  * @param {number} num
  */
-function getLast(ancestorArrays, num = 1) {
-  if (!ancestorArrays) return
-  if (num > ancestorArrays.length) return
-  const level = ancestorArrays.at(ancestorArrays.length - num)
-  if (level && level.length) return level.at(-1)
-  return getLast(ancestorArrays, num + 1)
-}
-
 /**
  * The site's title: the nearest `title` in the settings cascade, which
  * settings.md contributes when the author set one, else the title of the
@@ -67,7 +59,7 @@ function getLast(ancestorArrays, num = 1) {
  * @returns {string | undefined}
  */
 function siteTitle(settings, api) {
-  const configured = getLast(settings.title)
+  const configured = settings.last("title")
   if (configured) return configured
   const index = api.target("index.html")
   if (!index?.source) return
@@ -302,9 +294,7 @@ function writeFile(target, { settings, api, config }) {
 
   const treeStyleSheets = []
 
-  Object.values(settings.stylesheets).forEach(file => {
-    if (file) {
-      file.forEach(sheet => {
+  settings.flat("stylesheets").forEach(sheet => {
         // Content hash, not Math.random() - a random value here changed
         // on every rebuild regardless of whether the CSS actually did,
         // which meant this <link>'s href always differed from the
@@ -327,8 +317,6 @@ function writeFile(target, { settings, api, config }) {
             href: `/${sheet}?${cacheBuster}`
           })
         )
-      })
-    }
   })
 
   if (hasHighlightedCode) {
@@ -354,7 +342,7 @@ function writeFile(target, { settings, api, config }) {
 
   function createTitle() {
     if (isRoot) {
-      const title = [settings?.title?.[0]?.at(-1) || metadata?.title, settings?.fm_tagline?.[0]?.at(-1)]
+      const title = [settings.last("title") || metadata?.title, settings.last("fm_tagline")]
         .filter(a => a)
         .join(" - ")
 
@@ -362,17 +350,17 @@ function writeFile(target, { settings, api, config }) {
     }
 
     // FIXME Check that this works properly
-    if (metadata.title && settings.title) {
-      const titles = [metadata.title, ...Object.values(settings.title).flatMap(a => a).reverse()]
-      return titles.join(" - ")
+    const chain = settings.flat("title").reverse()
+    if (metadata.title && chain.length) {
+      return [metadata.title, ...chain].join(" - ")
     }
 
     if (metadata.title && site) {
       return `${metadata.title} - ${site}`
     }
 
-    if (metadata.title || settings.title) {
-      return metadata.title || getLast(settings.title)
+    if (metadata.title || chain.length) {
+      return metadata.title || chain[0]
     }
 
     return "Website"
@@ -406,8 +394,8 @@ function writeFile(target, { settings, api, config }) {
     ...treeStyleSheets,
   ])
 
-  if (settings.fm_domain?.[0]?.length) {
-    const settingsDomain = settings.fm_domain[0].at(-1)
+  const settingsDomain = settings.last("fm_domain")
+  if (settingsDomain) {
     const domain = settingsDomain.startsWith("http")
       ? settingsDomain
       : "https://" + settingsDomain
@@ -443,9 +431,10 @@ function writeFile(target, { settings, api, config }) {
   }
 
   /* FIXME Properly handle this image */
-  if (settings.icon) {
+  const icon = settings.last("icon")
+  if (icon) {
     treeHead.children.push(h("link", {
-      href: "/" + getLast(settings.icon),
+      href: "/" + icon,
       rel: "icon",
       type: "image/png"
     }))
@@ -492,8 +481,10 @@ function writeFile(target, { settings, api, config }) {
 
   let treeBreadcrumbs = []
 
+  // Sequence semantics: one crumb per ancestor, aligned by index.
+  const crumbLabels = settings.raw("breadcrumbs")
   const breadcrumbs = ancestorFolders
-    .map((folderPath, index) => [folderPath, settings.breadcrumbs?.[index]?.at(-1)])
+    .map((folderPath, index) => [folderPath, crumbLabels?.[index]?.at(-1)])
     .filter(([, label]) => label != null)
 
   treeBreadcrumbs.push(
@@ -517,26 +508,28 @@ function writeFile(target, { settings, api, config }) {
 
   const homeLink = []
 
-  if (settings.fm_logo?.[0]?.length) {
+  const logo = settings.last("fm_logo")
+  if (logo) {
     headerElements.push(
       h('a#logo', {
         href: "/",
         "aria-label": "logo",
         rel: "home",
-        "style": `--logo-url: url("/${getLast(settings.fm_logo)}")`
+        "style": `--logo-url: url("/${logo}")`
       }, h("img", {
-        src: "/" + getLast(settings.fm_logo),
+        src: "/" + logo,
         alt: ""
       }))
     )
   }
 
-  if (settings.fm_wordmark && getLast(settings.fm_wordmark)) {
+  const wordmark = settings.last("fm_wordmark")
+  if (wordmark) {
     headerElements.push(h("a#wordmark", {
       href: "/",
       rel: "home"
     }, h("img", {
-      src: "/" + getLast(settings.fm_wordmark)
+      src: "/" + wordmark
     })))
   }
 
@@ -544,8 +537,9 @@ function writeFile(target, { settings, api, config }) {
     headerElements.push(h('a#title', { href: "/", rel: "home" }, site))
   }
 
-  if (settings.fm_tagline && getLast(settings.fm_tagline)) {
-    headerElements.push(h('p#tagline', getLast(settings.fm_tagline)))
+  const tagline = settings.last("fm_tagline")
+  if (tagline) {
+    headerElements.push(h('p#tagline', tagline))
   }
 
   const treeHeader = h('header', [
