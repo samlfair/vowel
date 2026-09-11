@@ -33,11 +33,14 @@ function readCSS(source) {
     // The CSS itself is the target's content. After the first write pass
     // `data` holds the minified output instead - transform() is idempotent
     // over its own output, so a later rewrite produces the same bytes.
-    data: source.text,
-    // Already project-relative, which is exactly the routable reference
-    // html/index.js's `href: /${sheet}` build wants (matching the bare
-    // "reset.css"/"typography.css" built-ins in markdown/index.js).
-    settings: { stylesheets: [source.path] }
+    //
+    // No `settings` contribution. "Which stylesheets apply to a folder"
+    // is a listing, not a setting: the html plugin asks api.targets()
+    // for the .css targets in each of a page's ancestor folders. This
+    // used to push `stylesheets: [source.path]` into the same label the
+    // theme's built-ins are written under, which is what needed a
+    // multi-writer accumulator behind every settings row.
+    data: source.text
   }
 }
 

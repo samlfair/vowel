@@ -294,7 +294,28 @@ function writeFile(target, { settings, api, config }) {
 
   const treeStyleSheets = []
 
-  settings.flat("stylesheets").forEach(sheet => {
+  // The theme's built-in sheets come from the settings cascade (the
+  // folder pass is their one writer). The project's own come from a
+  // listing: every .css target with a source - a file the author wrote,
+  // not one vowel generated - in this page's folder and each ancestor,
+  // root first so a subfolder's loads after, and overrides, the root's.
+  // The chain ends with the page's own name as a folder, because that
+  // is the chain its settings cascade uses (votive's pageSettingsFolder:
+  // shop.html is the index of shop/, and gets shop/'s sheets). A listing
+  // rather than a second writer to the same label: folder membership
+  // tracks a sheet appearing or disappearing, which is all a <link>
+  // needs. (Order among the two groups is cosmetic: every theme sheet
+  // is in an @layer, and an unlayered project sheet wins over any layer
+  // wherever it appears.)
+  const projectSheets = [...ancestorFolders, targetAsDir].flatMap(folder => (
+    api.targets({ folder, recursive: false })
+      .filter(sheet => sheet.source && path.extname(sheet.path) === ".css")
+      .map(sheet => sheet.path)
+  ))
+
+  const sheets = [...settings.flat("stylesheets"), ...projectSheets]
+
+  sheets.forEach(sheet => {
         // Content hash, not Math.random() - a random value here changed
         // on every rebuild regardless of whether the CSS actually did,
         // which meant this <link>'s href always differed from the
