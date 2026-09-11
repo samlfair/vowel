@@ -2,9 +2,10 @@ import { getScheme } from "colorhorse"
 import { fallbackColors } from "./brandColors.js"
 
 /**
- * The stylesheets index shades 00-11 (see stylesheets/brand-colors.css,
- * which is the hand-written example of exactly this output), so the
- * scheme is generated at 12 shades rather than colorhorse's default 10.
+ * The stylesheets index shades 00-11 - DefaultStyles.css reads
+ * `--<role>-00` through `--<role>-11` - so the scheme is generated at 12
+ * shades rather than colorhorse's default 10. tests/colorScheme.js is
+ * the statement of that contract.
  */
 const shadeCount = 12
 
@@ -12,8 +13,8 @@ const shadeCount = 12
  * colorhorse orders each role's ramp darkest-first, and vowel's
  * stylesheets read shade 00 as the *lightest* - DefaultStyles.css has
  * `--main-background: light-dark(var(--primary-00), var(--primary-11))`,
- * so 00 is the light-mode background. Reversing here rather than at each
- * use keeps the emitted file the same shape as brand-colors.css.
+ * so 00 is the light-mode background. Reversed here, once, rather than
+ * at each use.
  * @param {string[]} ramp
  */
 function lightestFirst(ramp) {

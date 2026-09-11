@@ -506,9 +506,8 @@ function readFolder({ path: folder, isRoot }, { settings, api, config }) {
 
           if (theme !== "typography") {
             // Tokens before the stylesheet that consumes them.
-            // DefaultStyles.css reads --<role>-00..11 (see
-            // stylesheets/brand-colors.css for the same shape written by
-            // hand) and nothing else defines those, so this is emitted
+            // DefaultStyles.css reads --<role>-00..11 and nothing else
+            // defines those, so this is emitted
             // unconditionally - a site that configured no colors gets
             // Vowel's brand pair rather than no variables at all.
             const colorScheme = themeColorSchemeCSS(themeConfig.colors, error => (
