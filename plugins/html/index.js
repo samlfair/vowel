@@ -296,9 +296,7 @@ function writeFile(target, { settings, api, config }) {
         // Bonus over Math.random(): api.target() registers a real
         // dependency from this page to the stylesheet it references.
         const stylesheetTarget = api.target(sheet)
-        const cacheBuster = stylesheetTarget?.data
-          ? hash("MD5", stylesheetTarget.data).slice(0, 8)
-          : ""
+        const cacheBuster = stylesheetTarget?.metadata?.hash ?? ""
         treeStyleSheets.push(
           h('link', {
             rel: "stylesheet",

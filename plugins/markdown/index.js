@@ -23,6 +23,17 @@ import getMetadata from "./metadata.js"
 import generateRobots from "./robots.js"
 import { h } from "hastscript"
 import { hash } from "node:crypto"
+
+/**
+ * A stylesheet's cache-buster input. Hashing the *source* rather than the
+ * minified output keeps it stable: the output is a pure function of the
+ * input for a fixed browser target, so it changes exactly when the input
+ * does - and unlike `data`, this is never rewritten by the write pass.
+ * @param {string} css
+ */
+function cssHash(css) {
+  return hash("MD5", css).slice(0, 8)
+}
 import { styleText } from "node:util"
 
 const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
@@ -433,8 +444,8 @@ function readFolder({ path: folder, isRoot }, { settings, api, config }) {
         api.createTarget({
           path: "reset.css",
           data: resetStyles,
-          metadata: {},
-          extension: "css"
+              metadata: { hash: cssHash(resetStyles) },
+                    extension: "css"
         })
 
         if (theme !== "reset") {
@@ -446,8 +457,8 @@ function readFolder({ path: folder, isRoot }, { settings, api, config }) {
           api.createTarget({
             path: "typography.css",
             data: typeStyles,
-            metadata: {},
-            extension: "css"
+              metadata: { hash: cssHash(typeStyles) },
+                        extension: "css"
           })
 
           // theme.font and its companions. Emitted after typography.css
@@ -463,8 +474,8 @@ function readFolder({ path: folder, isRoot }, { settings, api, config }) {
             api.createTarget({
               path: "type.css",
               data: dynamicType.css,
-              metadata: {},
-              extension: "css"
+              metadata: { hash: cssHash(dynamicType.css) },
+                            extension: "css"
             })
 
             const fontFiles = dynamicType.files
@@ -496,8 +507,8 @@ function readFolder({ path: folder, isRoot }, { settings, api, config }) {
             api.createTarget({
               path: "colors.css",
               data: colorScheme,
-              metadata: {},
-              extension: "css"
+              metadata: { hash: cssHash(colorScheme) },
+                            extension: "css"
             })
 
             newSettings.stylesheets.push("default.css")
@@ -508,8 +519,8 @@ function readFolder({ path: folder, isRoot }, { settings, api, config }) {
             api.createTarget({
               path: "default.css",
               data: defaultStyles,
-              metadata: {},
-              extension: "css"
+              metadata: { hash: cssHash(defaultStyles) },
+                            extension: "css"
             })
           }
         }
