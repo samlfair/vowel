@@ -148,9 +148,10 @@ test("directive classes round trip", () => {
 
 test("glob directives round trip", () => {
   const cases = [
-    { folder: "blog", recursive: false, limit: null, tag: null },
-    { folder: "blog/travel", recursive: true, limit: "5", tag: "design" },
-    { folder: "", recursive: false, limit: "3", tag: null }
+    { folder: "blog", recursive: false, limit: null, tag: null, view: null, properties: [] },
+    { folder: "blog/travel", recursive: true, limit: "5", tag: "design", view: null, properties: [] },
+    { folder: "", recursive: false, limit: "3", tag: null, view: null, properties: [] },
+    { folder: "ideas", recursive: true, limit: null, tag: null, view: "table", properties: ["title", "description"] }
   ]
 
   for (const params of cases) {
