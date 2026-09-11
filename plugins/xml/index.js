@@ -1,5 +1,6 @@
 import xml from "xml"
 import { listPages } from "./../../utils.js"
+import { entryContent } from "./entryContent.js"
 
 /** @import * as Votive from "votive" */
 
@@ -32,8 +33,11 @@ const processor = {
         ? target.metadata.domain
         : "http://" + target.metadata.domain
 
-      // FIXME allow falsey returns from writeFile to abort write
-      if (!domain) return { data: "" }
+      // Every <loc> is absolute, so without a domain there is no sitemap
+      // to write - not an empty one. { delete: true } removes the target
+      // and its file, which is the honest answer for "this shouldn't
+      // exist"; an empty file would be served and crawled.
+      if (!target.metadata.domain) return { delete: true }
 
       function createEntry(page) {
         const url = new URL(page.path, domain)
@@ -82,8 +86,11 @@ const processor = {
       })
         .filter(a => a.metadata.date)
 
-      const domain = target.metadata.domain
-        && target.metadata.domain.startsWith("http")
+      // Same rule as the sitemap: every <id> and <link> is absolute, and
+      // Atom requires <id> to be an absolute IRI. Without a domain this
+      // branch used to emit the literal string "http://undefined/feed".
+      if (!target.metadata.domain) return { delete: true }
+      const domain = target.metadata.domain.startsWith("http")
         ? target.metadata.domain
         : "http://" + target.metadata.domain
 
@@ -160,20 +167,21 @@ const processor = {
             });
           }
 
-          entry.push({
-            content: page.data
-          })
-
-          // TODO consider rendering full page in RSS
-
-          /*
-          entry.push({
-            content: [
-              { _attr: { type: 'html' } },
-              render(Page, { props: { page, level: 0, format: 'rss' } }).html
-            ]
-          });
-          */
+          // The post body, not the page: entryContent pulls
+          // <section id=content> out of the rendered HTML and makes every
+          // URL absolute, because a reader resolves /necklace.jpg against
+          // its own host. type="html" is required by Atom for a content
+          // element holding markup - without it a reader may show the
+          // tags as text.
+          const content = entryContent(page.data, domain)
+          if (content) {
+            entry.push({
+              content: [
+                { _attr: { type: "html" } },
+                content
+              ]
+            })
+          }
 
           return {
             entry
