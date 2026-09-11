@@ -34,6 +34,29 @@ import { hash } from "node:crypto"
 function cssHash(css) {
   return hash("MD5", css).slice(0, 8)
 }
+
+/**
+ * Creates or updates one of vowel's own bundled stylesheets.
+ *
+ * Gated on the content hash rather than called unconditionally. readFolder
+ * reruns for every folder on every pass, so re-creating these each time
+ * changed the target's `data` (the write pass leaves it minified, this
+ * leaves it raw), which marked the stylesheet stale and rewrote it on
+ * every build. Comparing the hash rather than merely checking existence
+ * means a bundled stylesheet that genuinely changes - a vowel upgrade,
+ * against a database that outlived it - is still picked up.
+ * @param {object} api
+ * @param {string} path
+ * @param {string} css
+ */
+function writeStylesheet(api, path, css) {
+  const hash = cssHash(css)
+  const existing = api.target(path)
+  if (existing?.metadata?.hash === hash) return
+
+  api.createTarget({ path, data: css, metadata: { hash }, extension: "css" })
+}
+
 import { styleText } from "node:util"
 
 const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
@@ -441,12 +464,7 @@ function readFolder({ path: folder, isRoot }, { settings, api, config }) {
         const resetStylesPath = path.join(VOWEL_DIR, "stylesheets", "ResetStyles.css")
         const resetStyles = readFileSync(resetStylesPath, "utf-8")
 
-        api.createTarget({
-          path: "reset.css",
-          data: resetStyles,
-              metadata: { hash: cssHash(resetStyles) },
-                    extension: "css"
-        })
+        writeStylesheet(api, "reset.css", resetStyles)
 
         if (theme !== "reset") {
           newSettings.stylesheets.push("typography.css")
@@ -454,12 +472,7 @@ function readFolder({ path: folder, isRoot }, { settings, api, config }) {
           const typeStylesPath = path.join(VOWEL_DIR, "stylesheets", "TypographyStyles.css")
           const typeStyles = readFileSync(typeStylesPath, "utf-8")
 
-          api.createTarget({
-            path: "typography.css",
-            data: typeStyles,
-              metadata: { hash: cssHash(typeStyles) },
-                        extension: "css"
-          })
+          writeStylesheet(api, "typography.css", typeStyles)
 
           // theme.font and its companions. Emitted after typography.css
           // and into a later cascade layer, so it overrides the static
@@ -471,12 +484,7 @@ function readFolder({ path: folder, isRoot }, { settings, api, config }) {
           if (dynamicType) {
             newSettings.stylesheets.push("type.css")
 
-            api.createTarget({
-              path: "type.css",
-              data: dynamicType.css,
-              metadata: { hash: cssHash(dynamicType.css) },
-                            extension: "css"
-            })
+            writeStylesheet(api, "type.css", dynamicType.css)
 
             const fontFiles = dynamicType.files
 
@@ -504,24 +512,14 @@ function readFolder({ path: folder, isRoot }, { settings, api, config }) {
 
             newSettings.stylesheets.push("colors.css")
 
-            api.createTarget({
-              path: "colors.css",
-              data: colorScheme,
-              metadata: { hash: cssHash(colorScheme) },
-                            extension: "css"
-            })
+            writeStylesheet(api, "colors.css", colorScheme)
 
             newSettings.stylesheets.push("default.css")
 
             const defaultStylesPath = path.join(VOWEL_DIR, "stylesheets", "DefaultStyles.css")
             const defaultStyles = readFileSync(defaultStylesPath, "utf-8")
 
-            api.createTarget({
-              path: "default.css",
-              data: defaultStyles,
-              metadata: { hash: cssHash(defaultStyles) },
-                            extension: "css"
-            })
+            writeStylesheet(api, "default.css", defaultStyles)
           }
         }
       }
