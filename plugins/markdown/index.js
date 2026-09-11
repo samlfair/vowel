@@ -453,9 +453,14 @@ function readFolder({ path: folder, isRoot }, { settings, api, config }) {
     // "Default" is the name a person would reasonably type.
     const existingTheme = themeConfig.name && String(themeConfig.name).toLowerCase()
 
+    // Not written back as a setting. `theme` is the author's label, and a
+    // readFolder guard that reads a label it also writes sees its own
+    // previous pass: present, so it declines to write; missing from its
+    // return, so the source-scoped prune removes it; absent, so the next
+    // pass writes it again. The row flipped on every build and restaled
+    // every page. "No theme configured" already resolves to "default"
+    // everywhere it is read, so nothing needed the row.
     if (!existingTheme || themes.includes(existingTheme)) {
-      if (!existingTheme) newSettings.theme = "default"
-
       const theme = existingTheme || "default"
 
       if (themes.includes(theme)) {
@@ -525,13 +530,10 @@ function readFolder({ path: folder, isRoot }, { settings, api, config }) {
       }
     }
 
-    const site_title = settings.fm_title?.[0]?.at(-1)
-      || settings.inferred_title?.[0]?.at(-1)
-      || (indexFile && indexFile.metadata.title)
-
-    if (site_title && !settings.title?.[0]?.length) {
-      newSettings.title = site_title
-    }
+    // The site title is not written here either, for the same reason as
+    // `theme` above: settings.md contributes `title` when the author set
+    // one, and the html plugin's siteTitle() falls back to the index
+    // page's title itself, tracked, when nothing did.
 
     const tagline = settings.fm_tagline?.[0]?.at(-1)
       || settings.inferred_description?.[0]?.at(-1)

@@ -50,6 +50,30 @@ function getLast(ancestorArrays, num = 1) {
   return getLast(ancestorArrays, num + 1)
 }
 
+/**
+ * The site's title: the nearest `title` in the settings cascade, which
+ * settings.md contributes when the author set one, else the title of the
+ * index page - but only an index the author actually wrote. The
+ * synthesized one (source null) is a placeholder called "Home" and
+ * doesn't name a site. Both reads are tracked, so a page that shows
+ * the site title is rebuilt when either changes.
+ *
+ * Resolved here rather than written back as a setting by the folder
+ * pass: a folder hook that reads a label it also writes sees its own
+ * previous pass, and the row flipped on every build (see readFolder in
+ * plugins/markdown/index.js).
+ * @param {any} settings
+ * @param {any} api
+ * @returns {string | undefined}
+ */
+function siteTitle(settings, api) {
+  const configured = getLast(settings.title)
+  if (configured) return configured
+  const index = api.target("index.html")
+  if (!index?.source) return
+  return index.metadata.title
+}
+
 
 /**
  * @param {object} metadata
@@ -343,6 +367,10 @@ function writeFile(target, { settings, api, config }) {
       return titles.join(" - ")
     }
 
+    if (metadata.title && site) {
+      return `${metadata.title} - ${site}`
+    }
+
     if (metadata.title || settings.title) {
       return metadata.title || getLast(settings.title)
     }
@@ -351,6 +379,7 @@ function writeFile(target, { settings, api, config }) {
   }
 
 
+  const site = siteTitle(settings, api)
   const title = createTitle()
 
   const treeHead = h('head', [
@@ -406,10 +435,10 @@ function writeFile(target, { settings, api, config }) {
 
 
   /* FIXME this could be a section title */
-  if (settings.title) {
+  if (site) {
     treeHead.children.push(h("meta", {
       property: "og:site_name",
-      content: getLast(settings.fm_title)
+      content: site
     }))
   }
 
@@ -511,8 +540,8 @@ function writeFile(target, { settings, api, config }) {
     })))
   }
 
-  if (settings.title?.[0]?.length) {
-    headerElements.push(h('a#title', { href: "/", rel: "home" }, getLast(settings.title)))
+  if (site) {
+    headerElements.push(h('a#title', { href: "/", rel: "home" }, site))
   }
 
   if (settings.fm_tagline && getLast(settings.fm_tagline)) {
