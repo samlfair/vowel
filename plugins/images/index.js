@@ -57,13 +57,35 @@ async function writeImage(target, { settings, config }) {
   }
 }
 
-/** @type {Votive.ProcessorRead} */
-function readImagePath(source) {
+/**
+ * The two-byte hex of one channel.
+ * @param {number} channel
+ */
+function hex(channel) {
+  return Math.round(channel).toString(16).padStart(2, "0")
+}
+
+/**
+ * Runs deferred, with the bytes (buffer format), so this is where the
+ * image is actually looked at. Dimensions go on <img width height> so
+ * the browser reserves the box before the bytes arrive; the dominant
+ * colour becomes a custom property on the <picture> for a placeholder
+ * that matches. sharp's stats() decodes the image once for the colour;
+ * the derivatives decode it again at write time, and the result is in
+ * the buffer cache after the first read, so it costs one decode per
+ * image per project.
+ * @type {Votive.ProcessorRead}
+ */
+async function readImagePath(source) {
   const uuid = randomUUID()
+  const image = sharp(source.buffer())
+
+  const [{ width, height }, { dominant }] = await Promise.all([image.metadata(), image.stats()])
+  const dominantColor = dominant ? `#${hex(dominant.r)}${hex(dominant.g)}${hex(dominant.b)}` : undefined
 
   // sourcePath is redundant with target.source, which carries the same
   // project-relative path.
-  return { metadata: { uuid } }
+  return { metadata: { uuid, width, height, dominant: dominantColor } }
 }
 
 /** @type {Votive.VotiveProcessor} */

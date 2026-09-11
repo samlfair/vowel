@@ -12,7 +12,6 @@ import * as unpic from "unpic"
  * @param {boolean} [itemprop]
  */
 function createDynamicImage(imagePath, api, alt, itemprop) {
-  // TODO: Hardcode image height and width
   const parsed = path.parse(imagePath);
   const isURL = testURL(imagePath)
   const isImg = !parsed.ext.search(/^.(png|jpeg|jpg)$/);
@@ -60,6 +59,11 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
   if (!image) return
   const formats = createImagePaths(image.source, "./", image.metadata.uuid)
 
+  // Intrinsic size, measured at read (plugins/images): the browser
+  // reserves the right box before the bytes arrive, and the reset's
+  // `img { height: auto }` keeps the ratio when the width is capped.
+  const { width, height, dominant } = image.metadata
+
   const sources = formats.map((format, index) => {
     const isImg = index === formats.length - 1
 
@@ -71,6 +75,8 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
       loading: isImg && "lazy",
       src: isImg && "/" + format.at(-1),
       sizes: "100vw",
+      width: isImg && width,
+      height: isImg && height,
       alt: isImg && alt
     })
   })
@@ -78,7 +84,14 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
   // The derivative paths in srcset are uuid-based, so the original asset
   // path cannot be recovered from them. Carried here rather than as a
   // <source>, which is a loading candidate a browser could select.
-  return h("picture", { itemprop: itemprop && "image", "data-original": imagePath }, sources)
+  // --dominant is the image's dominant colour, for a stylesheet to use
+  // as the placeholder behind a lazy image (`picture { background:
+  // var(--dominant) }`); nothing here decides that it should.
+  return h("picture", {
+    itemprop: itemprop && "image",
+    "data-original": imagePath,
+    style: dominant && `--dominant: ${dominant}`
+  }, sources)
 }
 
 export default createDynamicImage
