@@ -95,9 +95,7 @@ export function createHashtagPage(tag) {
  * Listing that one publishes the secret.
  *
  * **Non-HTML targets** are not pages either. Several reach a listing:
- * the `"0"` placeholder a source whose router returned false collapses
- * to (which carries that source's metadata, so it renders as a real
- * entry); every folder's `settings.md`, emitted as its own target so the
+ * every folder's `settings.md`, emitted as its own target so the
  * settings panel can fetch it; and copy-through assets - fonts, images -
  * which became visible once votive stopped hiding targets that had no
  * abstract. None has a title, so each renders as an empty `<article>`.
