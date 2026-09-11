@@ -646,6 +646,12 @@ function writeFile(target, { settings, api, config }) {
         // const url = new URL(child.value, "thismessage://")
         const count = url.searchParams.get("count")
         const tag = url.searchParams.get("tag")
+        const view = url.searchParams.get("view")
+        // ?properties=title,description,image picks the table's columns,
+        // in order. A name is looked up as written, then with the fm_
+        // prefix, so an author writes `author`, not `fm_author`.
+        const properties = (url.searchParams.get("properties") || "")
+          .split(",").map(name => name.trim()).filter(Boolean)
         const query = tag
           ? { tags: { "~": tag } }
           : {}
@@ -661,15 +667,17 @@ function writeFile(target, { settings, api, config }) {
         // Every parameter of the directive is carried in the class list so
         // the expansion can be collapsed back to "/blog/**?count=5" from
         // the rendered HTML alone - see plugins/html/editor/directives.js.
-        const listClasses = globClasses({ folder, recursive, limit: count, tag })
+        const listClasses = globClasses({ folder, recursive, limit: count, tag, view, properties })
 
-        const list = h("ul", { class: listClasses },
-          targets.map(target => {
-            return h('li',
-              h('article', makeHeader(target.metadata, target.metadata.prettyURL, api, config))
-            )
-          })
-        )
+        const list = view === "table"
+          ? makeTable(listClasses, properties.length ? properties : ["title"], targets, api)
+          : h("ul", { class: listClasses },
+            targets.map(target => {
+              return h('li',
+                h('article', makeHeader(target.metadata, target.metadata.prettyURL, api, config))
+              )
+            })
+          )
 
         p.children.splice(i, 1, list)
 
@@ -905,6 +913,35 @@ function writeFile(target, { settings, api, config }) {
   } catch(e) {
     console.log({ tree, target, e })
   }
+}
+
+/**
+ * The table view of a glob directive: one row per page, one column per
+ * named property. `title` links to the page, `image` renders it, `date`
+ * is a <time>, an array is joined, anything else is text. A property
+ * no page has still gets its column - the author asked for it.
+ * @param {string[]} classes
+ * @param {string[]} properties
+ * @param {any[]} targets
+ * @param {import("votive").PluginAPI} api
+ */
+function makeTable(classes, properties, targets, api) {
+  const valueOf = (metadata, name) => metadata[name] ?? metadata["fm_" + name]
+
+  const cell = (target, name) => {
+    const value = valueOf(target.metadata, name)
+    if (name === "title") return h("td", h("a", { href: target.metadata.prettyURL }, value ?? target.metadata.prettyURL))
+    if (value === undefined || value === null) return h("td")
+    if (name === "image") return h("td", createDynamicImage(String(value), api, "") ?? String(value))
+    if (name === "date") return h("td", makeTime(new Date(value)))
+    if (Array.isArray(value)) return h("td", value.join(", "))
+    return h("td", String(value))
+  }
+
+  return h("table", { class: classes }, [
+    h("thead", h("tr", properties.map(name => h("th", name)))),
+    h("tbody", targets.map(target => h("tr", properties.map(name => cell(target, name)))))
+  ])
 }
 
 /**

@@ -50,7 +50,9 @@ function classList(element) {
 function expansionDirective(element) {
   const classes = classList(element)
 
-  if (element.tagName === "UL" && classes.some(name => name.startsWith("_"))) {
+  // A glob list is a <ul>, or a <table> in its ?view=table form; the
+  // parameters are in the classes either way.
+  if ((element.tagName === "UL" || element.tagName === "TABLE") && classes.some(name => name.startsWith("_"))) {
     const params = globParams(classes)
     return params && globDirective(params)
   }

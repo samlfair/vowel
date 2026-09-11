@@ -20414,18 +20414,26 @@ ${fallback_html}`;
 	  if (folder === null) return null
 	  const limitClass = classList.find(name => name.startsWith("limit-"));
 	  const tagClass = classList.find(name => name.startsWith("tag-"));
+	  const viewClass = classList.find(name => name.startsWith("view-"));
+	  const properties = classList
+	    .filter(name => name.startsWith("property-"))
+	    .map(name => name.slice("property-".length));
 	  return {
 	    folder,
 	    recursive: classList.includes("recursive"),
 	    limit: limitClass ? limitClass.slice("limit-".length) : null,
-	    tag: tagClass ? tagClass.slice("tag-".length) : null
+	    tag: tagClass ? tagClass.slice("tag-".length) : null,
+	    view: viewClass ? viewClass.slice("view-".length) : null,
+	    properties
 	  }
 	}
-	function globDirective({ folder, recursive, limit, tag }) {
+	function globDirective({ folder, recursive, limit, tag, view = null, properties = [] }) {
 	  const base = "/" + [folder, recursive ? "**" : "*"].filter(Boolean).join("/");
 	  const countParam = limit ? [`count=${limit}`] : [];
 	  const tagParam = tag ? [`tag=${tag}`] : [];
-	  const query = [...countParam, ...tagParam].join("&");
+	  const viewParam = view ? [`view=${view}`] : [];
+	  const propertiesParam = properties.length ? [`properties=${properties.join(",")}`] : [];
+	  const query = [...countParam, ...tagParam, ...viewParam, ...propertiesParam].join("&");
 	  return query ? `${base}?${query}` : base
 	}
 
@@ -20455,7 +20463,7 @@ ${fallback_html}`;
 	}
 	function expansionDirective(element) {
 	  const classes = classList(element);
-	  if (element.tagName === "UL" && classes.some(name => name.startsWith("_"))) {
+	  if ((element.tagName === "UL" || element.tagName === "TABLE") && classes.some(name => name.startsWith("_"))) {
 	    const params = globParams(classes);
 	    return params && globDirective(params)
 	  }

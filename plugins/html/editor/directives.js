@@ -67,14 +67,21 @@ export function valueIsSafe(value) {
 }
 
 /**
- * @param {{folder: string, recursive?: boolean, limit?: number|string, tag?: string}} params
+ * `view` and `properties` are the table view's parameters
+ * (`?view=table&properties=title,description`): one `view-<name>` token
+ * and one `property-<name>` token per column, in column order - class
+ * order is document order, so the list round-trips without a separator
+ * that a property name could contain.
+ * @param {{folder: string, recursive?: boolean, limit?: number|string, tag?: string, view?: string|null, properties?: string[]}} params
  */
-export function globClasses({ folder, recursive, limit, tag }) {
+export function globClasses({ folder, recursive, limit, tag, view, properties = [] }) {
   const classes = dirClasses(folder)
   const recursiveClass = recursive ? ["recursive"] : []
   const limitClass = limit ? [`limit-${limit}`] : []
   const tagClass = tag && valueIsSafe(tag) ? [`tag-${tag}`] : []
-  return [...classes, ...recursiveClass, ...limitClass, ...tagClass]
+  const viewClass = view && valueIsSafe(view) ? [`view-${view}`] : []
+  const propertyClasses = properties.filter(valueIsSafe).map(name => `property-${name}`)
+  return [...classes, ...recursiveClass, ...limitClass, ...tagClass, ...viewClass, ...propertyClasses]
 }
 
 /**
@@ -88,12 +95,18 @@ export function globParams(classList) {
 
   const limitClass = classList.find(name => name.startsWith("limit-"))
   const tagClass = classList.find(name => name.startsWith("tag-"))
+  const viewClass = classList.find(name => name.startsWith("view-"))
+  const properties = classList
+    .filter(name => name.startsWith("property-"))
+    .map(name => name.slice("property-".length))
 
   return {
     folder,
     recursive: classList.includes("recursive"),
     limit: limitClass ? limitClass.slice("limit-".length) : null,
-    tag: tagClass ? tagClass.slice("tag-".length) : null
+    tag: tagClass ? tagClass.slice("tag-".length) : null,
+    view: viewClass ? viewClass.slice("view-".length) : null,
+    properties
   }
 }
 
@@ -101,10 +114,12 @@ export function globParams(classList) {
  * Rebuilds the markdown directive a glob list expanded from.
  * @param {{folder: string, recursive: boolean, limit: string|null, tag: string|null}} params
  */
-export function globDirective({ folder, recursive, limit, tag }) {
+export function globDirective({ folder, recursive, limit, tag, view = null, properties = [] }) {
   const base = "/" + [folder, recursive ? "**" : "*"].filter(Boolean).join("/")
   const countParam = limit ? [`count=${limit}`] : []
   const tagParam = tag ? [`tag=${tag}`] : []
-  const query = [...countParam, ...tagParam].join("&")
+  const viewParam = view ? [`view=${view}`] : []
+  const propertiesParam = properties.length ? [`properties=${properties.join(",")}`] : []
+  const query = [...countParam, ...tagParam, ...viewParam, ...propertiesParam].join("&")
   return query ? `${base}?${query}` : base
 }
