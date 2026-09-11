@@ -228,8 +228,9 @@ function writeFile(target, { settings, api, config }) {
 
     const pages = listPages(api, {
       recursive: true,
+      // `~`: tags is an array, and this one has to be in it.
       query: {
-        tags: target.metadata.tag
+        tags: { "~": target.metadata.tag }
       }
     })
 
@@ -644,7 +645,7 @@ function writeFile(target, { settings, api, config }) {
         const count = url.searchParams.get("count")
         const tag = url.searchParams.get("tag")
         const query = tag
-          ? { tags: tag }
+          ? { tags: { "~": tag } }
           : {}
 
         const targets = listPages(api, {
