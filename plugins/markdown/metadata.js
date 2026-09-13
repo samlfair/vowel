@@ -20,9 +20,15 @@ import path from "node:path"
  * that forced it: the page rendered its own key, and the secret URLs of
  * every page sharing that key follow from it.
  */
-export const hiddenProperties = [
-  "secret_key"
-]
+/**
+ * Frontmatter keys that never render into the page.
+ *
+ * Empty, and deliberately kept: `secret_key` was the only entry and
+ * secrecy is a path property now (see secretPaths.js), but the mechanism
+ * costs one filter call and the next key that must not be displayed will
+ * want it. See tasks/1-proposed/post-stubs-vowel-followups.md.
+ */
+export const hiddenProperties = []
 
 export const reservedProperties = [
   "rss_item",
@@ -30,7 +36,6 @@ export const reservedProperties = [
   "html_file",
   "global_menu_item",
   "local_menu_item",
-  "secret_key",
   "theme",
   "logo",
   "wordmark",

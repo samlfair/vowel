@@ -18,8 +18,8 @@ import { toHast } from 'mdast-util-to-hast'
 import { toString as hastToString } from 'hast-util-to-string'
 import { visit } from "unist-util-visit"
 import getMetadata from "./metadata.js"
+import { isSecretPath } from "./../../secretPaths.js"
 import { h } from "hastscript"
-import { hash } from "node:crypto"
 
 import { styleText } from "node:util"
 
@@ -69,21 +69,21 @@ function readFile(source, { api, config }) {
 
   if (metadata.fm_published === false) return
 
-  // Hashed over the *routed target* path - the page's identity as
-  // published, so renaming the source file without changing where it
-  // routes leaves the secret URL alone. Project-relative either way, so
-  // the URL no longer changes when the project moves.
-  const secretFileName = metadata.secret_key && hash("MD5", targetPath + metadata.secret_key)
-  const secretFileInfo = secretFileName && router({ name: secretFileName, dir: pathInfo.dir.split(path.sep), ext: ".html" })
-  const secretFilePath = secretFileInfo && path.format({ name: secretFileInfo.name, dir: secretFileInfo.dir.join(path.sep), ext: secretFileInfo.ext })
-  if(secretFilePath) {
-    const secretPrettyFilePath = "/" + secretFilePath.slice(0, -5)
-    metadata.prettyURL = secretPrettyFilePath
+  // Secrecy is a property of the *path* now: a segment beginning with "-"
+  // is hashed by the config-level router cascade, so the page is only
+  // ever published at an unguessable URL (see secretPaths.js). The read's
+  // whole remaining job is to say so, because `targetPath` above is
+  // already the hashed one and nothing downstream could tell.
+  //
+  // This replaces `secret_key` frontmatter, which hashed one page at a
+  // time, could not cover a folder, left a virtual target at the public
+  // path, and had to be hidden from its own rendering.
+  if (isSecretPath(filePath)) {
+    metadata.hidden = true
     metadata.local_menu_item ??= false
     metadata.global_menu_item ??= false
     metadata.sitemap_item ??= false
     metadata.rss_item ??= false
-    console.info(`${styleText("dim", "build: ")}: secret file path for ${filePath}: ${secretPrettyFilePath}`)
   }
 
 
@@ -187,23 +187,10 @@ function readFile(source, { api, config }) {
 
   const targetMetadata = { ...metadata, hastAbstract: hast }
 
-  // A secret page lives only at its hashed path. readFile can't move its
-  // own target any more, so it creates the real page as a separate
-  // target here and leaves the routed one virtual (write: false below) -
-  // nothing lands at the public URL at all. Deliberately not a redirect
-  // from the public path: that would hand the secret to anyone who
-  // visited it, which is the one thing this feature exists to prevent.
-  if (secretFilePath) {
-    api.createTarget({
-      path: secretFilePath,
-      metadata: { ...targetMetadata, hastAbstract: hast },
-      // Attributed to the same source file the routed target has, so
-      // this behaves exactly as it did when readFile relocated its own
-      // target: relative-link resolution and targetBySource() lookups
-      // both still find a page with a real source behind it.
-      source: filePath
-    })
-  }
+  // No second target for a secret page, and no virtual shadow at the
+  // public path. Routing already put the page where it belongs, so there
+  // is exactly one target - which is the whole point of one source, one
+  // target.
 
   // settings.md is routed nowhere (router() returns false for it), so
   // its own text is emitted as a target here instead. That is what puts
@@ -227,7 +214,7 @@ function readFile(source, { api, config }) {
     // from. The parsed tree rides alongside as a metadata convention;
     // a consumer unsure of its structure parses `data` instead.
     data: string,
-    write: secretFilePath ? false : (metadata.html_file ?? true),
+    write: metadata.html_file ?? true,
     metadata: { ...targetMetadata, hastAbstract: hast },
     settings: pathInfo.base === "settings.md" ? metadata : undefined
   }

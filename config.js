@@ -1,6 +1,7 @@
 import path from "node:path"
 import { resolveProjectFolder } from "votive"
 import { systemDirectoryFor } from "./systemPaths.js"
+import { secretRouter } from "./secretPaths.js"
 import vowelImagesPlugin from "./plugins/images/index.js"
 import vowelStylesPlugin from "./plugins/styles/index.js"
 import vowelReadMarkdownPlugin from "./plugins/markdown/index.js"
@@ -63,6 +64,10 @@ function createConfig(sourceFolder = ".", overrides = {}) {
 
   return {
     sourceFolder: resolvedSourceFolder,
+    // Applied before every processor's own router, so a secret folder
+    // hides its images and fonts too - not just its pages. See
+    // secretPaths.js for why this cannot live in a processor.
+    router: secretRouter,
     targetFolder: path.join(systemDirectory, "output"),
     databasePath: path.join(systemDirectory, ".votive.db"),
     cacheDirectory: path.join(systemDirectory, ".cache"),

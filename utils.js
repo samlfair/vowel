@@ -95,10 +95,16 @@ export function createHashtagPage(tag) {
  * **Virtual targets** (`write: false`) have no file on disk and therefore
  * no URL to link to. Votive keeps them because a plugin may still want to
  * read one back, and votive is right not to care why it is virtual - that
- * is vowel's business. Two of vowel's own features produce them, and both
- * are meant to be invisible: `html_file: false`, and the public target a
- * `secret_key` page leaves behind, whose prettyURL is the secret path.
- * Listing that one publishes the secret.
+ * is vowel's business. `html_file: false` is what produces them now; a
+ * secret page used to leave one at its public path as well, which is gone
+ * along with the rest of `secret_key`.
+ *
+ * **Hidden targets** are the replacement for that, and the filter that
+ * matters most: a page under a secret path segment is published at a
+ * hashed URL and must not appear in a listing, a menu, the sitemap or the
+ * feed. Listing one publishes the secret, which is the single thing the
+ * feature exists to prevent - so the check lives here, in the one
+ * function every listing goes through.
  *
  * **Non-HTML targets** are not pages either. Several reach a listing:
  * every folder's `settings.md`, emitted as its own target so the
@@ -111,5 +117,9 @@ export function createHashtagPage(tag) {
  */
 export function listPages(api, query) {
   const targets = api.targets(query)
-  return targets.filter(target => target.write !== false && target.extension === ".html")
+  return targets.filter(target => (
+    target.write !== false
+    && target.extension === ".html"
+    && !target.metadata?.hidden
+  ))
 }
