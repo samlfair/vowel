@@ -1,7 +1,87 @@
+import path from "node:path"
+import { readFileSync } from "node:fs"
+import { styleText } from "node:util"
 import { transform } from "lightningcss"
 import { hash } from "node:crypto"
+import { resolveTheme, themeStylesheets } from "./theme.js"
+import { themeColorSchemeCSS } from "../markdown/colorScheme.js"
+import { typographyCSS } from "../markdown/typography.js"
 
 /** @import * as Votive from "votive" */
+
+const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
+
+/** Vowel's own bundled stylesheets, by target path. */
+const BUNDLED = {
+  "reset.css": "ResetStyles.css",
+  "typography.css": "TypographyStyles.css",
+  "default.css": "DefaultStyles.css",
+  "syntax-highlighting.css": "SyntaxHighlightingStyles.css"
+}
+
+/**
+ * The stylesheets vowel generates, as stubs.
+ *
+ * These used to be created from the markdown plugin's readFolder, which
+ * reran for every folder on every pass and re-created each sheet with its
+ * raw text - fighting the write pass, which stores back the minified
+ * output. That flip is what made every page's cache-buster change twice a
+ * build (see tasks/3-in-review/stylesheet-data-flip-flop.md). A stub is
+ * expanded only when its params change, so nothing re-creates them and
+ * `data` settles.
+ *
+ * A bundled sheet carries no params: its content is part of the software,
+ * not the project. That means a warm database never re-reads it, which is
+ * fine while the CLI wipes on every launch and is why the version stamp
+ * in tasks/1-proposed/post-stubs-vowel-followups.md is parked rather than
+ * forgotten.
+ *
+ * @type {Votive.ProcessorStubs}
+ */
+function stubs({ settings }) {
+  const themeSetting = settings.last("theme")
+  const { config } = resolveTheme(themeSetting)
+
+  const sheets = themeStylesheets(themeSetting).map(sheet => {
+    // Generated sheets carry the part of the theme they are generated
+    // from, so they re-expand exactly when that part changes.
+    if (sheet === "colors.css") return { path: sheet, params: { colors: config.colors ?? null } }
+    if (sheet === "type.css") return { path: sheet, params: { theme: config } }
+    return { path: sheet }
+  })
+
+  // Always declared, unlike the rest: it was created from the html
+  // writeFile the first time a page happened to contain a code block,
+  // which made its existence depend on the order pages were written in.
+  // Pages still link it only when they have code.
+  return [...sheets, { path: "syntax-highlighting.css" }]
+}
+
+/**
+ * @type {Votive.ProcessorExpand}
+ */
+function expand({ path: sourcePath, params }) {
+  const bundled = BUNDLED[sourcePath]
+  if (bundled) {
+    return { text: readFileSync(path.join(VOWEL_DIR, "stylesheets", bundled), "utf-8") }
+  }
+
+  if (sourcePath === "colors.css") {
+    // Reports and falls back rather than throwing: a site with unusable
+    // colours should lose its palette, not its build.
+    return {
+      text: themeColorSchemeCSS(params?.colors, error => (
+        console.warn(`${styleText("dim", "build: ")}${styleText("yellow", `ignoring theme.colors - ${error.message}`)}`)
+      ))
+    }
+  }
+
+  if (sourcePath === "type.css") {
+    return { text: typographyCSS(params?.theme)?.css ?? "" }
+  }
+
+  return null
+}
 
 /** @type {Votive.ProcessorWrite} */
 function writeCSS(target, { config }) {
@@ -49,6 +129,8 @@ const cssWriter = {
   extensions: [".css"],
   format: "text",
   router: ({ name, dir, ext }) => ({ name, dir, ext }),
+  stubs,
+  expand,
   readFile: readCSS,
   writeFile: writeCSS
 }

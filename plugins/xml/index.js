@@ -5,11 +5,61 @@ import { entryContent } from "./entryContent.js"
 /** @import * as Votive from "votive" */
 
 
+/**
+ * `sitemap.xml` and `feed.xml` exist exactly while a `domain` is
+ * configured. They used to be created from the markdown plugin's
+ * readFile when it happened to be reading settings.md, and each write
+ * then had to answer "should I exist?" with `{delete: true}`. Declaring
+ * them here moves that question to the one place that can answer it
+ * cheaply, and deleting a domain now removes both targets and both files
+ * by the ordinary rule.
+ *
+ * `params` carries the domain so the stub re-expands when it changes;
+ * the writes read it from settings, tracked, so they rerun too.
+ * @type {Votive.ProcessorStubs}
+ */
+function stubs({ settings }) {
+  const domain = settings.last("fm_domain")
+  if (!domain) return []
+  return [
+    { path: "sitemap.xml", params: { domain } },
+    { path: "feed.xml", params: { domain } }
+  ]
+}
+
+/**
+ * Both files are generated wholesale by writeFile from live listings, so
+ * there is no meaningful source text - the stub exists to give each one a
+ * source, and therefore a lifetime.
+ * @type {Votive.ProcessorExpand}
+ */
+function expand() {
+  return { text: "" }
+}
+
+/**
+ * Reads the domain a write should use. Taken from settings rather than
+ * from metadata stamped onto the target at creation: the stub declares
+ * the file's *existence*, and settings are the live value, so changing
+ * the domain restales both writes through the ordinary settings
+ * dependency instead of needing the creator to run again.
+ */
+function resolveDomain(settings) {
+  const domain = settings.last("fm_domain")
+  if (!domain) return null
+  return String(domain).startsWith("http") ? String(domain) : "http://" + domain
+}
+
 /** @type {Votive.VotiveProcessor} */
 const processor = {
   router: ({ name, dir, ext }) => ({ name, dir, ext }),
   extensions: [".xml"],
   format: "text",
+  stubs,
+  expand,
+  // An .xml source carries nothing worth inferring; writeFile generates
+  // the whole document.
+  readFile: (source) => ({ data: source.text, metadata: {} }),
   writeFile: (target, { settings, api }) => {
     if (target.path === "sitemap.xml") {
       // FIXME move the filter to SQLite
@@ -28,16 +78,13 @@ const processor = {
         })
         .filter(a => a.extension === ".html" && a.path)
 
-      const domain = target.metadata.domain
-        && target.metadata.domain.startsWith("http")
-        ? target.metadata.domain
-        : "http://" + target.metadata.domain
-
-      // Every <loc> is absolute, so without a domain there is no sitemap
-      // to write - not an empty one. { delete: true } removes the target
-      // and its file, which is the honest answer for "this shouldn't
-      // exist"; an empty file would be served and crawled.
-      if (!target.metadata.domain) return { delete: true }
+      // No {delete: true} any more: this target exists only because the
+      // enumerator declared it, and it does that only when a domain is
+      // set. Removing the domain un-declares the stub, and votive deletes
+      // the row and the file by the same rule it deletes a page whose
+      // source was removed. Nothing deletes itself.
+      const domain = resolveDomain(settings)
+      if (!domain) return { data: "" }
 
       function createEntry(page) {
         const url = new URL(page.path, domain)
@@ -88,10 +135,8 @@ const processor = {
       // Same rule as the sitemap: every <id> and <link> is absolute, and
       // Atom requires <id> to be an absolute IRI. Without a domain this
       // branch used to emit the literal string "http://undefined/feed".
-      if (!target.metadata.domain) return { delete: true }
-      const domain = target.metadata.domain.startsWith("http")
-        ? target.metadata.domain
-        : "http://" + target.metadata.domain
+      const domain = resolveDomain(settings)
+      if (!domain) return { data: "" }
 
       const feed = [];
 
@@ -102,7 +147,7 @@ const processor = {
           }
         },
         {
-          title: target.metadata.title
+          title: settings.last("title")
         },
       )
 
@@ -121,14 +166,15 @@ const processor = {
         }
       );
 
-      if (target.metadata.author)
+      const feedAuthor = settings.last("fm_author")
+      if (feedAuthor)
         feed.push(
           {
             author: {
-              name: target.metadata.author
+              name: feedAuthor
             }
           },
-          { rights: `Copyright (c) ${new Date().getFullYear()} ${target.metadata.author}` }
+          { rights: `Copyright (c) ${new Date().getFullYear()} ${feedAuthor}` }
         );
 
       feed.push(

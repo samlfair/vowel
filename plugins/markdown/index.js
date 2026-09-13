@@ -13,49 +13,13 @@ import { gfmTable } from 'micromark-extension-gfm-table'
 import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
 import { normalizeHeadingLevels } from './metadata.js'
 import { readFileSync } from "fs"
-import { themeColorSchemeCSS } from "./colorScheme.js"
-import { typographyCSS } from "./typography.js"
 import { testURL, testHashtags, createHashtagPage, toTitleCase, hashtagRegexSingle } from "./../../utils.js"
 import { toHast } from 'mdast-util-to-hast'
 import { toString as hastToString } from 'hast-util-to-string'
 import { visit } from "unist-util-visit"
 import getMetadata from "./metadata.js"
-import generateRobots from "./robots.js"
 import { h } from "hastscript"
 import { hash } from "node:crypto"
-
-/**
- * A stylesheet's cache-buster input. Hashing the *source* rather than the
- * minified output keeps it stable: the output is a pure function of the
- * input for a fixed browser target, so it changes exactly when the input
- * does - and unlike `data`, this is never rewritten by the write pass.
- * @param {string} css
- */
-function cssHash(css) {
-  return hash("MD5", css).slice(0, 8)
-}
-
-/**
- * Creates or updates one of vowel's own bundled stylesheets.
- *
- * Gated on the content hash rather than called unconditionally. readFolder
- * reruns for every folder on every pass, so re-creating these each time
- * changed the target's `data` (the write pass leaves it minified, this
- * leaves it raw), which marked the stylesheet stale and rewrote it on
- * every build. Comparing the hash rather than merely checking existence
- * means a bundled stylesheet that genuinely changes - a vowel upgrade,
- * against a database that outlived it - is still picked up.
- * @param {object} api
- * @param {string} path
- * @param {string} css
- */
-function writeStylesheet(api, path, css) {
-  const hash = cssHash(css)
-  const existing = api.target(path)
-  if (existing?.metadata?.hash === hash) return
-
-  api.createTarget({ path, data: css, metadata: { hash }, extension: "css" })
-}
 
 import { styleText } from "node:util"
 
@@ -176,24 +140,12 @@ function readFile(source, { api, config }) {
 
         parent.children = convertTagsToLinks(node.value)
 
-        const markdown = `/tags/**`
-        const mdast = fromMarkdown(markdown)
-        const hast = toHast(mdast)
-
-        // target.create() is upsert-safe and this is a deterministic
-        // function of a fixed string - re-creating it once per
-        // hashtag-bearing file converges to a no-op after the first,
-        // without needing to check whether it already exists first.
-        api.createTarget({
-          path: `tags.html`,
-          metadata: {
-            breadcrumb: "Tags",
-            title: "Tags",
-            prettyURL: "/tags",
-            hastAbstract: hast,
-          }
-        })
-
+        // The tags index and the per-tag pages are stubs now (see `stubs`
+        // below). This hook's only remaining job for a hashtag is to
+        // record it on *this* page, which is what the enumerator then
+        // reads back through api.distinct("tags"). Every tagged page used
+        // to create every tag page it mentioned - the many-producers-per
+        // -target shape the whole design exists to remove.
         if (hashtags) {
           if (!metadata.tags) {
             metadata.tags = []
@@ -204,25 +156,7 @@ function readFile(source, { api, config }) {
           metadata.tags = []
 
           hashtags.forEach(hashtag => {
-            const title = toTitleCase(hashtag)
             metadata.tags.push(hashtag)
-
-            const hashtagPage = createHashtagPage(hashtag)
-
-            const tagMetadata = {
-              breadcrumb: title,
-              title: title,
-              prettyURL: `/tags/${hashtag}`,
-              type: "tag",
-              tag: hashtag,
-              hastAbstract: hashtagPage,
-            }
-
-            const created = api.createTarget({
-              path: `tags/${hashtag}.html`,
-              metadata: tagMetadata
-            })
-
           })
         }
       }
@@ -230,25 +164,11 @@ function readFile(source, { api, config }) {
   })
 
 
-  if (filePath === "settings.md") {
-    if (metadata.fm_domain) {
-      api.createTarget({
-        path: "sitemap.xml",
-        metadata: {
-          domain: metadata.fm_domain,
-          title: metadata.title
-        }
-      })
-
-      api.createTarget({
-        path: "feed.xml",
-        metadata: {
-          domain: metadata.fm_domain,
-          title: metadata.title
-        }
-      })
-    }
-  }
+  // sitemap.xml and feed.xml are stubs on the xml processor now. They
+  // were created here because settings.md is where the domain is
+  // declared, which meant a page read decided whether two unrelated
+  // targets existed - and each write then had to un-create itself when
+  // the domain went away.
 
 
   const hast = toHast(mdast, {
@@ -335,223 +255,80 @@ function transformFile(target, context) {
 }
 
 /** @type {Votive.ProcessorReadFolder} */
-function readFolder({ path: folder, isRoot }, { settings, api, config }) {
-  if (folder === "") {
-    api.createTarget({
-      path: "robots.txt",
-      data: generateRobots(),
-      metadata: {}
-    })
+/**
+ * The sources vowel synthesizes rather than finds on disk.
+ *
+ * Runs on every pass with an untracked, read-only api. Each entry is a
+ * path plus the params its expansion needs; votive diffs the params and
+ * calls `expand` only for what changed. A real file at any of these paths
+ * shadows the stub, which is how an author overrides the default 404 or
+ * writes their own tags index.
+ *
+ * @type {Votive.ProcessorStubs}
+ */
+function stubs({ api }) {
+  // Every tag any page carries. One indexed query rather than pulling
+  // every target back and flattening `tags` in JS on every pass.
+  const tags = api.distinct("tags")
+    .filter(tag => typeof tag === "string" && tag)
+    .sort()
+
+  // The homepage. `home.md` is the path vowel's router maps to
+  // index.html, so an authored `home.md` shadows this stub outright.
+  //
+  // `index.md` routes there too, though, and shadowing only matches on
+  // the source path - so the stub also has to stand down when some other
+  // source already owns index.html. Checking `source` rather than mere
+  // existence is what stops it oscillating: when the stub itself made the
+  // page, the page is still ours and we keep declaring it.
+  const homeTarget = api.target("index.html")
+  const homeIsOurs = !homeTarget || homeTarget.source === "home.md"
+
+  return [
+    ...(homeIsOurs ? [{ path: "home.md" }] : []),
+    { path: "404.md" },
+
+    // The tags index exists only while some page is tagged. A site with
+    // no hashtags has no Tags page, and deleting the last hashtag takes
+    // the page and its file with it.
+    ...(tags.length ? [{ path: "tags.md" }] : []),
+
+    // One page per tag. `params` is what expand needs and nothing more.
+    ...tags.map(tag => ({ path: `tags/${tag}.md`, params: { tag } }))
+  ]
+}
+
+/**
+ * Produces a declared stub's markdown, on demand.
+ *
+ * Called only when a stub is new or its params changed, and it returns
+ * *markdown* - not metadata, not a tree. The ordinary readFile below
+ * parses it, so a tag page infers its title from its own `#` heading and
+ * gets its prettyURL from routing, exactly like a page an author wrote.
+ * That is the point of expanding to source rather than to a target.
+ *
+ * @type {Votive.ProcessorExpand}
+ */
+function expand({ path: sourcePath, params }) {
+  if (sourcePath === "home.md") {
+    // A listing of everything, which is what the folder pass generated.
+    return { text: "# Home\n\n//*" }
   }
 
-  const pageNotFound = api.target("404.html")
-
-  if(!pageNotFound) {
-    const abstract = toHast(fromMarkdown(`# 404\n\nPage not found.`))
-    api.createTarget({
-      metadata: {
-        title: "Page not found",
-        breadcrumb: "404",
-        prettyURL: "404.html",
-        hastAbstract: abstract,
-      },
-      path: "404.html",
-      extension: ".html"
-    })
+  if (sourcePath === "404.md") {
+    return { text: "# Page not found\n\nSorry, that page does not exist." }
   }
 
-  const newSettings = {}
-
-  const folderInfo = path.parse(folder)
-
-  const indexPath = path.relative("./", path.format({
-    dir: path.join(folderInfo.dir, folderInfo.name),
-    name: "index",
-    ext: ".html"
-  }))
-
-  const aliasPath = path.format({
-    dir: path.join(folderInfo.dir),
-    name: folderInfo.name,
-    ext: ".html"
-  })
-
-
-  const aliasFile = api.target(aliasPath)
-  const indexFile = api.target(indexPath)
-
-  if (!isRoot) {
-    if (!aliasFile) {
-      const title = toTitleCase(folderInfo.name)
-      const prettyURL = (new URL("/" + path.normalize(
-        path.format({
-          dir: path.join(folderInfo.dir),
-          name: folderInfo.name
-        })
-      ), "thismessage://")).pathname
-
-      const indexPath = prettyURL + "/*"
-
-      const abstract = toHast(fromMarkdown(`# ${title}\n\n${indexPath}`))
-      api.createTarget({
-        path: aliasPath,
-        extension: ".html",
-        metadata: {
-          title: toTitleCase(folderInfo.name),
-          breadcrumb: toTitleCase(folderInfo.name),
-          prettyURL,
-          hastAbstract: abstract,
-        }
-      })
-    }
-  } else {
-    if (!indexFile) {
-      const title = "Home"
-      const prettyURL = "/"
-      const indexPath = prettyURL + "/*"
-
-      const abstract = toHast(fromMarkdown(`# ${title}\n\n${indexPath}`))
-      api.createTarget({
-        path: "index.html",
-        extension: "html",
-        metadata: {
-          title,
-          breadcrumb: title,
-          prettyURL: "/",
-          hastAbstract: abstract,
-        }
-      })
-    }
+  if (sourcePath === "tags.md") {
+    // The glob directive the html plugin expands into a listing.
+    return { text: "# Tags\n\n/tags/**" }
   }
 
-  if (isRoot) {
-    const themes = ["reset", "typography", "default"]
-
-    // A theme is either a bare name ("default") or an object carrying
-    // its own configuration ({name: "default", colors: [...]}) - which
-    // is what `theme.colors` means as a path. Both forms are accepted;
-    // the object form is the only way to seed a color scheme.
-    // `theme` is a reserved property (see metadata.js's
-    // reservedProperties), so it is stored under its own name rather
-    // than the "fm_" prefix the other frontmatter keys get. This read
-    // was `settings.fm_theme`, a label nothing has ever written, so a
-    // configured theme had never once been seen here - the fallthrough
-    // happens to also produce "default", which is what hid it.
-    const themeSetting = settings.last("theme")
-    const themeIsConfig = themeSetting && typeof themeSetting === "object" && !Array.isArray(themeSetting)
-    const themeConfig = themeIsConfig ? themeSetting : { name: themeSetting }
-
-    // Compared case-insensitively: settings.md is written by hand, and
-    // "Default" is the name a person would reasonably type.
-    const existingTheme = themeConfig.name && String(themeConfig.name).toLowerCase()
-
-    // Not written back as a setting. `theme` is the author's label, and a
-    // readFolder guard that reads a label it also writes sees its own
-    // previous pass: present, so it declines to write; missing from its
-    // return, so the source-scoped prune removes it; absent, so the next
-    // pass writes it again. The row flipped on every build and restaled
-    // every page. "No theme configured" already resolves to "default"
-    // everywhere it is read, so nothing needed the row.
-    if (!existingTheme || themes.includes(existingTheme)) {
-      const theme = existingTheme || "default"
-
-      if (themes.includes(theme)) {
-        newSettings.stylesheets = ["reset.css"]
-
-        const resetStylesPath = path.join(VOWEL_DIR, "stylesheets", "ResetStyles.css")
-        const resetStyles = readFileSync(resetStylesPath, "utf-8")
-
-        writeStylesheet(api, "reset.css", resetStyles)
-
-        if (theme !== "reset") {
-          newSettings.stylesheets.push("typography.css")
-
-          const typeStylesPath = path.join(VOWEL_DIR, "stylesheets", "TypographyStyles.css")
-          const typeStyles = readFileSync(typeStylesPath, "utf-8")
-
-          writeStylesheet(api, "typography.css", typeStyles)
-
-          // theme.font and its companions. Emitted after typography.css
-          // and into a later cascade layer, so it overrides the static
-          // sheet without either file referring to the other. Only the
-          // chosen family's faces are emitted - a site that picked one
-          // font ships one font.
-          const dynamicType = typographyCSS(themeConfig)
-
-          if (dynamicType) {
-            newSettings.stylesheets.push("type.css")
-
-            writeStylesheet(api, "type.css", dynamicType.css)
-
-            const fontFiles = dynamicType.files
-
-            for (const file of fontFiles) {
-              // Named, not resolved: the fonts processor knows where
-              // vowel's bundled fonts live and reads the bytes at write
-              // time, so no machine-specific path is stored.
-              api.createTarget({
-                path: file,
-                metadata: { bundled: file }
-              })
-            }
-          }
-
-          if (theme !== "typography") {
-            // Tokens before the stylesheet that consumes them.
-            // DefaultStyles.css reads --<role>-00..11 and nothing else
-            // defines those, so this is emitted
-            // unconditionally - a site that configured no colors gets
-            // Vowel's brand pair rather than no variables at all.
-            const colorScheme = themeColorSchemeCSS(themeConfig.colors, error => (
-              console.warn(`${styleText("dim", "build: ")}${styleText("yellow", `ignoring theme.colors - ${error.message}`)}`)
-            ))
-
-            newSettings.stylesheets.push("colors.css")
-
-            writeStylesheet(api, "colors.css", colorScheme)
-
-            newSettings.stylesheets.push("default.css")
-
-            const defaultStylesPath = path.join(VOWEL_DIR, "stylesheets", "DefaultStyles.css")
-            const defaultStyles = readFileSync(defaultStylesPath, "utf-8")
-
-            writeStylesheet(api, "default.css", defaultStyles)
-          }
-        }
-      }
-    }
-
-    // The site title is not written here either, for the same reason as
-    // `theme` above: settings.md contributes `title` when the author set
-    // one, and the html plugin's siteTitle() falls back to the index
-    // page's title itself, tracked, when nothing did.
-
-    const tagline = settings.last("fm_tagline")
-      || settings.last("inferred_description")
-
-    if (tagline) {
-      newSettings.tagline = tagline
-    }
-
-    const icon = settings.last("fm_icon")
-
-    if (icon) {
-      newSettings.icon = icon
-    }
+  if (params?.tag) {
+    return { text: createHashtagPage(params.tag) }
   }
 
-  const breadcrumb = indexFile?.metadata?.breadcrumb
-    || aliasFile?.metadata?.breadcrumb
-    || toTitleCase(folder.split(path.sep).at(-2))
-    || toTitleCase(folder.split(path.sep).at(-1))
-    || "Home"
-
-  newSettings.breadcrumbs = breadcrumb
-
-  return {
-    settings: newSettings,
-    targets: []
-  }
+  return null
 }
 
 /** @type {Votive.Router} */
@@ -591,10 +368,11 @@ const readMarkdown = {
   extensions: [".md"],
   format: "text",
   router,
+  stubs,
+  expand,
   readFile,
   writeFile: writeMarkdown,
   transformFile,
-  readFolder,
 }
 
 

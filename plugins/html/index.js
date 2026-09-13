@@ -26,6 +26,7 @@ import createDynamicImage from "./image.js"
 import { isExternalLinkParagraph } from "../urls/index.js"
 import { globClasses } from "./editor/directives.js"
 import { listPages } from "./../../utils.js"
+import { themeStylesheets } from "../styles/theme.js"
 
 /** @import * as Votive from "votive" */
 /** @import * as Vowel from "./../../index.js" */
@@ -225,19 +226,11 @@ function writeFile(target, { settings, api, config }) {
   const isRoot = target.path === "index.html"
 
 
-  if (target.metadata.type === "tag") {
-    if (!target.metadata.tag) return false
-
-    const pages = listPages(api, {
-      recursive: true,
-      // `~`: tags is an array, and this one has to be in it.
-      query: {
-        tags: { "~": target.metadata.tag }
-      }
-    })
-
-    if (!pages.length) return false
-  }
+  // A tag page used to delete itself here when no page carried its tag
+  // any more, because nothing retracted a target its creator stopped
+  // creating. It is a stub now: it exists exactly while the markdown
+  // enumerator still lists that tag, and stops existing - row and file -
+  // the moment it does not. No self-deleting targets.
 
   const { metadata, ...rest } = target
   const abstract = metadata.hastAbstract
@@ -316,7 +309,16 @@ function writeFile(target, { settings, api, config }) {
       .map(sheet => sheet.path)
   ))
 
-  const sheets = [...settings.flat("stylesheets"), ...projectSheets]
+  // The theme's sheets come from the same function the styles processor
+  // enumerates from, so a sheet that is linked is a sheet that exists.
+  // This used to read a `stylesheets` setting the folder pass wrote.
+  const themeSheets = themeStylesheets(settings.last("theme"))
+
+  // A stub stylesheet has a source path like any other source, so the
+  // `sheet.source` test alone no longer separates vowel's sheets from the
+  // project's - exclude them by name instead, or every theme sheet would
+  // be linked twice.
+  const sheets = [...themeSheets, ...projectSheets.filter(sheet => !themeSheets.includes(sheet))]
 
   sheets.forEach(sheet => {
         // Content hash, not Math.random() - a random value here changed
@@ -455,7 +457,9 @@ function writeFile(target, { settings, api, config }) {
   }
 
   /* FIXME Properly handle this image */
-  const icon = settings.last("icon")
+  // fm_icon directly: settings.md already contributes it, and the folder
+  // pass copied it to `icon` for no reason.
+  const icon = settings.last("fm_icon")
   if (icon) {
     treeHead.children.push(h("link", {
       href: "/" + icon,
@@ -505,18 +509,38 @@ function writeFile(target, { settings, api, config }) {
 
   let treeBreadcrumbs = []
 
-  // Sequence semantics: one crumb per ancestor, aligned by index.
-  const crumbLabels = settings.raw("breadcrumbs")
-  const breadcrumbs = ancestorFolders
-    .map((folderPath, index) => [folderPath, crumbLabels?.[index]?.at(-1)])
-    .filter(([, label]) => label != null)
+  /**
+   * A folder's crumb, deduced from the path at render time rather than
+   * read from a `breadcrumbs` setting the folder pass used to write.
+   *
+   * The folder pass is gone, and this is a better place for it anyway:
+   * the lookup is tracked, so renaming a section's index page restales
+   * every page whose breadcrumb names it - which the setting never did.
+   *
+   * A folder with an index page is a link and takes that page's own
+   * breadcrumb. A folder without one is just a label: vowel no longer
+   * generates a page per folder, so linking there would 404.
+   */
+  function folderCrumb(folderPath) {
+    if (!folderPath) {
+      const home = api.target("index.html")
+      return { label: home?.metadata?.breadcrumb || "Home", href: "/" }
+    }
+
+    // `<folder>/home.md` routes to `<folder>.html` - vowel's convention
+    // for a section index.
+    const indexTarget = api.target(`${folderPath}.html`)
+    const label = indexTarget?.metadata?.breadcrumb || toTitleCase(folderPath.split("/").at(-1))
+    return { label, href: indexTarget ? "/" + folderPath : null }
+  }
 
   treeBreadcrumbs.push(
-    ...breadcrumbs.map(([folderPath, label]) => {
-      return h('a', {
-        href: folderPath ? "/" + folderPath : "/"
-      }, label)
-    })
+    ...ancestorFolders
+      .map(folderCrumb)
+      .filter(crumb => crumb.label)
+      .map(crumb => crumb.href
+        ? h('a', { href: crumb.href }, crumb.label)
+        : h('span', crumb.label))
   )
 
   if (!isRoot) {

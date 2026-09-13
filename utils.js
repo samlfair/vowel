@@ -71,12 +71,18 @@ export function toTitleCase(string) {
   }).join(" ")
 }
 
+/**
+ * A tag page's markdown: a title and the glob directive that lists every
+ * page carrying the tag.
+ *
+ * Returns *markdown*, not hast. It used to return a parsed tree, because
+ * its caller stamped that straight onto a target it created. The tag page
+ * is a stub now, so this is the content of a source file and the ordinary
+ * markdown read parses it - which is what gives a tag page an inferred
+ * title, a routed prettyURL and a tracked listing without special cases.
+ */
 export function createHashtagPage(tag) {
-  const markdown = `# ${toTitleCase(tag)}\n\n/**?tag=${tag}`
-  const mdast = fromMarkdown(markdown)
-  const hast = toHast(mdast)
-
-  return hast
+  return `# ${toTitleCase(tag)}\n\n/**?tag=${tag}`
 }
 
 /**
