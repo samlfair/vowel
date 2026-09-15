@@ -3,6 +3,7 @@ import extractDate, { dateSpan } from "./../../extractDate.js"
 import { testURL, toTitleCase } from "./../../utils.js"
 import yaml from 'yaml'
 import path from "node:path"
+import { displayPath } from "../../secretPaths.js"
 
 
 /**
@@ -209,7 +210,11 @@ function getMetadata(tree, filePath, targetPath) {
     tree.children.splice(tree.children.indexOf(titleNode), 1)
   }
 
-  const pathInfo = path.parse(filePath)
+  // Through displayPath first: a secret segment carries its salt in the
+  // source filename, and inferred_label feeds both `title` and
+  // `breadcrumb`. This is the one place a filename becomes text a reader
+  // sees, so it is the one place the salt has to be stripped.
+  const pathInfo = path.parse(displayPath(filePath))
 
   metadata.inferred_label = toTitleCase(pathInfo.name)
 

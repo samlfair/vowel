@@ -27,6 +27,7 @@ import { isExternalLinkParagraph } from "../urls/index.js"
 import { globClasses } from "./editor/directives.js"
 import { listPages } from "./../../utils.js"
 import { themeStylesheets } from "../styles/theme.js"
+import { displayPath } from "../../secretPaths.js"
 
 /** @import * as Votive from "votive" */
 /** @import * as Vowel from "./../../index.js" */
@@ -521,7 +522,16 @@ function writeFile(target, { settings, api, config }) {
    * breadcrumb. A folder without one is just a label: vowel no longer
    * generates a page per folder, so linking there would 404.
    */
-  function folderCrumb(folderPath) {
+  // A secret folder's target segment is a hash, so its readable name has
+  // to come from the page's own *source* path - de-salted, because the
+  // source keeps the salt and the salt must never reach the page. The
+  // page has one ancestor per target segment and one per source segment,
+  // aligned by depth, which is what lets the two be zipped.
+  const sourceFolderNames = target.source
+    ? displayPath(target.source).split("/").slice(0, -1)
+    : []
+
+  function folderCrumb(folderPath, index) {
     if (!folderPath) {
       const home = api.target("index.html")
       return { label: home?.metadata?.breadcrumb || "Home", href: "/" }
@@ -530,7 +540,10 @@ function writeFile(target, { settings, api, config }) {
     // `<folder>/home.md` routes to `<folder>.html` - vowel's convention
     // for a section index.
     const indexTarget = api.target(`${folderPath}.html`)
-    const label = indexTarget?.metadata?.breadcrumb || toTitleCase(folderPath.split("/").at(-1))
+    // index 0 is the root, so ancestor i is source segment i - 1.
+    const sourceName = sourceFolderNames[index - 1]
+    const label = indexTarget?.metadata?.breadcrumb
+      || toTitleCase(sourceName ?? folderPath.split("/").at(-1))
     return { label, href: indexTarget ? "/" + folderPath : null }
   }
 

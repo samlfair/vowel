@@ -3,82 +3,156 @@ import { hash } from "node:crypto"
 /**
  * Secret paths.
  *
- * A source path segment beginning with `-` is secret: the segment is
- * replaced by a hash of its own name, so the page (or the whole folder)
- * is published at an unguessable URL and nowhere else.
+ * A `§` inside a file or folder name, with a word character on each side,
+ * marks that segment secret. The text before it is the **name**; the text
+ * after it is the **salt**. The whole segment is replaced by a hash, so
+ * the page - or the whole folder - is published at an unguessable URL
+ * and nowhere else.
  *
- *   blog/-wayne-gretzky/hello.md  ->  blog/<md5>/hello.html
+ *   blog/hidden§purple-bear/post.md   ->   blog/<hash>/post.html
+ *   hello-world§red-whale.md          ->   <hash>.html
  *
- * **This is a routing rule, not a page's business**, which is why it is
- * installed as votive's `config.router` rather than in the markdown
- * processor. A secret folder holds images, fonts and stylesheets as well
- * as pages, and each of those is routed by a different processor - so a
- * rule implemented per-processor leaks the folder name through whichever
+ * **The hash input is frozen.** Changing any part of it rotates every
+ * secret URL on every site, silently. It is:
+ *
+ *   the project-relative source path, forward slashes, no leading slash,
+ *   up to and including the segment being hashed, salt in place, and the
+ *   extension included for a file.
+ *
+ * So `blog/hidden§purple-bear/post.md` hashes its folder from
+ * `"blog/hidden§purple-bear"`, and `reports/dev§blue-parrot.md` hashes
+ * from `"reports/dev§blue-parrot.md"`. Each segment hashes against the
+ * *original* path, not one already rewritten above it, so the value is
+ * reproducible by hand. SHA-256, first 16 hex characters: 64 bits is far
+ * beyond guessable for a share-link, and short enough to paste.
+ *
+ * **This is a routing rule, installed as votive's `config.router`**, not
+ * a markdown feature. A secret folder holds images, fonts and stylesheets
+ * as well as pages, each routed by a different processor - a rule
+ * implemented per-processor leaks the folder name through whichever
  * processor forgets it. One cascade above them all cannot be forgotten.
  *
- * It replaces the old `secret_key` frontmatter property, which hashed one
- * page at a time, could not cover a folder, and had to be kept from
- * rendering into its own page (see hiddenProperties).
+ * Only routing is rewritten. The source keeps its real path everywhere it
+ * is stored, diffed or looked up. That means **the salt is in the
+ * database**, and every place a source path can reach rendered output
+ * has to go through `displayName()` first - the title, the breadcrumb,
+ * anything derived from a filename. `tests/secretPaths.js` walks the
+ * output folder and asserts no salt appears in it.
  *
- * The hash is over the segment *without* the dash, so `-drafts` is the
- * same secret wherever it appears, and renaming the segment is a delete
- * plus an add - which now deletes the old target and its file, because a
- * source that stops existing takes its target with it.
+ * `§` is legal on every platform and has no Unicode decomposition, so
+ * macOS's filename normalisation cannot split it into two forms. A
+ * legacy tool that re-encodes a filename as Latin-1 would change the
+ * bytes and rotate the URL; vowel-desktop owns the folder, so this is
+ * documented rather than defended against.
  *
- * Lowercase by construction: votive canonicalizes stored target paths by
- * lowercasing them, so an uppercase digest would name a row that nothing
- * is stored under. An md5 hex digest is already lowercase; the slice is
- * explicit about it anyway.
+ * The security model is the unguessable URL. The salt is only as secret
+ * as the source tree.
  */
 
-/** A path segment is secret when it begins with "-". */
-function isSecretSegment(segment) {
-  return segment.startsWith("-") && segment.length > 1
-}
+const MARKER = "§"
 
-/** @param {string} segment - without its leading dash */
-function hashSegment(segment) {
-  return hash("MD5", segment).toLowerCase()
+/** Lowercase by construction; votive lowercases stored target paths. */
+function hashSegmentInput(input) {
+  return hash("sha256", input).slice(0, 16)
 }
 
 /**
- * votive's `config.router`: source path in, source path out. Only the
- * routing is rewritten - the source keeps its real path everywhere it is
- * stored, diffed or looked up, so `?source`, relative links and
- * `buffer()` all still find the file the author wrote.
+ * Splits a segment's stem into name and salt. `null` when it carries no
+ * marker. Throws on a malformed one - an empty name or salt, or a second
+ * marker - rather than guessing which part is which.
+ * @param {string} stem - a segment without its extension
+ * @param {string} sourcePath - for the error message
+ * @returns {{ name: string, salt: string } | null}
+ */
+function parseSecret(stem, sourcePath) {
+  const first = stem.indexOf(MARKER)
+  if (first === -1) return null
+
+  const name = stem.slice(0, first)
+  const salt = stem.slice(first + 1)
+
+  if (!name || !salt || !/\w$/.test(name) || !/^\w/.test(salt) || salt.includes(MARKER)) {
+    throw new Error(
+      `"${sourcePath}": a secret segment is "<name>${MARKER}<salt>" with a word character ` +
+      `on each side of the ${MARKER}, and only one ${MARKER}. Got "${stem}".`
+    )
+  }
+
+  return { name, salt }
+}
+
+/** A filename's stem and extension; a folder segment has no extension. */
+function splitExtension(segment, isFile) {
+  if (!isFile) return { stem: segment, ext: "" }
+  const dot = segment.lastIndexOf(".")
+  if (dot <= 0) return { stem: segment, ext: "" }
+  return { stem: segment.slice(0, dot), ext: segment.slice(dot) }
+}
+
+/**
+ * votive's `config.router`: source path in, source path out.
  * @param {string} sourcePath - relative to sourceFolder
  * @returns {string}
  */
 function secretRouter(sourcePath) {
-  if (!sourcePath.includes("-")) return sourcePath
+  if (!sourcePath.includes(MARKER)) return sourcePath
 
   const segments = sourcePath.split("/")
-  const parsed = segments.map((segment, index) => {
-    const isLast = index === segments.length - 1
-    if (!isLast) return isSecretSegment(segment) ? hashSegment(segment.slice(1)) : segment
 
-    // The filename: hash the stem, keep the extension, so `-notes.md`
-    // still routes through the markdown processor.
-    const dot = segment.lastIndexOf(".")
-    const stem = dot === -1 ? segment : segment.slice(0, dot)
-    const ext = dot === -1 ? "" : segment.slice(dot)
-    return isSecretSegment(stem) ? hashSegment(stem.slice(1)) + ext : segment
-  })
+  return segments.map((segment, index) => {
+    const isFile = index === segments.length - 1
+    const { stem, ext } = splitExtension(segment, isFile)
+    if (!parseSecret(stem, sourcePath)) return segment
 
-  return parsed.join("/")
+    // Hashed from the original path up to and including this segment.
+    const input = segments.slice(0, index + 1).join("/")
+    return hashSegmentInput(input) + ext
+  }).join("/")
 }
 
 /**
  * Does this source path have any secret segment? The read uses it to mark
- * the page hidden, which is what keeps it out of every listing.
+ * the page hidden, which keeps it out of every listing.
  * @param {string} sourcePath
  */
 function isSecretPath(sourcePath) {
-  return sourcePath.split("/").some((segment, index, all) => {
-    if (index < all.length - 1) return isSecretSegment(segment)
-    const dot = segment.lastIndexOf(".")
-    return isSecretSegment(dot === -1 ? segment : segment.slice(0, dot))
+  return sourcePath.includes(MARKER)
+}
+
+/**
+ * A source path with every salt removed: what the name looks like to a
+ * reader. `blog/hidden§purple-bear/post.md` -> `blog/hidden/post.md`.
+ *
+ * **The single guard between the salt and the rendered page.** Anything
+ * that derives a title, a label or a breadcrumb from a source path goes
+ * through here first.
+ * @param {string} sourcePath
+ */
+function displayPath(sourcePath) {
+  if (!sourcePath.includes(MARKER)) return sourcePath
+
+  const segments = sourcePath.split("/")
+  return segments.map((segment, index) => {
+    const isFile = index === segments.length - 1
+    const { stem, ext } = splitExtension(segment, isFile)
+    const secret = parseSecret(stem, sourcePath)
+    return secret ? secret.name + ext : segment
+  }).join("/")
+}
+
+/**
+ * Every salt in a source path, for the leak test.
+ * @param {string} sourcePath
+ * @returns {string[]}
+ */
+function saltsIn(sourcePath) {
+  if (!sourcePath.includes(MARKER)) return []
+  const segments = sourcePath.split("/")
+  return segments.flatMap((segment, index) => {
+    const { stem } = splitExtension(segment, index === segments.length - 1)
+    const secret = parseSecret(stem, sourcePath)
+    return secret ? [secret.salt] : []
   })
 }
 
-export { secretRouter, isSecretPath, isSecretSegment, hashSegment }
+export { MARKER, secretRouter, isSecretPath, displayPath, saltsIn, hashSegmentInput }
