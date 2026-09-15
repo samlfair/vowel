@@ -19,26 +19,36 @@ function wait(ms) {
 }
 
 import init from "./index.js"
+import { shouldClear } from "./cli.js"
 
-/** @param {boolean} verbose */
-async function removeCache(verbose) {
+/**
+ * Discards the build database. Only under --clear (alias --reset): an
+ * ordinary launch is a warm start, reusing the database and the output,
+ * so a second launch on an unchanged site has nothing to do. The wipe on
+ * every launch was a development convenience, and it hid the on-disk
+ * database path from the CLI entirely.
+ * @param {boolean} verbose
+ */
+async function removeDatabase(verbose) {
   try {
     await fs.rm(config.databasePath)
-    if (verbose) console.info(`${styleText("dim", "loading:")} ${styleText("green", "cache cleared")}`)
+    if (verbose) console.info(`${styleText("dim", "loading:")} ${styleText("green", "database cleared")}`)
   } catch (e) {
-    if (verbose) console.info(`${styleText("dim", "loading:")} ${styleText("green", "no database cache found")}`)
+    if (verbose) console.info(`${styleText("dim", "loading:")} ${styleText("green", "no database found")}`)
   }
 }
 
 /** @param {boolean} verbose */
-async function removeDB(verbose) {
+async function removeOutput(verbose) {
   try {
     await fs.rm(config.targetFolder, { recursive: true, force: true })
     if (verbose) console.info(`${styleText("dim", "loading:")} ${styleText("green", "output cleared")}`)
   } catch (e) {
-    if (verbose) console.info(`${styleText("dim", "loading:")} ${styleText("green", "no output cache found")}`)
+    if (verbose) console.info(`${styleText("dim", "loading:")} ${styleText("green", "no output found")}`)
   }
 }
+
+
 
 async function exists(filePath) {
   try {
@@ -237,10 +247,15 @@ async function main() {
 
   const dbExists = await exists(config.databasePath)
 
-  await removeCache(args.logging === "verbose")
-  await removeDB(args.logging === "verbose")
+  if (shouldClear(args)) {
+    await removeDatabase(args.logging === "verbose")
+    await removeOutput(args.logging === "verbose")
+  }
   await fs.mkdir(config.targetFolder, { recursive: true })
 
+  // The wizard runs on a first launch only: no database yet is the one
+  // signal that legitimately means "new project", and --clear does not
+  // change that - a cleared project is still one that was set up.
   if (!args.skip && !dbExists) {
     // const loading = votive({ ...config, verbose: false })
     await wizard()
