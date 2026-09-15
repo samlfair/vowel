@@ -38,8 +38,8 @@ const BUNDLED = {
  *
  * @type {Votive.ProcessorStubs}
  */
-function stubs({ settings }) {
-  const themeSetting = settings.last("theme")
+function createStubs({ settings }) {
+  const themeSetting = settings.lastNonNull("theme")
   const { config } = resolveTheme(themeSetting)
 
   const sheets = themeStylesheets(themeSetting).map(sheet => {
@@ -60,7 +60,7 @@ function stubs({ settings }) {
 /**
  * @type {Votive.ProcessorExpand}
  */
-function expand({ path: sourcePath, params }) {
+function expandStubs({ path: sourcePath, params }) {
   const bundled = BUNDLED[sourcePath]
   if (bundled) {
     return { text: readFileSync(path.join(VOWEL_DIR, "stylesheets", bundled), "utf-8") }
@@ -129,8 +129,8 @@ const cssWriter = {
   extensions: [".css"],
   format: "text",
   router: ({ name, dir, ext }) => ({ name, dir, ext }),
-  stubs,
-  expand,
+  createStubs,
+  expandStubs,
   readFile: readCSS,
   writeFile: writeCSS
 }

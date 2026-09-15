@@ -18,8 +18,8 @@ import generateRobots from "./robots.js"
 const processor = {
   extensions: [".txt"],
   format: "text",
-  stubs: () => [{ path: "robots.txt" }],
-  expand: () => ({ text: generateRobots() }),
+  createStubs: () => [{ path: "robots.txt" }],
+  expandStubs: () => ({ text: generateRobots() }),
   // A .txt source carries no metadata worth inferring; its text is the
   // target's content and the write pass hands it straight back.
   readFile: (source) => ({ data: source.text, metadata: {} }),

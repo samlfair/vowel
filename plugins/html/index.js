@@ -86,7 +86,7 @@ const editorClientScript = readFileSync(path.join(import.meta.dirname, "bundle/i
  * @returns {string | undefined}
  */
 function siteTitle(settings, api) {
-  const configured = settings.last("title")
+  const configured = settings.lastNonNull("title")
   if (configured) return configured
   const index = api.target("index.html")
   if (!index?.source) return
@@ -232,16 +232,29 @@ function writeFile(target, { settings, api, config }) {
 
   /** @param {string} relativePath */
   function resolvePath(relativePath) {
-    // A target created via api.createTarget() has no backing source file
-    // (target.source is null), so there's no directory to resolve a
-    // "./" link against - leave the href as the author wrote it.
+    // A stub has a source path but no directory of neighbours to resolve
+    // a "./" link against; leave the href as written.
     if (!target.source) return
-    if (relativePath.startsWith("./")) {
-      const dir = path.dirname(target.source)
-      const sourcePath = path.normalize(path.join(dir, relativePath))
-      const targetFile = api.targetBySource(sourcePath)
-      return targetFile.metadata.prettyURL
+    if (typeof relativePath !== "string" || !relativePath.startsWith("./")) return
+
+    // The href arrives percent-encoded - toHast normalizes it - so a
+    // link to `./secret§salt.md` is `./secret%C2%A7salt.md` here. The
+    // source is stored as the author spelled it. Decoded, the lookup is
+    // by source path, and targetBySource answers with the *routed*
+    // target - which for a secret page is the hashed one. No second
+    // trip through the router needed.
+    const dir = path.dirname(target.source)
+    const sourcePath = path.normalize(path.join(dir, decodeURIComponent(relativePath)))
+    const targetFile = api.targetBySource(sourcePath)
+
+    // A link to a file that produces no page - missing, or routed
+    // nowhere - is the author's to notice, not a reason to stop the
+    // build. This used to dereference undefined and crash.
+    if (!targetFile) {
+      config.log?.("warn", `${target.source}: link to ${relativePath} matches no page`)
+      return
     }
+    return targetFile.metadata.prettyURL
   }
 
   visit(target.metadata.hastAbstract, { tagName: "a" }, (n, i, p) => {
@@ -338,7 +351,7 @@ function writeFile(target, { settings, api, config }) {
   // The theme's sheets come from the same function the styles processor
   // enumerates from, so a sheet that is linked is a sheet that exists.
   // This used to read a `stylesheets` setting the folder pass wrote.
-  const themeSheets = themeStylesheets(settings.last("theme"))
+  const themeSheets = themeStylesheets(settings.lastNonNull("theme"))
 
   // A stub stylesheet has a source path like any other source, so the
   // `sheet.source` test alone no longer separates vowel's sheets from the
@@ -394,7 +407,7 @@ function writeFile(target, { settings, api, config }) {
 
   function createTitle() {
     if (isRoot) {
-      const title = [settings.last("title") || metadata?.title, settings.last("fm_tagline")]
+      const title = [settings.lastNonNull("title") || metadata?.title, settings.lastNonNull("fm_tagline")]
         .filter(a => a)
         .join(" - ")
 
@@ -446,7 +459,7 @@ function writeFile(target, { settings, api, config }) {
     ...treeStyleSheets,
   ])
 
-  const settingsDomain = settings.last("fm_domain")
+  const settingsDomain = settings.lastNonNull("fm_domain")
   if (settingsDomain) {
     const domain = settingsDomain.startsWith("http")
       ? settingsDomain
@@ -485,7 +498,7 @@ function writeFile(target, { settings, api, config }) {
   /* FIXME Properly handle this image */
   // fm_icon directly: settings.md already contributes it, and the folder
   // pass copied it to `icon` for no reason.
-  const icon = settings.last("fm_icon")
+  const icon = settings.lastNonNull("fm_icon")
   if (icon) {
     treeHead.children.push(h("link", {
       href: "/" + icon,
@@ -553,7 +566,7 @@ function writeFile(target, { settings, api, config }) {
   // page has one ancestor per target segment and one per source segment,
   // aligned by depth, which is what lets the two be zipped.
   const sourceFolderNames = target.source
-    ? displayPath(target.source).split("/").slice(0, -1)
+    ? displayPath(target.source).split(path.sep).slice(0, -1)
     : []
 
   function folderCrumb(folderPath, index) {
@@ -568,8 +581,9 @@ function writeFile(target, { settings, api, config }) {
     // index 0 is the root, so ancestor i is source segment i - 1.
     const sourceName = sourceFolderNames[index - 1]
     const label = indexTarget?.metadata?.breadcrumb
-      || toTitleCase(sourceName ?? folderPath.split("/").at(-1))
-    return { label, href: indexTarget ? "/" + folderPath : null }
+      || toTitleCase(sourceName ?? folderPath.split(path.sep).at(-1))
+    // folderPath is a stored folder (path.sep); an href is a url.
+    return { label, href: indexTarget ? "/" + folderPath.split(path.sep).join("/") : null }
   }
 
   treeBreadcrumbs.push(
@@ -594,7 +608,7 @@ function writeFile(target, { settings, api, config }) {
 
   const homeLink = []
 
-  const logo = settings.last("fm_logo")
+  const logo = settings.lastNonNull("fm_logo")
   if (logo) {
     headerElements.push(
       h('a#logo', {
@@ -609,7 +623,7 @@ function writeFile(target, { settings, api, config }) {
     )
   }
 
-  const wordmark = settings.last("fm_wordmark")
+  const wordmark = settings.lastNonNull("fm_wordmark")
   if (wordmark) {
     headerElements.push(h("a#wordmark", {
       href: "/",
@@ -623,7 +637,7 @@ function writeFile(target, { settings, api, config }) {
     headerElements.push(h('a#title', { href: "/", rel: "home" }, site))
   }
 
-  const tagline = settings.last("fm_tagline")
+  const tagline = settings.lastNonNull("fm_tagline")
   if (tagline) {
     headerElements.push(h('p#tagline', tagline))
   }

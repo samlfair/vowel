@@ -41,3 +41,14 @@ test("?view=table renders a glob as a table with the named columns, and the dire
     await rm(systemFolder, { recursive: true, force: true })
   }
 })
+
+test("globDirective round-trips through the URL constructor", () => {
+  const params = { folder: "ideas", recursive: true, limit: "5", tag: null, view: "table", properties: ["title", "description", "image"] }
+  const directive = globDirective(params)
+  assert.equal(directive, "/ideas/**?count=5&view=table&properties=title,description,image")
+  // And a bare glob has no "?" at all.
+  assert.equal(globDirective({ folder: "", recursive: false, limit: null, tag: null }), "/*")
+  // A tag containing a character that needs encoding is decoded back -
+  // the directive is markdown, not a url on the wire.
+  assert.equal(globDirective({ folder: "", recursive: true, limit: null, tag: "c++" }), "/**?tag=c++")
+})

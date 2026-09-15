@@ -27,8 +27,8 @@ const declaredFaces = new Set()
  *
  * @type {Votive.ProcessorStubs}
  */
-function stubs({ settings }) {
-  const { config } = resolveTheme(settings.last("theme"))
+function createStubs({ settings }) {
+  const { config } = resolveTheme(settings.lastNonNull("theme"))
   const dynamicType = typographyCSS(config)
 
   declaredFaces.clear()
@@ -45,7 +45,7 @@ function stubs({ settings }) {
  * as deferred work like any other buffer read.
  * @type {Votive.ProcessorExpand}
  */
-async function expand({ params }) {
+async function expandStubs({ params }) {
   return { buffer: await readFile(path.join(BUNDLED_FONTS, params.bundled)) }
 }
 
@@ -88,8 +88,8 @@ const fontsReader = {
   format: "buffer",
   extensions: [".woff", ".woff2", ".ttf", ".otf"],
   router: ({ name, dir, ext }) => ({ name, dir, ext }),
-  stubs,
-  expand,
+  createStubs,
+  expandStubs,
   readFile: readFont,
   writeFile
 }

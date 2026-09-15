@@ -115,11 +115,14 @@ export function globParams(classList) {
  * @param {{folder: string, recursive: boolean, limit: string|null, tag: string|null}} params
  */
 export function globDirective({ folder, recursive, limit, tag, view = null, properties = [] }) {
-  const base = "/" + [folder, recursive ? "**" : "*"].filter(Boolean).join("/")
-  const countParam = limit ? [`count=${limit}`] : []
-  const tagParam = tag ? [`tag=${tag}`] : []
-  const viewParam = view ? [`view=${view}`] : []
-  const propertiesParam = properties.length ? [`properties=${properties.join(",")}`] : []
-  const query = [...countParam, ...tagParam, ...viewParam, ...propertiesParam].join("&")
-  return query ? `${base}?${query}` : base
+  // Built with the URL constructor and searchParams, not by hand - the
+  // convention for anything url-shaped. `thismessage://` is a base that
+  // parses without a real domain (RFC 2557); only the pathname and search
+  // are taken back out.
+  const url = new URL("/" + [folder, recursive ? "**" : "*"].filter(Boolean).join("/"), "thismessage://")
+  if (limit) url.searchParams.set("count", limit)
+  if (tag) url.searchParams.set("tag", tag)
+  if (view) url.searchParams.set("view", view)
+  if (properties.length) url.searchParams.set("properties", properties.join(","))
+  return decodeURIComponent(url.pathname + url.search)
 }

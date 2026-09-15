@@ -18,8 +18,8 @@ import { entryContent } from "./entryContent.js"
  * the writes read it from settings, tracked, so they rerun too.
  * @type {Votive.ProcessorStubs}
  */
-function stubs({ settings }) {
-  const domain = settings.last("fm_domain")
+function createStubs({ settings }) {
+  const domain = settings.lastNonNull("fm_domain")
   if (!domain) return []
   return [
     { path: "sitemap.xml", params: { domain } },
@@ -33,7 +33,7 @@ function stubs({ settings }) {
  * source, and therefore a lifetime.
  * @type {Votive.ProcessorExpand}
  */
-function expand() {
+function expandStubs() {
   return { text: "" }
 }
 
@@ -45,7 +45,7 @@ function expand() {
  * dependency instead of needing the creator to run again.
  */
 function resolveDomain(settings) {
-  const domain = settings.last("fm_domain")
+  const domain = settings.lastNonNull("fm_domain")
   if (!domain) return null
   return String(domain).startsWith("http") ? String(domain) : "http://" + domain
 }
@@ -55,8 +55,8 @@ const processor = {
   router: ({ name, dir, ext }) => ({ name, dir, ext }),
   extensions: [".xml"],
   format: "text",
-  stubs,
-  expand,
+  createStubs,
+  expandStubs,
   // An .xml source carries nothing worth inferring; writeFile generates
   // the whole document.
   readFile: (source) => ({ data: source.text, metadata: {} }),
@@ -147,7 +147,7 @@ const processor = {
           }
         },
         {
-          title: settings.last("title")
+          title: settings.lastNonNull("title")
         },
       )
 
@@ -166,7 +166,7 @@ const processor = {
         }
       );
 
-      const feedAuthor = settings.last("fm_author")
+      const feedAuthor = settings.lastNonNull("fm_author")
       if (feedAuthor)
         feed.push(
           {

@@ -1,4 +1,5 @@
 import { hash } from "node:crypto"
+import path from "node:path"
 
 /**
  * Secret paths.
@@ -15,7 +16,8 @@ import { hash } from "node:crypto"
  * **The hash input is frozen.** Changing any part of it rotates every
  * secret URL on every site, silently. It is:
  *
- *   the project-relative source path, forward slashes, no leading slash,
+ *   the project-relative source path, forward slashes (whatever the
+ *   platform's separator), no leading slash,
  *   up to and including the segment being hashed, salt in place, and the
  *   extension included for a file.
  *
@@ -97,7 +99,11 @@ function splitExtension(segment, isFile) {
 function secretRouter(sourcePath) {
   if (!sourcePath.includes(MARKER)) return sourcePath
 
-  const segments = sourcePath.split("/")
+  // Stored paths use the platform separator; the hash *input* never does.
+  // It is frozen as forward-slash-joined so the same file hashes the same
+  // on every platform - otherwise a project moved to Windows would rotate
+  // every secret url.
+  const segments = sourcePath.split(path.sep)
 
   return segments.map((segment, index) => {
     const isFile = index === segments.length - 1
@@ -107,7 +113,7 @@ function secretRouter(sourcePath) {
     // Hashed from the original path up to and including this segment.
     const input = segments.slice(0, index + 1).join("/")
     return hashSegmentInput(input) + ext
-  }).join("/")
+  }).join(path.sep)
 }
 
 /**
@@ -131,13 +137,13 @@ function isSecretPath(sourcePath) {
 function displayPath(sourcePath) {
   if (!sourcePath.includes(MARKER)) return sourcePath
 
-  const segments = sourcePath.split("/")
+  const segments = sourcePath.split(path.sep)
   return segments.map((segment, index) => {
     const isFile = index === segments.length - 1
     const { stem, ext } = splitExtension(segment, isFile)
     const secret = parseSecret(stem, sourcePath)
     return secret ? secret.name + ext : segment
-  }).join("/")
+  }).join(path.sep)
 }
 
 /**
@@ -147,7 +153,7 @@ function displayPath(sourcePath) {
  */
 function saltsIn(sourcePath) {
   if (!sourcePath.includes(MARKER)) return []
-  const segments = sourcePath.split("/")
+  const segments = sourcePath.split(path.sep)
   return segments.flatMap((segment, index) => {
     const { stem } = splitExtension(segment, index === segments.length - 1)
     const secret = parseSecret(stem, sourcePath)

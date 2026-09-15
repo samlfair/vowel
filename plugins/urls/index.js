@@ -1,3 +1,4 @@
+import path from "node:path"
 import { hostSlug } from "votive"
 import { default as parseURLMetadata } from "./urlMetadata.js"
 
@@ -28,7 +29,7 @@ function previewPath(url) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60) || "index"
-  return `${hostSlug(url)}/${leaf}`
+  return path.join(hostSlug(url), leaf)
 }
 
 /**

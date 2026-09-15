@@ -193,3 +193,21 @@ test("secret_key frontmatter is an ordinary property with no effect", async () =
     assert.equal(paths.some(p => /^[0-9a-f]{16}\.html$/.test(p)), false)
   })
 })
+
+test("a relative link to a secret page resolves to its hashed url, and a link to nothing does not crash", async () => {
+  await withSite({
+    "home.md": "# Home\n\n/**",
+    "blog/post.md": "# Post\n\nSee my [secret page](./notes§red-whale.md) and a [missing one](./nope.md).",
+    "blog/notes§red-whale.md": "# Notes\n\nShh."
+  }, async ({ targetFolder }) => {
+    const html = await readFile(path.join(targetFolder, "blog", "post.html"), "utf-8")
+    const hashed = hashSegmentInput("blog/notes§red-whale.md")
+    const hrefs = [...html.matchAll(/href=([^\s>]+)/g)].map(m => m[1])
+
+    assert.ok(hrefs.includes(`/blog/${hashed}`), `the link resolves to the hashed url: ${hrefs}`)
+    assert.equal(html.includes("red-whale"), false, "the salt does not reach the page")
+    assert.equal(html.includes("%C2%A7"), false, "nor the encoded marker")
+    // The missing link is left as written rather than crashing the build.
+    assert.ok(hrefs.some(h => h.includes("nope.md")), `a link to nothing is left alone: ${hrefs}`)
+  })
+})

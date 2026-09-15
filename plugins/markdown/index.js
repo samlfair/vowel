@@ -143,7 +143,7 @@ function readFile(source, { api, config }) {
         // The tags index and the per-tag pages are stubs now (see `stubs`
         // below). This hook's only remaining job for a hashtag is to
         // record it on *this* page, which is what the enumerator then
-        // reads back through api.distinct("tags"). Every tagged page used
+        // reads back through api.metadataValues("tags"). Every tagged page used
         // to create every tag page it mentioned - the many-producers-per
         // -target shape the whole design exists to remove.
         if (hashtags) {
@@ -253,10 +253,10 @@ function transformFile(target, context) {
  *
  * @type {Votive.ProcessorStubs}
  */
-function stubs({ api }) {
+function createStubs({ api }) {
   // Every tag any page carries. One indexed query rather than pulling
   // every target back and flattening `tags` in JS on every pass.
-  const tags = api.distinct("tags")
+  const tags = api.metadataValues("tags")
     .filter(tag => typeof tag === "string" && tag)
     .sort()
 
@@ -281,7 +281,7 @@ function stubs({ api }) {
     ...(tags.length ? [{ path: "tags.md" }] : []),
 
     // One page per tag. `params` is what expand needs and nothing more.
-    ...tags.map(tag => ({ path: `tags/${tag}.md`, params: { tag } }))
+    ...tags.map(tag => ({ path: path.join("tags", `${tag}.md`), params: { tag } }))
   ]
 }
 
@@ -296,7 +296,7 @@ function stubs({ api }) {
  *
  * @type {Votive.ProcessorExpand}
  */
-function expand({ path: sourcePath, params }) {
+function expandStubs({ path: sourcePath, params }) {
   if (sourcePath === "home.md") {
     // A listing of everything, which is what the folder pass generated.
     return { text: "# Home\n\n//*" }
@@ -355,8 +355,8 @@ const readMarkdown = {
   extensions: [".md"],
   format: "text",
   router,
-  stubs,
-  expand,
+  createStubs,
+  expandStubs,
   readFile,
   writeFile: writeMarkdown,
   transformFile,
