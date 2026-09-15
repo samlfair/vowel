@@ -53,16 +53,18 @@ async function parseLinkPreview(response) {
 }
 
 /**
- * Parses what was fetched. A `format: "url"` processor's extensions are
- * the *url's*: "" for a page with no extension, which is most of the web,
- * plus the ones that spell it out. Nothing else - an .mp3 or an .ical
+ * Parses what was fetched. Chosen by what the server says it sent -
+ * html, whatever the url looked like, so `bsky.app/profile/name.ca` is a
+ * page and not a ".ca file" - with the url's extension as the fallback
+ * for a response that names no type. Nothing else: an .mp3 or an .ical
  * link is not a page and gets no preview until a processor for it
- * exists. Exact matches only, by design; there is no wildcard.
+ * exists. Exact matches only; there is no wildcard.
  * @type {Votive.VotiveProcessor}
  */
 const linkPreviewProcessor = {
   format: "url",
-  extensions: ["", ".html", ".htm", ".php", ".asp", ".aspx"],
+  mediaTypes: ["text/html", "application/xhtml+xml"],
+  extensions: ["", ".html", ".htm"],
   readURL: parseLinkPreview
 }
 
