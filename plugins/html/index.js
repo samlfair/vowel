@@ -23,7 +23,6 @@ import { EXIT, SKIP, visit } from "unist-util-visit"
 import toc from "@jsdevtools/rehype-toc"
 import slug from "rehype-slug"
 import createDynamicImage from "./image.js"
-import { isExternalLinkParagraph } from "../urls/index.js"
 import { globClasses } from "./editor/directives.js"
 import { listPages } from "./../../utils.js"
 import { themeStylesheets } from "../styles/theme.js"
@@ -31,6 +30,32 @@ import { displayPath } from "../../secretPaths.js"
 
 /** @import * as Votive from "votive" */
 /** @import * as Vowel from "./../../index.js" */
+
+const EXTERNAL_LINK_RE = /^https?:\/\/\S+$/
+
+/**
+ * Matches a paragraph whose only content is a bare URL - a link preview,
+ * per CLAUDE.md: "a URL that is the only child of a paragraph".
+ *
+ *   Dinosaurs lived 65,000,000 years ago.
+ *
+ *   https://dinosaurs.com/timeline
+ *
+ *   We still find their fossils today.
+ *
+ * Lives here, with the one walker that acts on it, rather than in the
+ * urls plugin: asking for the url and rendering the card are the same
+ * pass over the same node, and api.url() both reads and asks.
+ * @param {any} node
+ */
+function isExternalLinkParagraph(node) {
+  if (node.type !== "element") return false
+  if (node.tagName !== "p") return false
+  if (node.children.length !== 1) return false
+  const [child] = node.children
+  if (!child || typeof child.value !== "string") return false
+  return EXTERNAL_LINK_RE.test(child.value)
+}
 
 const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
 
