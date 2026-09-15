@@ -201,9 +201,9 @@
 		legacy_mode_flag = true;
 	}
 
-	const empty$1 = [];
+	const empty$2 = [];
 	function snapshot(value, skip_warning = false, no_tojson = false) {
-		return clone(value, new Map(), '', empty$1, null, no_tojson);
+		return clone(value, new Map(), '', empty$2, null, no_tojson);
 	}
 	function clone(value, cloned, path, paths, original = null, no_tojson = false) {
 		if (typeof value === 'object' && value !== null) {
@@ -11094,7 +11094,7 @@ ${fallback_html}`;
 	  return d
 	}
 
-	const empty = [];
+	const empty$1 = [];
 	const CONTINUE = true;
 	const EXIT = false;
 	const SKIP$1 = 'skip';
@@ -11128,7 +11128,7 @@ ${fallback_html}`;
 	    }
 	    return visit
 	    function visit() {
-	      let result = empty;
+	      let result = empty$1;
 	      let subresult;
 	      let offset;
 	      let grandparents;
@@ -11165,7 +11165,7 @@ ${fallback_html}`;
 	  if (typeof value === 'number') {
 	    return [CONTINUE, value]
 	  }
-	  return value === null || value === undefined ? empty : [value]
+	  return value === null || value === undefined ? empty$1 : [value]
 	}
 
 	function visit$1(tree, testOrVisitor, visitorOrReverse, maybeReverse) {
@@ -19474,6 +19474,30 @@ ${fallback_html}`;
 
 	delegate(['mousedown', 'click']);
 
+	const empty = { path: null, markdown: null, settings: { path: "settings.md", markdown: null } };
+	let current = null;
+	function seed() {
+	  if (current) return current
+	  const element = document.getElementById("vowel-source");
+	  try {
+	    current = element ? { ...empty, ...JSON.parse(element.textContent) } : { ...empty };
+	  } catch {
+	    current = { ...empty };
+	  }
+	  return current
+	}
+	function getSource() {
+	  return seed()
+	}
+	function updateFromTarget(target) {
+	  const source = seed();
+	  if (typeof target.source === "string") source.path = target.source;
+	  if (typeof target.metadata?.markdown === "string") source.markdown = target.metadata.markdown;
+	}
+	function updateSettings(markdown) {
+	  seed().settings.markdown = markdown;
+	}
+
 	const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n)?/;
 	function splitFrontmatter(text) {
 	  const match = text.match(FRONTMATTER);
@@ -19489,10 +19513,9 @@ ${fallback_html}`;
 	  if (typeof theme === "string") return { name: theme }
 	  return {}
 	}
-	async function readSettings(path = "/settings.md") {
-	  const response = await fetch(path, { cache: "no-store" });
-	  if (!response.ok) throw new Error(`could not read ${path} (${response.status})`)
-	  return splitFrontmatter(await response.text())
+	async function readSettings() {
+	  const { settings } = getSource();
+	  return splitFrontmatter(settings.markdown ?? "")
 	}
 	async function writeSettings(filePath, data) {
 	  const response = await fetch("/", {
@@ -19504,6 +19527,7 @@ ${fallback_html}`;
 	    const detail = await response.json().catch(() => ({}));
 	    throw new Error(detail.error || `write failed (${response.status})`)
 	  }
+	  updateSettings(data);
 	  return response.json()
 	}
 
@@ -19529,27 +19553,23 @@ ${fallback_html}`;
 
 		setContext("key_mapper", key_mapper);
 
-		// Frontmatter from the source, body from the editor. The source is
-		// fetched at save time (GET <page>?source, votive's read half of the
-		// write endpoint) rather than when the editor opened, so a hand edit
-		// made meanwhile is less likely to be clobbered. Taking the
-		// frontmatter from the source rather than the rendered page is what
-		// lets a hidden key (secret_key) survive a save without ever being on
-		// the page. The title is the one key that isn't kept: it is written
-		// back as a `#` heading, never as `title:`, so a file whose title
-		// lived only in frontmatter gains a heading and loses the key.
+		// Frontmatter from the source, body from the editor. The source comes
+		// with the page (see source.js) and is refreshed by every rebuild the
+		// socket pushes, so it is read at save time rather than when the
+		// editor opened. Taking the frontmatter from the source rather than
+		// the rendered page is what lets a key that never renders survive a
+		// save. The title is the one key that isn't kept: it is written back
+		// as a `#` heading, never as `title:`, so a file whose title lived
+		// only in frontmatter gains a heading and loses the key.
 		async function save() {
-			const response = await fetch(`${window.location.pathname}?source`, { cache: "no-store" });
+			const { path, markdown: text } = getSource();
 
-			if (!response.ok) {
-				const detail = await response.json().catch(() => ({}));
-
-				console.error("[vowel] not saved:", detail.error || `no source for ${window.location.pathname} (${response.status})`);
+			if (!path || typeof text !== "string") {
+				console.error("[vowel] not saved: this page has no source to save to");
 
 				return;
 			}
 
-			const { path, text } = await response.json();
 			const { title: ignoredTitle, ...properties } = splitFrontmatter(text).data;
 			const markdown = serialize($$props.session.doc, { title: $$props.frontmatter.title, properties });
 
@@ -20428,13 +20448,12 @@ ${fallback_html}`;
 	  }
 	}
 	function globDirective({ folder, recursive, limit, tag, view = null, properties = [] }) {
-	  const base = "/" + [folder, recursive ? "**" : "*"].filter(Boolean).join("/");
-	  const countParam = limit ? [`count=${limit}`] : [];
-	  const tagParam = tag ? [`tag=${tag}`] : [];
-	  const viewParam = view ? [`view=${view}`] : [];
-	  const propertiesParam = properties.length ? [`properties=${properties.join(",")}`] : [];
-	  const query = [...countParam, ...tagParam, ...viewParam, ...propertiesParam].join("&");
-	  return query ? `${base}?${query}` : base
+	  const url = new URL("/" + [folder, recursive ? "**" : "*"].filter(Boolean).join("/"), "thismessage://");
+	  if (limit) url.searchParams.set("count", limit);
+	  if (tag) url.searchParams.set("tag", tag);
+	  if (view) url.searchParams.set("view", view);
+	  if (properties.length) url.searchParams.set("properties", properties.join(","));
+	  return decodeURIComponent(url.pathname + url.search)
 	}
 
 	const TEXT_NODE = 3;
@@ -21413,6 +21432,7 @@ ${fallback_html}`;
 	    if (target.extension !== ".html") return
 	    const regex = new RegExp(window.location.pathname + "(index)?(\\.html)");
 	    if (!("/" + target.path).match(regex)) return
+	    updateFromTarget(target);
 	    if (!target.data) {
 	      location.reload();
 	      return

@@ -3,6 +3,7 @@
   import { Svedit, KeyMapper } from "svedit"
   import serialize from "./serialize.js"
   import Toolbar from "./Toolbar.svelte"
+  import { getSource } from "./source.js"
   import { splitFrontmatter, writeSettings as writeFile } from "./settings-file.js"
 
   // Both props are read off the rendered page before this mounts, by
@@ -23,23 +24,20 @@
   const key_mapper = new KeyMapper()
   setContext("key_mapper", key_mapper)
 
-  // Frontmatter from the source, body from the editor. The source is
-  // fetched at save time (GET <page>?source, votive's read half of the
-  // write endpoint) rather than when the editor opened, so a hand edit
-  // made meanwhile is less likely to be clobbered. Taking the
-  // frontmatter from the source rather than the rendered page is what
-  // lets a hidden key (secret_key) survive a save without ever being on
-  // the page. The title is the one key that isn't kept: it is written
-  // back as a `#` heading, never as `title:`, so a file whose title
-  // lived only in frontmatter gains a heading and loses the key.
+  // Frontmatter from the source, body from the editor. The source comes
+  // with the page (see source.js) and is refreshed by every rebuild the
+  // socket pushes, so it is read at save time rather than when the
+  // editor opened. Taking the frontmatter from the source rather than
+  // the rendered page is what lets a key that never renders survive a
+  // save. The title is the one key that isn't kept: it is written back
+  // as a `#` heading, never as `title:`, so a file whose title lived
+  // only in frontmatter gains a heading and loses the key.
   async function save() {
-    const response = await fetch(`${window.location.pathname}?source`, { cache: "no-store" })
-    if (!response.ok) {
-      const detail = await response.json().catch(() => ({}))
-      console.error("[vowel] not saved:", detail.error || `no source for ${window.location.pathname} (${response.status})`)
+    const { path, markdown: text } = getSource()
+    if (!path || typeof text !== "string") {
+      console.error("[vowel] not saved: this page has no source to save to")
       return
     }
-    const { path, text } = await response.json()
     const { title: ignoredTitle, ...properties } = splitFrontmatter(text).data
     const markdown = serialize(session.doc, { title: frontmatter.title, properties })
     await writeFile(path, markdown)

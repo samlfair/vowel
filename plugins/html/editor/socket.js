@@ -1,3 +1,4 @@
+import { updateFromTarget } from "./source.js"
 /**
  * Live reload without the reload. Every "a target changed" message is
  * the target itself (see TargetOutput in votive/lib/createDatabase.js),
@@ -57,6 +58,9 @@ export default function openSocket() {
 
     const regex = new RegExp(window.location.pathname + "(index)?(\\.html)")
     if (!("/" + target.path).match(regex)) return
+
+    // The page's source travels with the target; the editor saves from it.
+    updateFromTarget(target)
 
     // No data at all (too large for the socket, or already gone) is the
     // one case a reload is still the honest answer.

@@ -185,6 +185,17 @@ function readFile(source, { api, config }) {
     }
   })
 
+  // The page carries its own source. It is what the in-page editor saves
+  // from - frontmatter from the source, body from the editor - and what
+  // the settings panel edits: settings.md contributes its whole metadata
+  // as settings, so this key becomes the `markdown` setting at its
+  // folder, and the panel reads the root slot. Both used to go through
+  // an endpoint (and settings.md was emitted as a target so the panel
+  // could GET it - which the deploy then had to strip). Neither reaches
+  // the published site: the preview hook puts it into the page, and only
+  // there.
+  metadata.markdown = string
+
   const targetMetadata = { ...metadata, hastAbstract: hast }
 
   // No second target for a secret page, and no virtual shadow at the
@@ -192,22 +203,6 @@ function readFile(source, { api, config }) {
   // is exactly one target - which is the whole point of one source, one
   // target.
 
-  // settings.md is routed nowhere (router() returns false for it), so
-  // its own text is emitted as a target here instead. That is what puts
-  // it on the served site, where the settings panel can GET it, edit the
-  // frontmatter and POST the result back to votive's write endpoint - a
-  // read path without a new endpoint. See writeMarkdown below for what
-  // actually writes it.
-  if (pathInfo.base === "settings.md") {
-    // Mirrors the source path rather than hardcoding the root one: every
-    // folder can carry its own settings.md, and they would otherwise all
-    // collide on a single target, leaving whichever was read last.
-    api.createTarget({
-      path: filePath,
-      data: string,
-      metadata: {}
-    })
-  }
 
   return {
     // `data` is the target's content - the markdown the page is made

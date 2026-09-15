@@ -385,18 +385,8 @@ function writeFile(target, { settings, api, config }) {
   })
 
   if (hasHighlightedCode) {
-    if (!api.target("syntax-highlighting.css")) {
-      const syntaxHighlightingStylesPath = path.join(VOWEL_DIR, "stylesheets", "SyntaxHighlightingStyles.css")
-      const syntaxHighlightingStyles = readFileSync(syntaxHighlightingStylesPath, "utf-8")
-
-      api.createTarget({
-        path: "syntax-highlighting.css",
-        data: syntaxHighlightingStyles,
-        metadata: {},
-        extension: "css"
-      })
-    }
-
+    // syntax-highlighting.css is always declared by the styles processor
+    // (a stub); a page only decides whether to link it.
     treeStyleSheets.push(
       h('link', {
         rel: "stylesheet",
@@ -1029,10 +1019,30 @@ function makeTable(classes, properties, targets, api) {
  * per-host to build. See tasks/desktop-app-architecture.md, Part 3.
  * @param {Buffer} body
  */
-function handlePreviewRequest(body) {
+/**
+ * What the in-page editor and the settings panel need to save: the
+ * page's source path and text, and the root settings.md's. Put into the
+ * page here, in the preview only - a served file is never what was
+ * written to disk, and the source path of a secret page carries its
+ * salt, which is fine in the author's own browser and nowhere else.
+ * `settings` is the folder's view; the root slot of `markdown` is the
+ * root settings.md, or null when the project has none yet.
+ */
+function previewSource(target, settings) {
+  const rootSettings = settings?.raw?.("markdown")?.[0]
+  return {
+    path: target?.source ?? null,
+    markdown: target?.metadata?.markdown ?? null,
+    settings: { path: "settings.md", markdown: rootSettings?.at(-1) ?? null }
+  }
+}
+
+function handlePreviewRequest(body, { target, settings } = {}) {
   const html = body.toString("utf-8")
   const fileSplit = html.split("</body>")
-  fileSplit.splice(1, 0, `<script type="module">${editorClientScript}</script>`)
+  // "<" escaped so a "</script>" inside the markdown cannot end the tag.
+  const source = JSON.stringify(previewSource(target, settings)).replaceAll("<", "\\u003c")
+  fileSplit.splice(1, 0, `<script type="application/json" id="vowel-source">${source}</script><script type="module">${editorClientScript}</script>`)
   return fileSplit.join("")
 }
 

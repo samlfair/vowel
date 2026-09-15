@@ -1,12 +1,12 @@
 // Reading and writing the project's settings.md from the browser.
 //
-// vowel emits settings.md as a target of its own (see the markdown
-// plugin's readFile), so the previewed site serves the real file, and
-// votive's POST endpoint writes it back. That pair is the whole read/write
-// path - no bespoke endpoint, and the panel edits the same file a person
-// would open in an editor.
+// The preview hands the root settings.md over with the page (source.js),
+// and votive's POST endpoint writes it back. No endpoint to read it, and
+// no settings.md target on the site - the panel edits the same file a
+// person would open in an editor.
 
 import { parse, stringify } from "yaml"
+import { getSource, updateSettings } from "./source.js"
 
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n)?/
 
@@ -48,11 +48,14 @@ export function themeObject(theme) {
   return {}
 }
 
-/** @param {string} path */
-export async function readSettings(path = "/settings.md") {
-  const response = await fetch(path, { cache: "no-store" })
-  if (!response.ok) throw new Error(`could not read ${path} (${response.status})`)
-  return splitFrontmatter(await response.text())
+/**
+ * The root settings.md, as the preview handed it over (see source.js).
+ * A project with none yet reads as an empty file, so the panel can
+ * create it on first save.
+ */
+export async function readSettings() {
+  const { settings } = getSource()
+  return splitFrontmatter(settings.markdown ?? "")
 }
 
 /**
@@ -74,5 +77,7 @@ export async function writeSettings(filePath, data) {
     throw new Error(detail.error || `write failed (${response.status})`)
   }
 
+  // What was written is the newest copy until the rebuild pushes one.
+  updateSettings(data)
   return response.json()
 }

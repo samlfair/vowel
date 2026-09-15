@@ -1,29 +1,6 @@
 import votive from "votive"
 import { spawn } from "node:child_process"
-import { readdir, rm } from "node:fs/promises"
 import path from "node:path"
-
-/**
- * Removes the settings.md copies from a build before it is published.
- *
- * vowel emits every settings.md as a target so the dev-preview settings
- * panel can read one over HTTP and post it back (see the markdown
- * plugin). That is a local editing affordance, not part of the site -
- * published, it would put the project's own configuration at a public
- * URL for anyone to read and for search engines to index.
- * @param {string} folder
- */
-async function removeSettingsFiles(folder) {
-  const entries = await readdir(folder, { withFileTypes: true, recursive: true })
-
-  const settingsFiles = entries
-    .filter(entry => entry.isFile() && entry.name === "settings.md")
-    .map(entry => path.join(entry.parentPath, entry.name))
-
-  await Promise.all(settingsFiles.map(file => rm(file, { force: true })))
-
-  return settingsFiles.length
-}
 
 /**
  * Publishes a full build to Cloudflare Pages via `wrangler pages deploy`.
@@ -61,9 +38,6 @@ async function deployToCloudflarePages(payload, { config, notify }) {
   // fully instead of fired via runDeferred().
   if (runBuffers) await runBuffers()
   if (runFetches) await runFetches()
-
-  const removed = await removeSettingsFiles(config.targetFolder)
-  if (removed) notify({ status: "progress", message: `Excluded ${removed} settings.md from the deploy` })
 
   notify({ status: "progress", message: `Publishing ${config.targetFolder} to Cloudflare Pages...` })
 
