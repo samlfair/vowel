@@ -4,14 +4,14 @@ import path from "node:path"
 /**
  * Secret paths.
  *
- * A `§` inside a file or folder name, with a word character on each side,
- * marks that segment secret. The text before it is the **name**; the text
+ * A `##` inside a file or folder name, with a word character on each
+ * side, marks that segment secret. The text before it is the **name**; the text
  * after it is the **salt**. The whole segment is replaced by a hash, so
  * the page - or the whole folder - is published at an unguessable URL
  * and nowhere else.
  *
- *   blog/hidden§purple-bear/post.md   ->   blog/<hash>/post.html
- *   hello-world§red-whale.md          ->   <hash>.html
+ *   blog/hidden##purple-bear/post.md  ->   blog/<hash>/post.html
+ *   hello-world##red-whale.md         ->   <hash>.html
  *
  * **The hash input is frozen.** Changing any part of it rotates every
  * secret URL on every site, silently. It is:
@@ -21,9 +21,9 @@ import path from "node:path"
  *   up to and including the segment being hashed, salt in place, and the
  *   extension included for a file.
  *
- * So `blog/hidden§purple-bear/post.md` hashes its folder from
- * `"blog/hidden§purple-bear"`, and `reports/dev§blue-parrot.md` hashes
- * from `"reports/dev§blue-parrot.md"`. Each segment hashes against the
+ * So `blog/hidden##purple-bear/post.md` hashes its folder from
+ * `"blog/hidden##purple-bear"`, and `reports/dev##blue-parrot.md` hashes
+ * from `"reports/dev##blue-parrot.md"`. Each segment hashes against the
  * *original* path, not one already rewritten above it, so the value is
  * reproducible by hand. SHA-256, first 16 hex characters: 64 bits is far
  * beyond guessable for a share-link, and short enough to paste.
@@ -41,17 +41,18 @@ import path from "node:path"
  * anything derived from a filename. `tests/secretPaths.js` walks the
  * output folder and asserts no salt appears in it.
  *
- * `§` is legal on every platform and has no Unicode decomposition, so
- * macOS's filename normalisation cannot split it into two forms. A
- * legacy tool that re-encodes a filename as Latin-1 would change the
- * bytes and rotate the URL; vowel-desktop owns the folder, so this is
- * documented rather than defended against.
+ * `#` is legal in a filename on every platform and is plain ASCII, so
+ * nothing re-encodes it. It is the URL fragment character, which is
+ * why the marker must never reach a url: routing replaces the segment,
+ * and a relative link is decoded and resolved by *source* path before
+ * it becomes an href. The one place it could bite is a link that fails
+ * to resolve, which is left as written - tested.
  *
  * The security model is the unguessable URL. The salt is only as secret
  * as the source tree.
  */
 
-const MARKER = "§"
+const MARKER = "##"
 
 /** Lowercase by construction; votive lowercases stored target paths. */
 function hashSegmentInput(input) {
@@ -71,9 +72,9 @@ function parseSecret(stem, sourcePath) {
   if (first === -1) return null
 
   const name = stem.slice(0, first)
-  const salt = stem.slice(first + 1)
+  const salt = stem.slice(first + MARKER.length)
 
-  if (!name || !salt || !/\w$/.test(name) || !/^\w/.test(salt) || salt.includes(MARKER)) {
+  if (!name || !salt || !/\w$/.test(name) || !/^\w/.test(salt) || salt.includes(MARKER) || salt.includes("#")) {
     throw new Error(
       `"${sourcePath}": a secret segment is "<name>${MARKER}<salt>" with a word character ` +
       `on each side of the ${MARKER}, and only one ${MARKER}. Got "${stem}".`
@@ -127,7 +128,7 @@ function isSecretPath(sourcePath) {
 
 /**
  * A source path with every salt removed: what the name looks like to a
- * reader. `blog/hidden§purple-bear/post.md` -> `blog/hidden/post.md`.
+ * reader. `blog/hidden##purple-bear/post.md` -> `blog/hidden/post.md`.
  *
  * **The single guard between the salt and the rendered page.** Anything
  * that derives a title, a label or a breadcrumb from a source path goes

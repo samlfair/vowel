@@ -237,12 +237,14 @@ function writeFile(target, { settings, api, config }) {
     if (!target.source) return
     if (typeof relativePath !== "string" || !relativePath.startsWith("./")) return
 
-    // The href arrives percent-encoded - toHast normalizes it - so a
-    // link to `./secret§salt.md` is `./secret%C2%A7salt.md` here. The
-    // source is stored as the author spelled it. Decoded, the lookup is
-    // by source path, and targetBySource answers with the *routed*
-    // target - which for a secret page is the hashed one. No second
-    // trip through the router needed.
+    // The href may arrive percent-encoded (toHast normalizes non-ASCII),
+    // so it is decoded before the lookup, which is by *source* path -
+    // the path as the author spelled it, marker and salt included.
+    // targetBySource answers with the *routed* target, which for a secret
+    // page is the hashed one. No second trip through the router. This is
+    // also why "##" is safe as the marker even though "#" begins a url
+    // fragment: the raw path never becomes an href, only its resolution
+    // does.
     const dir = path.dirname(target.source)
     const sourcePath = path.normalize(path.join(dir, decodeURIComponent(relativePath)))
     const targetFile = api.targetBySource(sourcePath)

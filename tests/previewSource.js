@@ -59,11 +59,11 @@ test("a previewed page carries its own source and the root settings.md, and noth
 test("a secret page's source path reaches the preview only, and its frontmatter travels whole", async () => {
   await withPreview({
     "home.md": "# Home\n\n/**",
-    "about§salt.md": "---\ndraft: true\n---\n\n# About\n\nShh."
+    "about##salt.md": "---\ndraft: true\n---\n\n# About\n\nShh."
   }, async ({ source, targetFolder }) => {
-    const hashed = hashSegmentInput("about§salt.md")
+    const hashed = hashSegmentInput("about##salt.md")
     const page = await source(`/${hashed}`)
-    assert.equal(page.path, "about§salt.md", "the author's own browser may know the salt")
+    assert.equal(page.path, "about##salt.md", "the author's own browser may know the salt")
     assert.ok(page.markdown.includes("draft: true"), "the frontmatter the editor will keep")
 
     const written = await readFile(path.join(targetFolder, `${hashed}.html`), "utf-8")
