@@ -68,6 +68,13 @@ function createConfig(sourceFolder = ".", overrides = {}) {
     // hides its images and fonts too - not just its pages. See
     // secretPaths.js for why this cannot live in a processor.
     router: secretRouter,
+    // Fetched link previews live in the project, one YAML file per host,
+    // so they survive a cache wipe, travel with the project, and reach
+    // coworkers through the repo. Visible rather than votive's hidden
+    // default, because the author is meant to find and edit them: the
+    // file is what the site shows. `$` keeps it out of routing, and
+    // votive keeps it out of the source scan.
+    urlStore: path.join(resolvedSourceFolder, "$links"),
     targetFolder: path.join(systemDirectory, "output"),
     databasePath: path.join(systemDirectory, ".votive.db"),
     cacheDirectory: path.join(systemDirectory, ".cache"),
