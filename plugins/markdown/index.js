@@ -19,6 +19,7 @@ import { toString as hastToString } from 'hast-util-to-string'
 import { visit } from "unist-util-visit"
 import getMetadata from "./metadata.js"
 import { isSecretPath } from "./../../secretPaths.js"
+import { collectLinks } from "./links.js"
 import { h } from "hastscript"
 
 import { styleText } from "node:util"
@@ -195,6 +196,10 @@ function readFile(source, { api, config }) {
   // the published site: the preview hook puts it into the page, and only
   // there.
   metadata.markdown = string
+
+  // The pages this one links to, explicitly - what a backlinks section
+  // on those pages is built from. See links.js for what counts.
+  metadata.links = collectLinks(mdast, metadata, filePath)
 
   const targetMetadata = { ...metadata, hastAbstract: hast }
 

@@ -793,6 +793,26 @@ function writeFile(target, { settings, api, config }) {
 
 
 
+  // Who links here. A listing filtered on `links`, so it stays correct
+  // by the ordinary rule: a page gaining or losing a link to this one
+  // restales this page. Matched by this page's source path (a `./` link)
+  // or its prettyURL (a `/` link) - two spellings of one page. Outside
+  // section#content, beside the breadcrumbs and the contents, because it
+  // is generated: the editor ingests #content and must not see it.
+  const backlinks = target.source
+    ? listPages(api, {
+        recursive: true,
+        query: { "|": [{ links: { "~": target.source } }, { links: { "~": metadata.prettyURL } }] }
+      }).filter(page => page.path !== target.path)
+    : []
+
+  const treeBacklinks = backlinks.length
+    ? h('section#backlinks', [
+        h('h2', 'Linked from'),
+        h('ul', backlinks.map(page => h('li', h('a', { href: page.metadata.prettyURL }, page.metadata.title || page.metadata.prettyURL))))
+      ])
+    : null
+
   const treeMain = h('main',
     {
       itemscope: true
@@ -805,8 +825,9 @@ function writeFile(target, { settings, api, config }) {
         'aria-label': 'Breadcrumbs'
       }, treeBreadcrumbs),
       treeMainHead,
-      h('section#content', abstract)
-    ])
+      h('section#content', abstract),
+      treeBacklinks
+    ].filter(Boolean))
 
   visit(treeMain, (node, index, parent) => {
     /* URLs */ if (node.type === "text" && parent.tagName === 'p' && parent.children.length === 1) {
