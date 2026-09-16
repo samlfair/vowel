@@ -71,13 +71,37 @@
 	li,
 	dl,
 	dt,
-	dv,
+	dd,
 	table,
 	tbody,
 	th,
 	tr,
 	td,
-	blockquote {
+	blockquote,
+	a,
+	strong,
+	em,
+	i,
+	u,
+	q,
+	b,
+	s,
+	cite,
+	ins,
+	del,
+	dfn,
+	small,
+	address,
+	figcaption,
+	sub,
+	sup,
+	time,
+	kbd,
+	data,
+	code,
+	samp,
+	var,
+	button {
 		text-box-trim: trim-both;
 		text-box-edge: cap alphabetic;
 	}
@@ -255,15 +279,11 @@
 	header a[rel=home] {
 		font-weight: 900;
 		font-size: 2.8em;
-		text-box-trim: trim-both;
-		text-box-edge: cap alphabetic;
 	}
 
 	header #tagline {
 		font-weight: 600;
 		font-size: 2.5em;
-		text-box-trim: trim-both;
-		text-box-edge: cap alphabetic;
 	}
 
 	nav a:where([aria-current='page'], [aria-current='true']),

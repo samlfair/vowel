@@ -10,6 +10,7 @@ import vowelWriteXMLPlugin from "./plugins/xml/index.js"
 import vowelVectorPlugin from "./plugins/vectors/index.js"
 import vowelFontsPlugin from "./plugins/fonts/index.js"
 import vowelWriteHTMLPlugin from "./plugins/html/index.js"
+import vowelAtprotoPlugin from "./plugins/atproto/index.js"
 import vowelURLsPlugin from "./plugins/urls/index.js"
 
 /** @import {VotiveConfig} from "votive" */
@@ -23,6 +24,7 @@ const defaultPlugins = [
   vowelVectorPlugin,
   vowelFontsPlugin,
   vowelURLsPlugin,
+  vowelAtprotoPlugin,
   vowelWriteHTMLPlugin
 ]
 
