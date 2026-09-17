@@ -17,7 +17,7 @@ import { testURL, testHashtags, createHashtagPage, toTitleCase, hashtagRegexSing
 import { toHast } from 'mdast-util-to-hast'
 import { toString as hastToString } from 'hast-util-to-string'
 import { visit } from "unist-util-visit"
-import getMetadata from "./metadata.js"
+import getMetadata, { reservedProperties } from "./metadata.js"
 import { isSecretPath } from "./../../secretPaths.js"
 import { collectLinks } from "./links.js"
 import { h } from "hastscript"
@@ -216,7 +216,28 @@ function readFile(source, { api, config }) {
     data: string,
     write: metadata.html_file ?? true,
     metadata: { ...targetMetadata, hastAbstract: hast },
-    settings: pathInfo.base === "settings.md" ? metadata : undefined
+    settings: pathInfo.base === "settings.md" ? settingsContribution(metadata) : undefined
+  }
+}
+
+/**
+ * What a settings.md contributes to its folder: what the author declared,
+ * and nothing inferred. It used to contribute its whole metadata, so a
+ * settings.md with no `title:` set the site title to "Settings" - the
+ * label inferred from its own filename - and its first paragraph became
+ * the description. `title` is the one derived key kept, because every
+ * reader asks for the unprefixed label; it is the declared `title:` or
+ * nothing. `markdown` is the source, which the settings panel edits.
+ * @param {Record<string, any>} metadata
+ */
+function settingsContribution(metadata) {
+  const declared = Object.entries(metadata)
+    .filter(([key]) => key.startsWith("fm_") || reservedProperties.includes(key))
+  return {
+    ...Object.fromEntries(declared),
+    ...(metadata.fm_title ? { title: metadata.fm_title } : {}),
+    frontmatter_keys: metadata.frontmatter_keys,
+    markdown: metadata.markdown
   }
 }
 
