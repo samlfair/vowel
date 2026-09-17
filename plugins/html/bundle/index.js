@@ -29,20 +29,6 @@
 		});
 		return { promise, resolve, reject };
 	}
-	function to_array(value, n) {
-		if (Array.isArray(value)) {
-			return value;
-		}
-		if (!(Symbol.iterator in value)) {
-			return Array.from(value);
-		}
-		const array = [];
-		for (const element of value) {
-			array.push(element);
-			if (array.length === n) break;
-		}
-		return array;
-	}
 
 	const DERIVED = 1 << 1;
 	const EFFECT = 1 << 2;
@@ -4192,17 +4178,6 @@
 			return;
 		}
 		element.value = value ?? '';
-	}
-	function set_checked(element, checked) {
-		var attributes = get_attributes(element);
-		if (
-			attributes.checked ===
-			(attributes.checked =
-				checked ?? undefined)
-		) {
-			return;
-		}
-		element.checked = checked;
 	}
 	function set_attribute(element, attribute, value, skip_warning) {
 		var attributes = get_attributes(element);
@@ -18845,12 +18820,12 @@ ${fallback_html}`;
 	var root_6$1 = from_html(`<button title="Strikethrough">S</button>`);
 	var root_7$1 = from_html(`<!> <!> <!> <!> <!>`, 1);
 	var root_8$1 = from_html(`<button title="Insert (↵)" class="svelte-zh32e5"><svg class="toolbar-icon svelte-zh32e5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M7.5 3V12M3 7.5H12" stroke="currentColor" stroke-linecap="square"></path></svg></button>`);
-	var root_9$1 = from_html(`<button title="Delete backwards (⌫)" class="svelte-zh32e5">&#9003;</button>`);
-	var root_10$1 = from_html(`<button title="Undo" class="svelte-zh32e5">&#8630;</button> <button title="Redo" class="svelte-zh32e5">&#8631;</button>`, 1);
-	var root_11$1 = from_html(`<!> <!>`, 1);
-	var root_12$1 = from_html(`<div><div class="toolbar-scroller svelte-zh32e5"><!></div></div>`);
-	var root_13$1 = from_html(`<!> <!> <!>`, 1);
-	var root_14$1 = from_html(`<div class="contextual-tools svelte-zh32e5"><!> <!></div>`);
+	var root_9 = from_html(`<button title="Delete backwards (⌫)" class="svelte-zh32e5">&#9003;</button>`);
+	var root_10 = from_html(`<button title="Undo" class="svelte-zh32e5">&#8630;</button> <button title="Redo" class="svelte-zh32e5">&#8631;</button>`, 1);
+	var root_11 = from_html(`<!> <!>`, 1);
+	var root_12 = from_html(`<div><div class="toolbar-scroller svelte-zh32e5"><!></div></div>`);
+	var root_13 = from_html(`<!> <!> <!>`, 1);
+	var root_14 = from_html(`<div class="contextual-tools svelte-zh32e5"><!> <!></div>`);
 	var root_15 = from_html(`<div class="contextual-tools svelte-zh32e5"><!></div> <!> <!>`, 1);
 	var root_16 = from_html(`<!> <div class="editor-toolbar bottom-toolbar svelte-zh32e5"><div class="toolbar-scroller svelte-zh32e5"><!> <div><!> <button class="toggle-editable svelte-zh32e5"> </button></div></div></div>`, 1);
 
@@ -19057,7 +19032,7 @@ ${fallback_html}`;
 		};
 
 		const delete_button = ($$anchor) => {
-			var button_7 = root_9$1();
+			var button_7 = root_9();
 
 			template_effect(() => button_7.disabled = !get$1(can_delete));
 			delegated('mousedown', button_7, delete_node_selection);
@@ -19065,7 +19040,7 @@ ${fallback_html}`;
 		};
 
 		const history_buttons = ($$anchor) => {
-			var fragment_2 = root_10$1();
+			var fragment_2 = root_10();
 			var button_8 = first_child(fragment_2);
 			var button_9 = sibling(button_8, 2);
 
@@ -19285,14 +19260,14 @@ ${fallback_html}`;
 				var node_8 = first_child(fragment_4);
 
 				key(node_8, () => get$1(floating_anchor).name, ($$anchor) => {
-					var div = root_12$1();
+					var div = root_12();
 					let classes_5;
 					var div_1 = child(div);
 					var node_9 = child(div_1);
 
 					{
 						var consequent_6 = ($$anchor) => {
-							var fragment_5 = root_11$1();
+							var fragment_5 = root_11();
 							var node_10 = first_child(fragment_5);
 
 							select_parent_button(node_10);
@@ -19304,7 +19279,7 @@ ${fallback_html}`;
 						};
 
 						var consequent_7 = ($$anchor) => {
-							var fragment_6 = root_11$1();
+							var fragment_6 = root_11();
 							var node_12 = first_child(fragment_6);
 
 							select_parent_button(node_12);
@@ -19355,7 +19330,7 @@ ${fallback_html}`;
 
 				{
 					var consequent_9 = ($$anchor) => {
-						var fragment_8 = root_13$1();
+						var fragment_8 = root_13();
 						var node_16 = first_child(fragment_8);
 
 						select_parent_button(node_16);
@@ -19376,7 +19351,7 @@ ${fallback_html}`;
 
 						{
 							var consequent_10 = ($$anchor) => {
-								var fragment_10 = root_11$1();
+								var fragment_10 = root_11();
 								var node_20 = first_child(fragment_10);
 
 								insert_button(node_20);
@@ -19396,7 +19371,7 @@ ${fallback_html}`;
 					};
 
 					var consequent_12 = ($$anchor) => {
-						var fragment_11 = root_11$1();
+						var fragment_11 = root_11();
 						var node_22 = first_child(fragment_11);
 
 						select_parent_button(node_22);
@@ -19420,7 +19395,7 @@ ${fallback_html}`;
 
 				{
 					var consequent_13 = ($$anchor) => {
-						var div_5 = root_14$1();
+						var div_5 = root_14();
 						var node_26 = child(div_5);
 
 						divider(node_26);
@@ -19708,197 +19683,49 @@ ${fallback_html}`;
 
 	delegate(['click']);
 
-	const RAMP = "ramp";
-	const CHOICE = "choice";
-	const FLAG = "flag";
-	const sizeAxis = {
-	  id: "size",
-	  label: "Size",
-	  kind: RAMP,
-	  property: "font-size",
-	  variable: "fs",
-	  unit: "x",
-	  h1: { min: 1.75, max: 2.7, step: 0.05, default: 2.4 },
-	  h6: { min: 1, max: 1.5, step: 0.05, default: 1.05 },
-	  power: { min: 0.5, max: 4, step: 0.1, default: 2.3 }
-	};
-	const letterSpacingAxis = {
-	  id: "letter-spacing",
-	  label: "Letter spacing",
-	  kind: RAMP,
-	  property: "letter-spacing",
-	  variable: "ls",
-	  unit: "ch",
-	  h1: { min: -0.1, max: 0.1, step: 0.005, default: -0.06 },
-	  h6: { min: -0.1, max: 0.1, step: 0.005, default: 0.05 },
-	  power: { min: 0.5, max: 4, step: 0.1, default: 2 }
-	};
-	function weightAxis(min, max) {
-	  const clamp = value => Math.min(max, Math.max(min, value));
-	  return {
-	    id: "weight",
-	    label: "Weight",
-	    kind: RAMP,
-	    property: "font-weight",
-	    variable: "fw",
-	    unit: "",
-	    h1: { min, max, step: 1, default: clamp(900) },
-	    h6: { min, max, step: 1, default: clamp(700) },
-	    power: { min: 0.5, max: 4, step: 0.1, default: 2 }
-	  }
-	}
-	function widthAxis(min, max) {
-	  const clamp = value => Math.min(max, Math.max(min, value));
-	  return {
-	    id: "width",
-	    label: "Width",
-	    kind: RAMP,
-	    tag: "wdth",
-	    variable: "wdth",
-	    unit: "",
-	    h1: { min, max, step: 1, default: clamp(125) },
-	    h6: { min, max, step: 1, default: clamp(75) },
-	    power: { min: 0.5, max: 4, step: 0.1, default: 4 }
-	  }
-	}
-	function variationAxis(id, label, tag, min, max, step) {
-	  return {
-	    id,
-	    label,
-	    kind: RAMP,
-	    tag,
-	    variable: tag.toLowerCase(),
-	    unit: "",
-	    h1: { min, max, step, default: min },
-	    h6: { min, max, step, default: min },
-	    power: { min: 0.5, max: 4, step: 0.1, default: 2 }
-	  }
-	}
-	const families = [
-	  {
-	    name: "Bricolage",
-	    cssName: "Bricolage Grotesque",
-	    stack: "serif",
-	    faces: [{ file: "bricolage.ttf", style: "normal" }],
-	    axes: [sizeAxis, letterSpacingAxis, weightAxis(200, 800), widthAxis(75, 100)]
-	  },
-	  {
-	    name: "Pliant",
-	    cssName: "Pliant",
-	    stack: "sans-serif",
-	    text: true,
-	    faces: [
-	      { file: "pliant-regular.ttf", style: "normal" },
-	      { file: "pliant-italic.ttf", style: "italic" }
-	    ],
-	    axes: [sizeAxis, letterSpacingAxis, weightAxis(100, 900), widthAxis(100, 125)]
-	  },
-	  {
-	    name: "Emberly",
-	    cssName: "Emberly",
-	    stack: "serif",
-	    faces: [{ file: "emberly-regular.woff2", style: "normal" }],
-	    axes: [sizeAxis, letterSpacingAxis, weightAxis(100, 900), widthAxis(75, 100)]
-	  },
-	  {
-	    name: "Agrandir",
-	    cssName: "Agrandir Variable",
-	    stack: "sans-serif",
-	    faces: [{ file: "agrandir.woff2", style: "normal" }],
-	    axes: [sizeAxis, letterSpacingAxis, weightAxis(100, 900), widthAxis(50, 200)]
-	  },
-	  {
-	    name: "Bandeins Strange",
-	    cssName: "Bandeins Strange Variable",
-	    stack: "sans-serif",
-	    faces: [{ file: "bandeins-strange.woff2", style: "normal" }],
-	    axes: [sizeAxis, letterSpacingAxis, weightAxis(200, 800), widthAxis(100, 800)]
-	  },
-	  {
-	    name: "Recursive",
-	    cssName: "Recursive",
-	    stack: "sans-serif",
-	    text: true,
-	    faces: [{ file: "recursive.ttf", style: "normal" }],
-	    axes: [
-	      sizeAxis,
-	      letterSpacingAxis,
-	      weightAxis(300, 1000),
-	      variationAxis("casual", "Casual", "CASL", 0, 1, 0.05),
-	      variationAxis("monospace", "Monospace", "MONO", 0, 1, 0.05),
-	      {
-	        id: "forms",
-	        label: "Forms",
-	        kind: CHOICE,
-	        tag: "CRSV",
-	        options: [
-	          { label: "Roman", value: 0 },
-	          { label: "Auto", value: 0.5 },
-	          { label: "Cursive", value: 1 }
-	        ],
-	        default: 0.5
-	      }
-	    ]
-	  },
-	  {
-	    name: "Mona Sans",
-	    cssName: "Mona Sans",
-	    stack: "sans-serif",
-	    text: true,
-	    faces: [
-	      { file: "mona-sans-regular.ttf", style: "normal" },
-	      { file: "mona-sans-italic.ttf", style: "italic" }
-	    ],
-	    axes: [sizeAxis, letterSpacingAxis, weightAxis(200, 900), widthAxis(75, 125)]
-	  },
-	  {
-	    name: "Fraunces",
-	    cssName: "Fraunces",
-	    stack: "serif",
-	    faces: [
-	      { file: "fraunces-regular.ttf", style: "normal" },
-	      { file: "fraunces-italic.ttf", style: "italic" }
-	    ],
-	    axes: [
-	      sizeAxis,
-	      letterSpacingAxis,
-	      weightAxis(100, 900),
-	      variationAxis("softness", "Softness", "SOFT", 0, 100, 1),
-	      { id: "wonky", label: "Wonky", kind: FLAG, tag: "WONK", default: true }
-	    ]
-	  }
+	const rampSettings = [
+	  { key: "heading-size", variable: "--font-size-delta", label: "Heading size", hint: "How much larger h1 is than body text", unit: "x", min: 0.25, max: 4, step: 0.05, default: 2 },
+	  { key: "heading-size-decay", variable: "--font-size-decay", label: "Size decay", hint: "Higher makes subheadings smaller", unit: "", min: 0.5, max: 6, step: 0.1, default: 3 },
+	  { key: "h1-letter-spacing", variable: "--letter-spacing-h1", label: "h1 letter spacing", unit: "ch", min: -0.1, max: 0.1, step: 0.005, default: -0.01 },
+	  { key: "h6-letter-spacing", variable: "--letter-spacing-h6", label: "h6 letter spacing", unit: "ch", min: -0.1, max: 0.1, step: 0.005, default: 0 },
+	  { key: "letter-spacing-decay", variable: "--letter-spacing-decay", label: "Spacing decay", unit: "", min: 0.5, max: 6, step: 0.1, default: 2 },
+	  { key: "h1-weight", variable: "--font-weight-h1", label: "h1 weight", unit: "", min: 100, max: 900, step: 10, default: 800 },
+	  { key: "h6-weight", variable: "--font-weight-h6", label: "h6 weight", unit: "", min: 100, max: 900, step: 10, default: 600 },
+	  { key: "weight-decay", variable: "--font-weight-decay", label: "Weight decay", unit: "", min: 0.5, max: 6, step: 0.1, default: 2 }
 	];
-	function findFamily(name) {
-	  if (typeof name !== "string") return null
-	  const wanted = name.trim().toLowerCase();
-	  return families.find(family => family.name.toLowerCase() === wanted) || null
+	const fontSettings = [
+	  { key: "font", variable: "--font-sans-brand", label: "Font", hint: "Body and headings; a family the browser has or the site ships" },
+	  { key: "serif-font", variable: "--font-serif-brand", label: "Serif font", hint: "Where the theme uses a serif" },
+	  { key: "monospace-font", variable: "--font-monospace-brand", label: "Monospace font", hint: "Code" }
+	];
+	function themeSettings(theme) {
+	  return theme && typeof theme === "object" && !Array.isArray(theme) ?  (theme) : {}
 	}
-	const textFamilies = families.filter(family => family.text);
-	function axisKeys(axis) {
-	  if (axis.kind !== RAMP) return { value: axis.id }
-	  return { h1: `h1-${axis.id}`, h6: `h6-${axis.id}`, power: `heading-${axis.id}` }
+	function rampValue(setting, value) {
+	  const clamped = Math.min(setting.max, Math.max(setting.min, value));
+	  const number = String(Number(clamped.toFixed(4)));
+	  if (setting.unit === "x") return `calc(${number} * var(--font-size-root))`
+	  return `${number}${setting.unit}`
 	}
-	function numericValue(settings, key, range) {
-	  const raw = settings[key];
-	  const value = typeof raw === "number" ? raw : Number(raw);
-	  if (!Number.isFinite(value)) return range.default
-	  return Math.min(range.max, Math.max(range.min, value))
+	function fontValue(name) {
+	  const trimmed = name.trim();
+	  return /[,"']/.test(trimmed) ? trimmed : `"${trimmed}"`
 	}
-	function rampValues(axis, settings) {
-	  const keys = axisKeys(axis);
-	  return {
-	    h1: numericValue(settings, keys.h1, axis.h1),
-	    h6: numericValue(settings, keys.h6, axis.h6),
-	    power: numericValue(settings, keys.power, axis.power)
+	function typographyVariables(theme) {
+	  const settings = themeSettings(theme);
+	  const pairs = [];
+	  for (const setting of rampSettings) {
+	    const raw = settings[setting.key];
+	    const value = typeof raw === "number" ? raw : Number(raw);
+	    if (raw === undefined || raw === null || raw === "" || !Number.isFinite(value)) continue
+	    pairs.push([setting.variable, rampValue(setting, value)]);
 	  }
-	}
-	function fixedValue(axis, settings) {
-	  const raw = settings[axisKeys(axis).value];
-	  if (axis.kind === FLAG) return (raw === undefined ? axis.default : Boolean(raw)) ? 1 : 0
-	  const match = axis.options.find(option => (
-	    String(option.label).toLowerCase() === String(raw).toLowerCase() || option.value === raw
-	  ));
-	  return match ? match.value : axis.default
+	  for (const setting of fontSettings) {
+	    const raw = settings[setting.key];
+	    if (typeof raw !== "string" || !raw.trim()) continue
+	    pairs.push([setting.variable, fontValue(raw)]);
+	  }
+	  return pairs
 	}
 
 	const fallbackColors = ["#5119ff", "#00edc6"];
@@ -19906,21 +19733,15 @@ ${fallback_html}`;
 	var root_1$1 = from_html(`<p class="note svelte-14cc0vj">Reading settings.md…</p>`);
 	var root_2 = from_html(`<label class="field svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="text" class="svelte-14cc0vj"/></label>`);
 	var root_3 = from_html(`<label class="field color svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="color" class="svelte-14cc0vj"/> <input type="text" class="hex svelte-14cc0vj" spellcheck="false"/></label>`);
-	var root_4 = from_html(`<option> </option>`);
-	var root_5 = from_html(`<label class="field svelte-14cc0vj"><span class="svelte-14cc0vj">Body weight</span> <input type="number" min="100" max="900" step="10"/></label>`);
-	var root_6 = from_html(`<p class="note svelte-14cc0vj">Pick a font to set a heading scale.</p>`);
-	var root_7 = from_html(`<label class="slider svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="range" class="svelte-14cc0vj"/> <output class="svelte-14cc0vj"> </output></label>`);
-	var root_8 = from_html(`<fieldset class="svelte-14cc0vj"><legend class="svelte-14cc0vj"> </legend> <!></fieldset>`);
-	var root_9 = from_html(`<label class="field svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <select class="svelte-14cc0vj"></select></label>`);
-	var root_10 = from_html(`<label class="field check svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="checkbox"/></label>`);
-	var root_11 = from_html(`<p class="note svelte-14cc0vj">Sizes and spacing preview as you drag. The font and colors apply on save.</p> <!>`, 1);
-	var root_12 = from_html(`<section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Site</h3> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Colors</h3> <p class="note svelte-14cc0vj">Two seeds; every shade on the site is generated from them.</p> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Typography</h3> <label class="field svelte-14cc0vj"><span class="svelte-14cc0vj">Font</span> <select class="svelte-14cc0vj"><option>None</option><!></select></label> <label class="field svelte-14cc0vj"><span class="svelte-14cc0vj">Body font</span> <select class="svelte-14cc0vj"><option>System</option><!></select></label> <!> <!></section>`, 1);
-	var root_13 = from_html(`<p class="error svelte-14cc0vj"> </p>`);
-	var root_14 = from_html(`<aside class="settings-drawer svelte-14cc0vj" aria-label="Site settings" data-vowel-client=""><header class="svelte-14cc0vj"><h2 class="svelte-14cc0vj">Settings</h2> <button class="close svelte-14cc0vj" title="Close settings">&#10005;</button></header> <!> <!> <footer class="svelte-14cc0vj"><button class="save svelte-14cc0vj"> </button></footer></aside>`);
+	var root_4 = from_html(`<label class="field svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="text" placeholder="System" spellcheck="false" class="svelte-14cc0vj"/></label>`);
+	var root_5 = from_html(`<label class="slider svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="range" class="svelte-14cc0vj"/> <output class="svelte-14cc0vj"> </output></label>`);
+	var root_6 = from_html(`<section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Site</h3> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Colors</h3> <p class="note svelte-14cc0vj">Two seeds; every shade on the site is generated from them.</p> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Typography</h3> <p class="note svelte-14cc0vj">Previews as you type and drag. Colours apply on save.</p> <!> <!></section>`, 1);
+	var root_7 = from_html(`<p class="error svelte-14cc0vj"> </p>`);
+	var root_8 = from_html(`<aside class="settings-drawer svelte-14cc0vj" aria-label="Site settings" data-vowel-client=""><header class="svelte-14cc0vj"><h2 class="svelte-14cc0vj">Settings</h2> <button class="close svelte-14cc0vj" title="Close settings">&#10005;</button></header> <!> <!> <footer class="svelte-14cc0vj"><button class="save svelte-14cc0vj"> </button></footer></aside>`);
 
 	const $$css$1 = {
 		hash: 'svelte-14cc0vj',
-		code: '\n	/* Full height down the left edge. No backdrop and nothing fixed over\n	   the page: the site stays usable while you edit, which is what makes\n	   the live preview worth having. The page is not pushed aside either -\n	   that would mean writing to the host document\'s own layout. */.settings-drawer.svelte-14cc0vj {\n		/* Physical, not logical: the drawer is injected into someone\n		   else\'s document and would flip to the right edge on an RTL\n		   page, which is not what "left" means here. */position:fixed;top:0;bottom:0;left:0;z-index:70;box-sizing:border-box;display:flex;flex-direction:column;width:min(340px, 100vw);padding:16px;overflow-y:auto;overscroll-behavior:contain;color:var(--foreground, #111);background:var(--background, #fff);border-right:1px solid oklch(from var(--foreground, #111) l c h / 0.12);box-shadow:0 0 24px oklch(0% 0 0 / 0.12);font-size:0.8125rem;line-height:1.4;}header.svelte-14cc0vj {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;}h2.svelte-14cc0vj {margin:0;font-size:1rem;font-weight:600;letter-spacing:0;}h3.svelte-14cc0vj {margin:0 0 8px;font-size:0.6875rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:oklch(from var(--foreground, #111) l c h / 0.55);}section.svelte-14cc0vj {padding-block:14px;border-top:1px solid oklch(from var(--foreground, #111) l c h / 0.1);}.close.svelte-14cc0vj {flex:none;width:28px;height:28px;padding:0;border:none;border-radius:50%;background:transparent;color:inherit;font-size:0.75rem;cursor:pointer;}\n\n	@media (hover: hover) {.close.svelte-14cc0vj:hover {background:oklch(from var(--foreground, #111) l c h / 0.06);}\n	}.note.svelte-14cc0vj {margin:0 0 10px;color:oklch(from var(--foreground, #111) l c h / 0.6);}.error.svelte-14cc0vj {margin:10px 0 0;color:oklch(0.55 0.2 25);}.field.svelte-14cc0vj {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}.field.svelte-14cc0vj > span:where(.svelte-14cc0vj) {flex:none;width:5.5rem;color:oklch(from var(--foreground, #111) l c h / 0.6);}.field.check.svelte-14cc0vj {justify-content:flex-start;}input[type=\'text\'].svelte-14cc0vj,\n	select.svelte-14cc0vj {flex:1;min-width:0;box-sizing:border-box;height:30px;padding:0 6px;color:inherit;background:transparent;border:1px solid oklch(from var(--foreground, #111) l c h / 0.2);border-radius:8px;font:inherit;}input[type=\'text\'].svelte-14cc0vj:focus-visible,\n	select.svelte-14cc0vj:focus-visible {outline:none;border-color:var(--editing, #2563eb);box-shadow:inset 0 0 0 1px var(--editing, #2563eb);}\n\n	/* The swatch and its hex edit the same value; the swatch is for\n	   choosing, the field is for pasting one you already have. */.field.color.svelte-14cc0vj input[type=\'color\']:where(.svelte-14cc0vj) {flex:none;width:34px;height:30px;padding:2px;background:transparent;border:1px solid oklch(from var(--foreground, #111) l c h / 0.2);border-radius:8px;cursor:pointer;}.hex.svelte-14cc0vj {font-family:ui-monospace, SFMono-Regular, Menlo, monospace;text-transform:lowercase;}fieldset.svelte-14cc0vj {margin:0 0 10px;padding:8px 10px;border:1px solid oklch(from var(--foreground, #111) l c h / 0.12);border-radius:10px;}legend.svelte-14cc0vj {padding:0 4px;font-weight:600;}.slider.svelte-14cc0vj {display:grid;grid-template-columns:2.25rem 1fr 3.25rem;align-items:center;gap:6px;}.slider.svelte-14cc0vj span:where(.svelte-14cc0vj) {color:oklch(from var(--foreground, #111) l c h / 0.6);}.slider.svelte-14cc0vj input:where(.svelte-14cc0vj) {width:100%;min-width:0;}output.svelte-14cc0vj {font-variant-numeric:tabular-nums;text-align:right;color:oklch(from var(--foreground, #111) l c h / 0.6);}\n\n	/* Sticks to the bottom of the drawer, above the scrolling content. */footer.svelte-14cc0vj {position:sticky;bottom:0;display:flex;justify-content:flex-end;margin-top:auto;padding-top:12px;padding-bottom:4px;background:var(--background, #fff);}.save.svelte-14cc0vj {height:32px;padding:0 1rem;border:none;border-radius:9999px;background:var(--editing, #2563eb);color:var(--background, #fff);font-size:0.8125rem;font-weight:600;cursor:pointer;}.save.svelte-14cc0vj:disabled {opacity:0.5;cursor:not-allowed;}'
+		code: '\n	/* Full height down the left edge. No backdrop and nothing fixed over\n	   the page: the site stays usable while you edit, which is what makes\n	   the live preview worth having. The page is not pushed aside either -\n	   that would mean writing to the host document\'s own layout. */.settings-drawer.svelte-14cc0vj {\n		/* Physical, not logical: the drawer is injected into someone\n		   else\'s document and would flip to the right edge on an RTL\n		   page, which is not what "left" means here. */position:fixed;top:0;bottom:0;left:0;z-index:70;box-sizing:border-box;display:flex;flex-direction:column;width:min(340px, 100vw);padding:16px;overflow-y:auto;overscroll-behavior:contain;color:var(--foreground, #111);background:var(--background, #fff);border-right:1px solid oklch(from var(--foreground, #111) l c h / 0.12);box-shadow:0 0 24px oklch(0% 0 0 / 0.12);font-size:0.8125rem;line-height:1.4;}header.svelte-14cc0vj {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;}h2.svelte-14cc0vj {margin:0;font-size:1rem;font-weight:600;letter-spacing:0;}h3.svelte-14cc0vj {margin:0 0 8px;font-size:0.6875rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:oklch(from var(--foreground, #111) l c h / 0.55);}section.svelte-14cc0vj {padding-block:14px;border-top:1px solid oklch(from var(--foreground, #111) l c h / 0.1);}.close.svelte-14cc0vj {flex:none;width:28px;height:28px;padding:0;border:none;border-radius:50%;background:transparent;color:inherit;font-size:0.75rem;cursor:pointer;}\n\n	@media (hover: hover) {.close.svelte-14cc0vj:hover {background:oklch(from var(--foreground, #111) l c h / 0.06);}\n	}.note.svelte-14cc0vj {margin:0 0 10px;color:oklch(from var(--foreground, #111) l c h / 0.6);}.error.svelte-14cc0vj {margin:10px 0 0;color:oklch(0.55 0.2 25);}.field.svelte-14cc0vj {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}.field.svelte-14cc0vj > span:where(.svelte-14cc0vj) {flex:none;width:5.5rem;color:oklch(from var(--foreground, #111) l c h / 0.6);}input[type=\'text\'].svelte-14cc0vj {flex:1;min-width:0;box-sizing:border-box;height:30px;padding:0 6px;color:inherit;background:transparent;border:1px solid oklch(from var(--foreground, #111) l c h / 0.2);border-radius:8px;font:inherit;}input[type=\'text\'].svelte-14cc0vj:focus-visible {outline:none;border-color:var(--editing, #2563eb);box-shadow:inset 0 0 0 1px var(--editing, #2563eb);}\n\n	/* The swatch and its hex edit the same value; the swatch is for\n	   choosing, the field is for pasting one you already have. */.field.color.svelte-14cc0vj input[type=\'color\']:where(.svelte-14cc0vj) {flex:none;width:34px;height:30px;padding:2px;background:transparent;border:1px solid oklch(from var(--foreground, #111) l c h / 0.2);border-radius:8px;cursor:pointer;}.hex.svelte-14cc0vj {font-family:ui-monospace, SFMono-Regular, Menlo, monospace;text-transform:lowercase;}.slider.svelte-14cc0vj {display:grid;grid-template-columns:2.25rem 1fr 3.25rem;align-items:center;gap:6px;}.slider.svelte-14cc0vj span:where(.svelte-14cc0vj) {color:oklch(from var(--foreground, #111) l c h / 0.6);}.slider.svelte-14cc0vj input:where(.svelte-14cc0vj) {width:100%;min-width:0;}output.svelte-14cc0vj {font-variant-numeric:tabular-nums;text-align:right;color:oklch(from var(--foreground, #111) l c h / 0.6);}\n\n	/* Sticks to the bottom of the drawer, above the scrolling content. */footer.svelte-14cc0vj {position:sticky;bottom:0;display:flex;justify-content:flex-end;margin-top:auto;padding-top:12px;padding-bottom:4px;background:var(--background, #fff);}.save.svelte-14cc0vj {height:32px;padding:0 1rem;border:none;border-radius:9999px;background:var(--editing, #2563eb);color:var(--background, #fff);font-size:0.8125rem;font-weight:600;cursor:pointer;}.save.svelte-14cc0vj:disabled {opacity:0.5;cursor:not-allowed;}'
 	};
 
 	function SettingsPanel($$anchor, $$props) {
@@ -19936,7 +19757,8 @@ ${fallback_html}`;
 		//
 		// Every control is derived from data rather than hardcoded: the site
 		// fields from `siteFields` below, the typography controls from the
-		// font catalogue, so a family only ever offers axes it actually has.
+		// same table the build emits type.css from (typography.js), so the
+		// variables the panel writes for preview are the ones the sheet reads.
 		let loading = state(true);
 
 		let error = state(null);
@@ -19953,7 +19775,6 @@ ${fallback_html}`;
 		let editedTheme = state(null);
 
 		const theme = user_derived(() => get$1(editedTheme) ?? themeObject(get$1(file).data.theme));
-		const family = user_derived(() => findFamily(get$1(theme).font));
 		const colors = user_derived(() => [0, 1].map((index) => get$1(theme).colors?.[index] ?? fallbackColors[index]));
 
 		// Top-level frontmatter keys, in the order they read as a form. Only
@@ -19997,35 +19818,24 @@ ${fallback_html}`;
 			}
 		];
 
-		// Setting a ramp variable on the document is the whole of live
-		// preview: --*-delta is a calc() over these, so all six heading levels
-		// and the header recompute themselves.
-		const preview = user_derived(() => {
-			if (!get$1(family)) return [];
-
-			return get$1(family).axes.filter((axis) => axis.kind === RAMP).flatMap((axis) => {
-				const { h1, h6, power } = rampValues(axis, get$1(theme));
-
-				const value = (amount) => axis.unit === 'x'
-					? `calc(var(--base-font-size) * ${amount})`
-					: `${amount}${axis.unit}`;
-
-				return [
-					[`--${axis.variable}-start`, value(h6)],
-					[`--${axis.variable}-end`, value(h1)],
-					[`--${axis.variable}-power`, String(power)]
-				];
-			});
-		});
+		// Setting a variable on the document is the whole of live preview:
+		// TypographyStyles.css computes every heading level from these, so
+		// the ramp recomputes as a slider moves. A key the author unsets goes
+		// back to the sheet's default by removing the override.
+		const preview = user_derived(() => typographyVariables(get$1(theme)));
 
 		user_effect(() => {
 			const root = document.documentElement;
+			const set = new Set(get$1(preview).map(([name]) => name));
+
+			for (const { variable } of [...rampSettings, ...fontSettings]) {
+				if (!set.has(variable)) root.style.removeProperty(variable);
+			}
 
 			for (const [name, value] of get$1(preview)) root.style.setProperty(name, value);
 
-			// The font family, the colour scheme and the non-ramped axes all
-			// need a rebuild to see: the other seven fonts aren't served, and
-			// the colour ramps are generated by colorhorse on the server.
+			// The colour scheme needs a rebuild to see: the ramps are generated
+			// by colorhorse on the server.
 		});
 
 		user_effect(() => {
@@ -20041,7 +19851,11 @@ ${fallback_html}`;
 		}
 
 		function setTheme(key, value) {
-			set$1(editedTheme, { ...get$1(theme), [key]: value }, true);
+			// Clearing a field removes the key rather than writing `undefined`,
+			// so the sheet's default takes over and settings.md stays clean.
+			const { [key]: _, ...rest } = get$1(theme);
+
+			set$1(editedTheme, value === undefined ? rest : { ...rest, [key]: value }, true);
 		}
 
 		/** Both seeds are written together - colorhorse takes a pair. */
@@ -20071,7 +19885,7 @@ ${fallback_html}`;
 			}
 		}
 
-		var aside = root_14();
+		var aside = root_8();
 		var header = child(aside);
 		var button = sibling(child(header), 2);
 
@@ -20084,8 +19898,8 @@ ${fallback_html}`;
 				append($$anchor, p);
 			};
 
-			var alternate_1 = ($$anchor) => {
-				var fragment = root_12();
+			var alternate = ($$anchor) => {
+				var fragment = root_6();
 				var section = first_child(fragment);
 				var node_1 = sibling(child(section), 2);
 
@@ -20129,274 +19943,80 @@ ${fallback_html}`;
 				});
 
 				var section_2 = sibling(section_1, 2);
-				var label_3 = sibling(child(section_2), 2);
-				var select = sibling(child(label_3), 2);
-				var option_1 = child(select);
+				var node_3 = sibling(child(section_2), 4);
 
-				option_1.value = option_1.__value = '';
-
-				var node_3 = sibling(option_1);
-
-				each(node_3, 17, () => families, (option) => option.name, ($$anchor, option) => {
-					var option_2 = root_4();
-					var text_2 = only_child(option_2, true);
-					var option_2_value = {};
+				each(node_3, 17, () => fontSettings, (setting) => setting.key, ($$anchor, setting) => {
+					var label_3 = root_4();
+					var span_2 = child(label_3);
+					var text_2 = only_child(span_2, true);
+					var input_3 = sibling(span_2, 2);
 
 					template_effect(() => {
-						set_text(text_2, get$1(option).name);
-
-						if (option_2_value !== (option_2_value = get$1(option).name)) {
-							option_2.value = (option_2.__value = option_2_value) ?? '';
-						}
+						set_text(text_2, get$1(setting).label);
+						set_value(input_3, get$1(theme)[get$1(setting).key] ?? '');
+						set_attribute(input_3, 'title', get$1(setting).hint);
 					});
 
-					append($$anchor, option_2);
+					delegated('input', input_3, (event) => setTheme(get$1(setting).key, event.currentTarget.value || undefined));
+					append($$anchor, label_3);
 				});
 
-				var select_value;
+				var node_4 = sibling(node_3, 2);
 
-				init_select(select);
+				each(node_4, 17, () => rampSettings, (setting) => setting.key, ($$anchor, setting) => {
+					const current = user_derived(() => Number(get$1(theme)[get$1(setting).key] ?? get$1(setting).default));
+					var label_4 = root_5();
+					var span_3 = child(label_4);
+					var text_3 = only_child(span_3, true);
+					var input_4 = sibling(span_3, 2);
 
-				var label_4 = sibling(label_3, 2);
-				var select_1 = sibling(child(label_4), 2);
-				var option_3 = child(select_1);
-
-				option_3.value = option_3.__value = '';
-
-				var node_4 = sibling(option_3);
-
-				each(node_4, 17, () => textFamilies, (option) => option.name, ($$anchor, option) => {
-					var option_4 = root_4();
-					var text_3 = only_child(option_4, true);
-					var option_4_value = {};
+					var output = sibling(input_4, 2);
+					var text_4 = only_child(output);
 
 					template_effect(() => {
-						set_text(text_3, get$1(option).name);
-
-						if (option_4_value !== (option_4_value = get$1(option).name)) {
-							option_4.value = (option_4.__value = option_4_value) ?? '';
-						}
+						set_attribute(label_4, 'title', get$1(setting).hint);
+						set_text(text_3, get$1(setting).label);
+						set_attribute(input_4, 'min', get$1(setting).min);
+						set_attribute(input_4, 'max', get$1(setting).max);
+						set_attribute(input_4, 'step', get$1(setting).step);
+						set_value(input_4, get$1(current));
+						set_text(text_4, `${get$1(current) ?? ''}${get$1(setting).unit ?? ''}`);
 					});
 
-					append($$anchor, option_4);
+					delegated('input', input_4, (event) => setTheme(get$1(setting).key, Number(event.currentTarget.value)));
+					append($$anchor, label_4);
 				});
-
-				var select_1_value;
-
-				init_select(select_1);
-
-				var node_5 = sibling(label_4, 2);
-
-				{
-					var consequent_1 = ($$anchor) => {
-						var label_5 = root_5();
-						var input_3 = sibling(child(label_5), 2);
-						template_effect(() => set_value(input_3, get$1(theme)['body-weight'] ?? 400));
-						delegated('change', input_3, (event) => setTheme('body-weight', Number(event.currentTarget.value)));
-						append($$anchor, label_5);
-					};
-
-					if_block(node_5, ($$render) => {
-						if (get$1(theme)['body-font']) $$render(consequent_1);
-					});
-				}
-
-				var node_6 = sibling(node_5, 2);
-
-				{
-					var consequent_2 = ($$anchor) => {
-						var p_1 = root_6();
-
-						append($$anchor, p_1);
-					};
-
-					var alternate = ($$anchor) => {
-						var fragment_1 = root_11();
-						var node_7 = sibling(first_child(fragment_1), 2);
-
-						each(node_7, 17, () => get$1(family).axes, (axis) => axis.id, ($$anchor, axis) => {
-							const keys = user_derived(() => axisKeys(get$1(axis)));
-							var fragment_2 = comment();
-							var node_8 = first_child(fragment_2);
-
-							{
-								var consequent_3 = ($$anchor) => {
-									const current = user_derived(() => rampValues(get$1(axis), get$1(theme)));
-									var fieldset = root_8();
-									var legend = child(fieldset);
-									var text_4 = only_child(legend, true);
-									var node_9 = sibling(legend, 2);
-
-									each(
-										node_9,
-										17,
-										() => [
-											['h1', 'h1', get$1(axis).h1],
-											['h6', 'h6', get$1(axis).h6],
-											['power', 'Scale', get$1(axis).power]
-										],
-										([part, label, range]) => part,
-										($$anchor, $$item) => {
-											var $$array = user_derived(() => to_array(get$1($$item), 3));
-											let part = () => get$1($$array)[0];
-											let label = () => get$1($$array)[1];
-											let range = () => get$1($$array)[2];
-											var label_6 = root_7();
-											var span_2 = child(label_6);
-											var text_5 = only_child(span_2, true);
-											var input_4 = sibling(span_2, 2);
-
-											var output = sibling(input_4, 2);
-											var text_6 = only_child(output);
-
-											template_effect(() => {
-												set_text(text_5, label());
-												set_attribute(input_4, 'min', range().min);
-												set_attribute(input_4, 'max', range().max);
-												set_attribute(input_4, 'step', range().step);
-												set_value(input_4, get$1(current)[part()]);
-												set_text(text_6, `${get$1(current)[part()] ?? ''}${get$1(axis).unit ?? ''}`);
-											});
-
-											delegated('input', input_4, (event) => setTheme(get$1(keys)[part()], Number(event.currentTarget.value)));
-											append($$anchor, label_6);
-										}
-									);
-									template_effect(() => set_text(text_4, get$1(axis).label));
-									append($$anchor, fieldset);
-								};
-
-								var consequent_4 = ($$anchor) => {
-									const current = user_derived(() => fixedValue(get$1(axis), get$1(theme)));
-									var label_7 = root_9();
-									var span_3 = child(label_7);
-									var text_7 = only_child(span_3, true);
-									var select_2 = sibling(span_3, 2);
-
-									each(select_2, 21, () => get$1(axis).options, (option) => option.value, ($$anchor, option) => {
-										var option_5 = root_4();
-										var text_8 = only_child(option_5, true);
-										var option_5_value = {};
-
-										template_effect(
-											($0) => {
-												set_text(text_8, get$1(option).label);
-
-												if (option_5_value !== (option_5_value = $0)) {
-													option_5.value = (option_5.__value = option_5_value) ?? '';
-												}
-											},
-											[() => String(get$1(option).value)]
-										);
-
-										append($$anchor, option_5);
-									});
-
-									var select_2_value;
-
-									init_select(select_2);
-
-									template_effect(
-										($0) => {
-											set_text(text_7, get$1(axis).label);
-
-											if (select_2_value !== (select_2_value = $0)) {
-												(
-													select_2.value = (select_2.__value = select_2_value) ?? '',
-													select_option(select_2, select_2_value)
-												);
-											}
-										},
-										[() => String(get$1(current))]
-									);
-
-									delegated('change', select_2, (event) => setTheme(get$1(keys).value, get$1(axis).options.find((option) => String(option.value) === event.currentTarget.value)?.label));
-									append($$anchor, label_7);
-								};
-
-								var consequent_5 = ($$anchor) => {
-									var label_8 = root_10();
-									var span_4 = child(label_8);
-									var text_9 = only_child(span_4, true);
-									var input_5 = sibling(span_4, 2);
-
-									template_effect(
-										($0) => {
-											set_text(text_9, get$1(axis).label);
-											set_checked(input_5, $0);
-										},
-										[() => fixedValue(get$1(axis), get$1(theme)) === 1]
-									);
-
-									delegated('change', input_5, (event) => setTheme(get$1(keys).value, event.currentTarget.checked));
-									append($$anchor, label_8);
-								};
-
-								if_block(node_8, ($$render) => {
-									if (get$1(axis).kind === RAMP) $$render(consequent_3); else if (get$1(axis).kind === CHOICE) $$render(consequent_4, 1); else if (get$1(axis).kind === FLAG) $$render(consequent_5, 2);
-								});
-							}
-
-							append($$anchor, fragment_2);
-						});
-
-						append($$anchor, fragment_1);
-					};
-
-					if_block(node_6, ($$render) => {
-						if (!get$1(family)) $$render(consequent_2); else $$render(alternate, -1);
-					});
-				}
-
-				template_effect(() => {
-					if (select_value !== (select_value = get$1(theme).font ?? '')) {
-						(
-							select.value = (select.__value = select_value) ?? '',
-							select_option(select, select_value)
-						);
-					}
-
-					if (select_1_value !== (select_1_value = get$1(theme)['body-font'] ?? '')) {
-						(
-							select_1.value = (select_1.__value = select_1_value) ?? '',
-							select_option(select_1, select_1_value)
-						);
-					}
-				});
-
-				delegated('change', select, (event) => setTheme('font', event.currentTarget.value));
-				delegated('change', select_1, (event) => setTheme('body-font', event.currentTarget.value));
 				append($$anchor, fragment);
 			};
 
 			if_block(node, ($$render) => {
-				if (get$1(loading)) $$render(consequent); else $$render(alternate_1, -1);
+				if (get$1(loading)) $$render(consequent); else $$render(alternate, -1);
 			});
 		}
 
-		var node_10 = sibling(node, 2);
+		var node_5 = sibling(node, 2);
 
 		{
-			var consequent_6 = ($$anchor) => {
-				var p_2 = root_13();
-				var text_10 = only_child(p_2, true);
+			var consequent_1 = ($$anchor) => {
+				var p_1 = root_7();
+				var text_5 = only_child(p_1, true);
 
-				template_effect(() => set_text(text_10, get$1(error)));
-				append($$anchor, p_2);
+				template_effect(() => set_text(text_5, get$1(error)));
+				append($$anchor, p_1);
 			};
 
-			if_block(node_10, ($$render) => {
-				if (get$1(error)) $$render(consequent_6);
+			if_block(node_5, ($$render) => {
+				if (get$1(error)) $$render(consequent_1);
 			});
 		}
 
-		var footer = sibling(node_10, 2);
+		var footer = sibling(node_5, 2);
 		var button_1 = child(footer);
-		var text_11 = only_child(button_1, true);
+		var text_6 = only_child(button_1, true);
 
 		template_effect(() => {
 			button_1.disabled = get$1(saving) || get$1(loading);
-			set_text(text_11, get$1(saving) ? 'Saving…' : 'Save');
+			set_text(text_6, get$1(saving) ? 'Saving…' : 'Save');
 		});
 
 		delegated('click', button, function (...$$args) {
@@ -20408,7 +20028,7 @@ ${fallback_html}`;
 		pop();
 	}
 
-	delegate(['click', 'input', 'change']);
+	delegate(['click', 'input']);
 
 	function Overlays($$anchor) {
 		// Overlays component for custom UI only (link previews, image editors, etc.)
