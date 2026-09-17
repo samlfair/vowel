@@ -5,7 +5,7 @@ import { colorSchemeCSS, themeColorSchemeCSS, fallbackColors } from "../plugins/
 const roles = ["primary", "secondary", "tertiary", "accent", "success", "info", "warning", "danger"]
 
 test("colorSchemeCSS: no colors configured falls back to Vowel's brand pair", () => {
-  assert.deepEqual(fallbackColors, ["#00edc6", "#5119ff"])
+  assert.deepEqual(fallbackColors, ["#5119ff", "#00edc6"])
 
   const branded = colorSchemeCSS(fallbackColors)
   assert.equal(colorSchemeCSS(undefined), branded)
@@ -13,7 +13,7 @@ test("colorSchemeCSS: no colors configured falls back to Vowel's brand pair", ()
 
   // Not merely non-empty - DefaultStyles.css consumes these
   // unconditionally, so an un-themed site must still get all of them.
-  assert.equal(branded.match(/--/g).length, 96)
+  assert.equal(branded.match(/--/g).length, 80)
 })
 
 test("themeColorSchemeCSS: reports bad colors and still returns a usable scheme", () => {
@@ -34,26 +34,28 @@ test("themeColorSchemeCSS: valid colors are used as given, with no error", () =>
   assert.notEqual(css, colorSchemeCSS(fallbackColors))
 })
 
-test("colorSchemeCSS: emits every role at 12 shades", () => {
+test("colorSchemeCSS: emits every role at 10 shades, named 01 to 10", () => {
   const css = colorSchemeCSS(["#3366cc", "#cc6633"])
 
   for (const role of roles) {
-    for (let shade = 0; shade < 12; shade++) {
+    for (let shade = 1; shade <= 10; shade++) {
       const name = `--${role}-${String(shade).padStart(2, "0")}`
       assert.ok(css.includes(`${name}: #`), `expected ${name}`)
     }
   }
 
-  // 8 roles x 12 shades, and nothing beyond them.
-  assert.equal(css.match(/--/g).length, 96)
-  assert.ok(!css.includes("-12"))
+  // 8 roles x 10 shades, and nothing beyond them.
+  assert.equal(css.match(/--/g).length, 80)
+  assert.ok(!css.includes("-00"))
+  assert.ok(!css.includes("-11"))
 })
 
-test("colorSchemeCSS: shade 00 is the lightest, 11 the darkest", () => {
+test("colorSchemeCSS: shade 01 is the darkest, 10 the lightest", () => {
   // DefaultStyles.css reads these as
-  // `light-dark(var(--primary-00), var(--primary-11))`, so 00 is the
-  // light-mode background. colorhorse orders its ramps the other way,
-  // and getting this backwards inverts the whole site.
+  // `light-dark(var(--primary-10), var(--primary-01))` for the body
+  // background, so 10 is the light-mode background and 01 the text.
+  // That is colorhorse's own order (darkest first), kept as given;
+  // getting this backwards inverts the whole site.
   const css = colorSchemeCSS(["#3366cc", "#cc6633"])
   const value = (name) => css.match(new RegExp(`${name}: (#[0-9a-f]+);`))[1]
 
@@ -66,9 +68,9 @@ test("colorSchemeCSS: shade 00 is the lightest, 11 the darkest", () => {
     return r + g + b
   }
 
-  assert.ok(brightness(value("--primary-00")) > brightness(value("--primary-11")))
-  assert.ok(brightness(value("--primary-00")) > brightness(value("--primary-06")))
-  assert.ok(brightness(value("--primary-06")) > brightness(value("--primary-11")))
+  assert.ok(brightness(value("--primary-10")) > brightness(value("--primary-01")))
+  assert.ok(brightness(value("--primary-10")) > brightness(value("--primary-05")))
+  assert.ok(brightness(value("--primary-05")) > brightness(value("--primary-01")))
 })
 
 test("colorSchemeCSS: rejects anything that isn't a pair of colors", () => {
