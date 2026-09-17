@@ -187,20 +187,20 @@ export function typographyCSS(theme) {
     ...bodyFaces,
     ``,
     `@layer dynamic-typography {`,
-    `  :root {`,
-    `    --base-font-size: ${BASE_FONT_SIZE};`,
-    ...variables.map(line => `    ${line}`),
-    ``,
-    ...steps.map(line => `    ${line}`),
-    `  }`,
-    ``,
+    // `  :root {`,
+    // `    --base-font-size: ${BASE_FONT_SIZE};`,
+    // ...variables.map(line => `    ${line}`),
+    // ``,
+    // ...steps.map(line => `    ${line}`),
+    // `  }`,
+    // ``,
     `  h1, h2, h3, h4, h5, h6, ${HEADER_TITLE}, ${HEADER_TAGLINE} {`,
     `    font-family: "${family.cssName}", ${family.stack};`,
     `  }`,
     ``,
-    ...[...headingRules, ...headerRules].map(rule => (
-      rule.split("\n").map(line => `  ${line}`).join("\n")
-    )),
+    // ...[...headingRules, ...headerRules].map(rule => (
+    //   rule.split("\n").map(line => `  ${line}`).join("\n")
+    // )),
     ...(bodyFamily ? bodyRules(bodyFamily, settings).map(line => `  ${line}`) : []),
     `}`
   ].join("\n")

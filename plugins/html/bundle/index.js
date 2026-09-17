@@ -19901,7 +19901,7 @@ ${fallback_html}`;
 	  return match ? match.value : axis.default
 	}
 
-	const fallbackColors = ["#00edc6", "#5119ff"];
+	const fallbackColors = ["#5119ff", "#00edc6"];
 
 	var root_1$1 = from_html(`<p class="note svelte-14cc0vj">Reading settings.md…</p>`);
 	var root_2 = from_html(`<label class="field svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="text" class="svelte-14cc0vj"/></label>`);

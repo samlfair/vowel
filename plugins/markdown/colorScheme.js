@@ -7,7 +7,7 @@ import { fallbackColors } from "./brandColors.js"
  * shades rather than colorhorse's default 10. tests/colorScheme.js is
  * the statement of that contract.
  */
-const shadeCount = 12
+const shadeCount = 10
 
 /**
  * colorhorse orders each role's ramp darkest-first, and vowel's
@@ -53,10 +53,10 @@ function colorSchemeCSS(colors) {
   }
 
   const [colorOne, colorTwo] = colors
-  const scheme = getScheme(colorOne, colorTwo, { shadeCount })
+  const scheme = getScheme(colorOne, colorTwo, { shadeCount, minLightness: 0.3, maxLightness: 0.99, minChroma: 0.2 })
 
   const declarations = Object.entries(scheme).flatMap(([role, ramp]) => (
-    lightestFirst(ramp).map((color, index) => `  --${role}-${shadeName(index)}: ${color};`)
+    ramp.map((color, index) => `  --${role}-${shadeName(index + 1)}: ${color};`)
   ))
 
   return `:root {\n${declarations.join("\n")}\n}\n`

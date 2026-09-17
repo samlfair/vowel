@@ -103,7 +103,7 @@ function makeHeader(metadata, url, api, config) {
     )
   )
 
-  if (url) return h('a', { href: url }, treeMainHead)
+  if (url) return h('a', { href: url }, h('article', treeMainHead))
 
   return treeMainHead
 }
@@ -521,7 +521,7 @@ function writeFile(target, { settings, api, config }) {
 
   const homeLink = []
 
-  const logo = settings.lastNonNull("fm_logo")
+  const logo = settings.lastNonNull("logo")
   if (logo) {
     headerElements.push(
       h('a#logo', {

@@ -212,7 +212,7 @@ const directive = {
       // Lowercased: every vowel target path is (config.js's router).
       const found = api.target(path.relative("/", path.format(info)).toLowerCase())
       if (!found) return SKIP
-      return h("article.reference", makeHeader(found.metadata, found.metadata.prettyURL, api, config))
+      return makeHeader(found.metadata, found.metadata.prettyURL, api, config)
     }
 
     const folder = path.relative("/", dir)
@@ -236,7 +236,7 @@ const directive = {
 
     return view === "table"
       ? makeTable(listClasses, properties.length ? properties : ["title"], targets, api)
-      : h("ul", { class: listClasses }, targets.map(found => h("li", h("article", makeHeader(found.metadata, found.metadata.prettyURL, api, config)))))
+      : h("ul", { class: listClasses }, targets.map(found => h("li", makeHeader(found.metadata, found.metadata.prettyURL, api, config))))
   }
 }
 

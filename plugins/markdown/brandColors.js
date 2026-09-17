@@ -7,4 +7,4 @@
 // show what the colour pickers are actually defaulting to. Same
 // arrangement as fonts.js and editor/directives.js - keep it free of
 // node builtins.
-export const fallbackColors = ["#00edc6", "#5119ff"]
+export const fallbackColors = ["#5119ff", "#00edc6"]

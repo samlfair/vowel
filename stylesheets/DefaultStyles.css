@@ -5,36 +5,8 @@
 
 @layer reset, typography, default, dynamic-typography;
 
-body {
-	border: 4px solid var(--success-13);
-}
-
-
 @layer default {
 	:root {
-		/* main brand color */
-		--primary: oklch(0.5 0.297 -82.720);
-
-		/* reinforcing brand color */
-		--secondary: oklch(0.5 0.159 174.967);
-
-		/* harmonious complement to brand colors */
-		--tertiary: oklch(0.5 0.234 2.791);
-
-		/* contrast to brand colors */
-		--accent: oklch(0.5 0.180 90.241);
-
-		/* green for success */
-		--success: oklch(0.5 0.150 148.300);
-
-		/* blue for info */
-		--info: oklch(0.5 0.254 244.190);
-
-		/* orange for warnings */
-		--warning: oklch(0.5 0.198 61.193);
-
-		/* red for danger */
-		--danger: oklch(0.5 0.250 -25.754);
 
 		/* vertical space between main sections */
 		--large-gap: 3em;
@@ -46,204 +18,225 @@ body {
 		--gutter: 2em;
 
 		/* main body maximum width */
-		--width: 100ch;
+		--width-body: 100ch;
+
+		--separator-breadcrumb: "/";
 
 		/* borders */
 		--border-radius-tight: 5px;
 		--border-radius-loose: calc(1rem + 5px);
 
-		/* strength of colors (between 0 and 1) */
-		--saturation: 0.5;
+		/* body colors */
+		--color-background-body: light-dark(var(--primary-10), var(--primary-01));
+		--color-text-body: light-dark(var(--primary-01), var(--primary-10));
+		--color-heading-body: light-dark(var(--primary-01), var(--primary-09));
+		--color-link-body: light-dark(var(--secondary-06), var(--secondary-05));
+		--color-link-hover-body: light-dark(var(--secondary-07), var(--secondary-06));
+		--color-border-body: light-dark(var(--primary-07), var(--primary-04));
+		--color-highlight-body: light-dark(var(--secondary-08), var(--secondary-03));
 
-		/* difference between dark and light colors (between 0 and 1) */
-		--contrast: 0.5;
+		/* menu colors */
+		--color-background-menu: light-dark(var(--primary-09), var(--primary-02));
+		--color-surface-menu: light-dark(var(--primary-08), var(--primary-03));
+		--color-border-menu: light-dark(var(--primary-07), var(--primary-04));
+		--color-link-menu: light-dark(var(--tertiary-04), var(--tertiary-07));
+		--color-disabled-menu: light-dark(var(--secondary-04), var(--secondary-07));
+		--color-link-hover-menu: light-dark(var(--tertiary-06), var(--tertiary-09));
 
-		/* darkness of dark colors (between 0 and 1) */
-		--shadows: 0.5;
+		/* panel colors */
+		--color-background-panel: light-dark(var(--secondary-10), var(--secondary-01));
+		--color-background-hover-panel: light-dark(var(--secondary-09), var(--secondary-02));
+		--color-border-panel: light-dark(var(--secondary-09), var(--secondary-02));
+		--color-text-panel: light-dark(var(--secondary-03), var(--secondary-08));
+		--color-border-hover-panel: light-dark(var(--secondary-08), var(--secondary-03));
 
-		/* brightness of light colors (between 0 and 1) */
-		--highlights: 0.5;
+		/* pre colors */
+		--color-background-pre: light-dark(var(--tertiary-09), var(--tertiary-02));
+		--color-border-pre: light-dark(var(--tertiary-08), var(--tertiary-03));
+		--color-text-pre: light-dark(var(--tertiary-02), var(--tertiary-02));
 
-		/* strength of colorful colors (between 0 and 1) */
-		--vibrance: 0.5;
+		/* semantic colors */
+		--color-text-warning: light-dark(var(--warning-01), var(--warning-10));
+		--color-heading-warning: light-dark(var(--warning-02), var(--warning-09));
+		--color-icon-warning: light-dark(var(--warning-04), var(--warning-07));
+		--color-background-warning: light-dark(var(--warning-09), var(--warning-02));
+		--color-border-warning: light-dark(var(--warning-07), var(--warning-04));
 
-		/* difference between colorful colors and muted colors (between 0 and 1) */
-		--fade: 0.5;
+		--color-text-note: light-dark(var(--info-01), var(--info-10));
+		--color-heading-note: light-dark(var(--info-02), var(--info-09));
+		--color-icon-note: light-dark(var(--info-04), var(--info-07));
+		--color-background-note: light-dark(var(--info-09), var(--info-02));
+		--color-border-note: light-dark(var(--info-07), var(--info-04));
 
-		/* backgrounds */
-		--main-background: light-dark(var(--primary-00), var(--primary-11));
-		--soft-background: light-dark(var(--primary-01), var(--primary-10));
+		--color-text-success: light-dark(var(--success-01), var(--success-10));
+		--color-heading-success: light-dark(var(--success-02), var(--success-09));
+		--color-icon-success: light-dark(var(--success-04), var(--success-07));
+		--color-background-success: light-dark(var(--success-09), var(--success-02));
+		--color-border-success: light-dark(var(--success-07), var(--success-04));
 
-		/* main colors */
-		--primary-text-color: light-dark(var(--primary-10), var(--primary-01));
-		--primary-heading-color: light-dark(var(--primary-09), var(--primary-02));
-		--primary-link-color: light-dark(var(--secondary-09), var(--secondary-02));
-		--primary-link-hover-color: light-dark(var(--secondary-07), var(--secondary-04));
-		--primary-border-color: light-dark(var(--primary-02), var(--primary-09));
-
-		/* secondary colors */
-		--secondary-text-color: light-dark(var(--secondary-10), var(--secondary-01));
-		--secondary-heading-color: light-dark(var(--secondary-09), var(--secondary-02));
-		--secondary-link-color: light-dark(var(--tertiary-09), var(--tertiary-02));
-		--secondary-link-hover-color: light-dark(var(--tertiary-07), var(--tertiary-04));
-
-		/* accent colors */
-		--accent-text-color: light-dark(var(--tertiary-07), var(--tertiary-04));
-		--accent-link-color: light-dark(var(--primary-06), var(--primary-05));
-		--accent-background-color: light-dark(var(--primary-02), var(--primary-09));
-		--accent-background: linear-gradient(in oklch to bottom right, light-dark(var(--primary-02), var(--primary-09)),
-				light-dark(var(--secondary-03), var(--secondary-08)));
-		--accent-border-color: light-dark(var(--primary-03), var(--primary-08));
-
-
-		/* calculations - DO NOT EDIT */
-
-		--contrast-scaled: calc(1 / calc(1 - calc(clamp(0, var(--contrast), 0.999) * 1)));
-		--shadows-scaled: calc(7 / calc(2 - calc(clamp(0, var(--shadows), 0.999))));
-		--highlights-scaled: calc(1 - calc(calc(calc(clamp(0, var(--highlights), 0.999) * 0.5) + 0.25) * 2));
-		--saturation-scaled: calc(calc(1.6 - calc(clamp(0, var(--saturation), 0.999) * 1.6)) * 1.4);
-		--saturation-difference: calc(1 - var(--saturation-scaled));
-		--contrast-divisor: calc(11 + var(--shadows-scaled));
-
-		--contrast-01: atan(calc(0 / var(--contrast-divisor) * calc(var(--contrast-scaled) * 2)) - var(--contrast-scaled)) / atan(calc(var(--contrast-scaled) * 2) - var(--contrast-scaled));
-		--contrast-02: atan(calc(1 / var(--contrast-divisor) * calc(var(--contrast-scaled) * 2)) - var(--contrast-scaled)) / atan(calc(var(--contrast-scaled) * 2) - var(--contrast-scaled));
-		--contrast-03: atan(calc(2 / var(--contrast-divisor) * calc(var(--contrast-scaled) * 2)) - var(--contrast-scaled)) / atan(calc(var(--contrast-scaled) * 2) - var(--contrast-scaled));
-		--contrast-04: atan(calc(3 / var(--contrast-divisor) * calc(var(--contrast-scaled) * 2)) - var(--contrast-scaled)) / atan(calc(var(--contrast-scaled) * 2) - var(--contrast-scaled));
-		--contrast-05: atan(calc(4 / var(--contrast-divisor) * calc(var(--contrast-scaled) * 2)) - var(--contrast-scaled)) / atan(calc(var(--contrast-scaled) * 2) - var(--contrast-scaled));
-		--contrast-06: atan(calc(5 / var(--contrast-divisor) * calc(var(--contrast-scaled) * 2)) - var(--contrast-scaled)) / atan(calc(var(--contrast-scaled) * 2) - var(--contrast-scaled));
-		--contrast-07: atan(calc(6 / var(--contrast-divisor) * calc(var(--contrast-scaled) * 2)) - var(--contrast-scaled)) / atan(calc(var(--contrast-scaled) * 2) - var(--contrast-scaled));
-		--contrast-08: atan(calc(7 / var(--contrast-divisor) * calc(var(--contrast-scaled) * 2)) - var(--contrast-scaled)) / atan(calc(var(--contrast-scaled) * 2) - var(--contrast-scaled));
-		--contrast-09: atan(calc(8 / var(--contrast-divisor) * calc(var(--contrast-scaled) * 2)) - var(--contrast-scaled)) / atan(calc(var(--contrast-scaled) * 2) - var(--contrast-scaled));
-		--contrast-10: atan(calc(9 / var(--contrast-divisor) * calc(var(--contrast-scaled) * 2)) - var(--contrast-scaled)) / atan(calc(var(--contrast-scaled) * 2) - var(--contrast-scaled));
-		--contrast-11: atan(calc(10 / var(--contrast-divisor) * calc(var(--contrast-scaled) * 2)) - var(--contrast-scaled)) / atan(calc(var(--contrast-scaled) * 2) - var(--contrast-scaled));
-		--contrast-12: atan(calc(11 / var(--contrast-divisor) * calc(var(--contrast-scaled) * 2)) - var(--contrast-scaled)) / atan(calc(var(--contrast-scaled) * 2) - var(--contrast-scaled));
-
-		--shade-01: calc(calc(calc(var(--contrast-01) - 1) / -2) - var(--highlights-scaled));
-		--shade-02: calc(calc(calc(var(--contrast-02) - 1) / -2) - var(--highlights-scaled));
-		--shade-03: calc(calc(calc(var(--contrast-03) - 1) / -2) - var(--highlights-scaled));
-		--shade-04: calc(calc(calc(var(--contrast-04) - 1) / -2) - var(--highlights-scaled));
-		--shade-05: calc(calc(calc(var(--contrast-05) - 1) / -2) - var(--highlights-scaled));
-		--shade-06: calc(calc(calc(var(--contrast-06) - 1) / -2) - var(--highlights-scaled));
-		--shade-07: calc(calc(calc(var(--contrast-07) - 1) / -2) - var(--highlights-scaled));
-		--shade-08: calc(calc(calc(var(--contrast-08) - 1) / -2) - var(--highlights-scaled));
-		--shade-09: calc(calc(calc(var(--contrast-09) - 1) / -2) - var(--highlights-scaled));
-		--shade-10: calc(calc(calc(var(--contrast-10) - 1) / -2) - var(--highlights-scaled));
-		--shade-11: calc(calc(calc(var(--contrast-11) - 1) / -2) - var(--highlights-scaled));
-		--shade-12: calc(calc(calc(var(--contrast-12) - 1) / -2) - var(--highlights-scaled));
-
-		--vibrance-difference: calc(1 - clamp(0.001, var(--vibrance), 0.999));
-		--fade-scaled: calc(1 / calc(1 - clamp(0.001, var(--fade), 0.999)));
-
-		--atan-01: calc(1 - abs(calc(atan(calc(0 / 11 * var(--fade-scaled)) - calc(var(--fade-scaled) / 2)) / atan(var(--fade-scaled) / 2))));
-		--atan-02: calc(1 - abs(calc(atan(calc(1 / 11 * var(--fade-scaled)) - calc(var(--fade-scaled) / 2)) / atan(var(--fade-scaled) / 2))));
-		--atan-03: calc(1 - abs(calc(atan(calc(2 / 11 * var(--fade-scaled)) - calc(var(--fade-scaled) / 2)) / atan(var(--fade-scaled) / 2))));
-		--atan-04: calc(1 - abs(calc(atan(calc(3 / 11 * var(--fade-scaled)) - calc(var(--fade-scaled) / 2)) / atan(var(--fade-scaled) / 2))));
-		--atan-05: calc(1 - abs(calc(atan(calc(4 / 11 * var(--fade-scaled)) - calc(var(--fade-scaled) / 2)) / atan(var(--fade-scaled) / 2))));
-		--atan-06: calc(1 - abs(calc(atan(calc(5 / 11 * var(--fade-scaled)) - calc(var(--fade-scaled) / 2)) / atan(var(--fade-scaled) / 2))));
-		--atan-07: calc(1 - abs(calc(atan(calc(6 / 11 * var(--fade-scaled)) - calc(var(--fade-scaled) / 2)) / atan(var(--fade-scaled) / 2))));
-		--atan-08: calc(1 - abs(calc(atan(calc(7 / 11 * var(--fade-scaled)) - calc(var(--fade-scaled) / 2)) / atan(var(--fade-scaled) / 2))));
-		--atan-09: calc(1 - abs(calc(atan(calc(8 / 11 * var(--fade-scaled)) - calc(var(--fade-scaled) / 2)) / atan(var(--fade-scaled) / 2))));
-		--atan-10: calc(1 - abs(calc(atan(calc(9 / 11 * var(--fade-scaled)) - calc(var(--fade-scaled) / 2)) / atan(var(--fade-scaled) / 2))));
-		--atan-11: calc(1 - abs(calc(atan(calc(10 / 11 * var(--fade-scaled)) - calc(var(--fade-scaled) / 2)) / atan(var(--fade-scaled) / 2))));
-		--atan-12: calc(1 - abs(calc(atan(calc(11 / 11 * var(--fade-scaled)) - calc(var(--fade-scaled) / 2)) / atan(var(--fade-scaled) / 2))));
-
-		--chroma-01: calc(calc(var(--atan-01) * var(--vibrance-difference) + var(--vibrance)) * var(--saturation-scaled) + var(--saturation-difference));
-		--chroma-02: calc(calc(var(--atan-02) * var(--vibrance-difference) + var(--vibrance)) * var(--saturation-scaled) + var(--saturation-difference));
-		--chroma-03: calc(calc(var(--atan-03) * var(--vibrance-difference) + var(--vibrance)) * var(--saturation-scaled) + var(--saturation-difference));
-		--chroma-04: calc(calc(var(--atan-04) * var(--vibrance-difference) + var(--vibrance)) * var(--saturation-scaled) + var(--saturation-difference));
-		--chroma-05: calc(calc(var(--atan-05) * var(--vibrance-difference) + var(--vibrance)) * var(--saturation-scaled) + var(--saturation-difference));
-		--chroma-06: calc(calc(var(--atan-06) * var(--vibrance-difference) + var(--vibrance)) * var(--saturation-scaled) + var(--saturation-difference));
-		--chroma-07: calc(calc(var(--atan-07) * var(--vibrance-difference) + var(--vibrance)) * var(--saturation-scaled) + var(--saturation-difference));
-		--chroma-08: calc(calc(var(--atan-08) * var(--vibrance-difference) + var(--vibrance)) * var(--saturation-scaled) + var(--saturation-difference));
-		--chroma-09: calc(calc(var(--atan-09) * var(--vibrance-difference) + var(--vibrance)) * var(--saturation-scaled) + var(--saturation-difference));
-		--chroma-10: calc(calc(var(--atan-10) * var(--vibrance-difference) + var(--vibrance)) * var(--saturation-scaled) + var(--saturation-difference));
-		--chroma-11: calc(calc(var(--atan-11) * var(--vibrance-difference) + var(--vibrance)) * var(--saturation-scaled) + var(--saturation-difference));
-		--chroma-12: calc(calc(var(--atan-12) * var(--vibrance-difference) + var(--vibrance)) * var(--saturation-scaled) + var(--saturation-difference));
-
-		--primary-00: oklch(from var(--primary) var(--shade-01) calc(c * var(--chroma-01)) h);
-		--primary-01: oklch(from var(--primary) var(--shade-02) calc(c * var(--chroma-02)) h);
-		--primary-02: oklch(from var(--primary) var(--shade-03) calc(c * var(--chroma-03)) h);
-		--primary-03: oklch(from var(--primary) var(--shade-04) calc(c * var(--chroma-04)) h);
-		--primary-04: oklch(from var(--primary) var(--shade-05) calc(c * var(--chroma-05)) h);
-		--primary-05: oklch(from var(--primary) var(--shade-06) calc(c * var(--chroma-06)) h);
-		--primary-06: oklch(from var(--primary) var(--shade-07) calc(c * var(--chroma-07)) h);
-		--primary-07: oklch(from var(--primary) var(--shade-08) calc(c * var(--chroma-08)) h);
-		--primary-08: oklch(from var(--primary) var(--shade-09) calc(c * var(--chroma-09)) h);
-		--primary-09: oklch(from var(--primary) var(--shade-10) calc(c * var(--chroma-10)) h);
-		--primary-10: oklch(from var(--primary) var(--shade-11) calc(c * var(--chroma-11)) h);
-		--primary-11: oklch(from var(--primary) var(--shade-12) calc(c * var(--chroma-12)) h);
-
-		--secondary-00: oklch(from var(--secondary) var(--shade-01) calc(c * var(--chroma-01)) h);
-		--secondary-01: oklch(from var(--secondary) var(--shade-02) calc(c * var(--chroma-02)) h);
-		--secondary-02: oklch(from var(--secondary) var(--shade-03) calc(c * var(--chroma-03)) h);
-		--secondary-03: oklch(from var(--secondary) var(--shade-04) calc(c * var(--chroma-04)) h);
-		--secondary-04: oklch(from var(--secondary) var(--shade-05) calc(c * var(--chroma-05)) h);
-		--secondary-05: oklch(from var(--secondary) var(--shade-06) calc(c * var(--chroma-06)) h);
-		--secondary-06: oklch(from var(--secondary) var(--shade-07) calc(c * var(--chroma-07)) h);
-		--secondary-07: oklch(from var(--secondary) var(--shade-08) calc(c * var(--chroma-08)) h);
-		--secondary-08: oklch(from var(--secondary) var(--shade-09) calc(c * var(--chroma-09)) h);
-		--secondary-09: oklch(from var(--secondary) var(--shade-10) calc(c * var(--chroma-10)) h);
-		--secondary-10: oklch(from var(--secondary) var(--shade-11) calc(c * var(--chroma-11)) h);
-		--secondary-11: oklch(from var(--secondary) var(--shade-12) calc(c * var(--chroma-12)) h);
-
-		--tertiary-00: oklch(from var(--tertiary) var(--shade-01) calc(c * var(--chroma-01)) h);
-		--tertiary-01: oklch(from var(--tertiary) var(--shade-02) calc(c * var(--chroma-02)) h);
-		--tertiary-02: oklch(from var(--tertiary) var(--shade-03) calc(c * var(--chroma-03)) h);
-		--tertiary-03: oklch(from var(--tertiary) var(--shade-04) calc(c * var(--chroma-04)) h);
-		--tertiary-04: oklch(from var(--tertiary) var(--shade-05) calc(c * var(--chroma-05)) h);
-		--tertiary-05: oklch(from var(--tertiary) var(--shade-06) calc(c * var(--chroma-06)) h);
-		--tertiary-06: oklch(from var(--tertiary) var(--shade-07) calc(c * var(--chroma-07)) h);
-		--tertiary-07: oklch(from var(--tertiary) var(--shade-08) calc(c * var(--chroma-08)) h);
-		--tertiary-08: oklch(from var(--tertiary) var(--shade-09) calc(c * var(--chroma-09)) h);
-		--tertiary-09: oklch(from var(--tertiary) var(--shade-10) calc(c * var(--chroma-10)) h);
-		--tertiary-10: oklch(from var(--tertiary) var(--shade-11) calc(c * var(--chroma-11)) h);
-		--tertiary-11: oklch(from var(--tertiary) var(--shade-12) calc(c * var(--chroma-12)) h);
-
-		--accent-00: oklch(from var(--accent) var(--shade-01) calc(c * var(--chroma-01)) h);
-		--accent-01: oklch(from var(--accent) var(--shade-02) calc(c * var(--chroma-02)) h);
-		--accent-02: oklch(from var(--accent) var(--shade-03) calc(c * var(--chroma-03)) h);
-		--accent-03: oklch(from var(--accent) var(--shade-04) calc(c * var(--chroma-04)) h);
-		--accent-04: oklch(from var(--accent) var(--shade-05) calc(c * var(--chroma-05)) h);
-		--accent-05: oklch(from var(--accent) var(--shade-06) calc(c * var(--chroma-06)) h);
-		--accent-06: oklch(from var(--accent) var(--shade-07) calc(c * var(--chroma-07)) h);
-		--accent-07: oklch(from var(--accent) var(--shade-08) calc(c * var(--chroma-08)) h);
-		--accent-08: oklch(from var(--accent) var(--shade-09) calc(c * var(--chroma-09)) h);
-		--accent-09: oklch(from var(--accent) var(--shade-10) calc(c * var(--chroma-10)) h);
-		--accent-10: oklch(from var(--accent) var(--shade-11) calc(c * var(--chroma-11)) h);
-		--accent-11: oklch(from var(--accent) var(--shade-12) calc(c * var(--chroma-12)) h);
+		--color-text-danger: light-dark(var(--danger-01), var(--danger-10));
+		--color-heading-danger: light-dark(var(--danger-02), var(--danger-09));
+		--color-icon-danger: light-dark(var(--danger-04), var(--danger-07));
+		--color-background-danger: light-dark(var(--danger-09), var(--danger-02));
+		--color-border-danger: light-dark(var(--danger-07), var(--danger-04));
 
 		/* automatic dark mode */
 		color-scheme: light dark;
 	}
 
-	/* body */
+	/*
+		COLORS
+	*/
 
 	html {
-		background: var(--main-background);
-		color: var(--primary-text-color);
+		background: var(--color-background-body);
+		color: var(--color-text-body);
 	}
+
+	header {
+		color: var(--color-heading-body);
+		background: var(--color-background-menu);
+
+		a#title,
+		a#logo {
+			color: var(--color-heading-body);
+		}
+
+		nav {
+			[aria-current="page"] {
+				color: var(--color-disabled-menu);
+			}
+
+			ul+ul {
+				background: var(--color-surface-menu);
+			}
+		}
+	}
+
+	nav[aria-label=Breadcrumbs] a {
+		color: var(--color-link-body);
+
+		&:hover {
+			color: var(--color-link-body-hover);
+		}
+
+		&:before {
+			color: var(--color-border-menu);
+		}
+	}
+
+	nav[aria-label=Contents] {
+		background: var(--color-background-menu);
+		border-color: var(--color-border-menu);
+
+		&:before {
+			color: var(--color-heading-body);
+		}
+	}
+
+	/*
+		LAYOUT
+	*/
+
 
 	body {
-		align-items: center;
+		--width-shrink: min(var(--width-body), 100vi - 10vi);
+
+		/* flex column */
 		display: flex;
 		flex-direction: column;
-		gap: var(--large-gap);
+
+		/* center column */
+		align-items: center;
 		margin-inline: auto;
-		max-width: min(var(--width), 100vi - 10vw);
-		overflow-y: scroll;
-		padding-block: var(--large-gap);
+
+		/* spacing  */
+		gap: 2lh;
+		padding-bottom: 4lh;
+
+		/* children width */
+		>* {
+			max-width: var(--width-shrink);
+		}
 	}
 
-	a,
-	a:visited {
-		color: var(--primary-link-color);
+	header {
+		--stretch-width: min(100%, clamp(var(--width-shrink), 80vw, 120ch));
+		--padding-inline: calc(calc(100vi - var(--stretch-width)) / 2);
+
+		display: flex;
+		flex-direction: row;
+		align-items: baseline;
+		flex-wrap: wrap;
+		gap: 2em 1ch;
+		align-self: stretch;
+		max-width: 100%;
+		padding: 1lh var(--padding-inline);
+
+		#title {
+			flex-grow: 2;
+		}
+
+		#logo img {
+			height: 1em;
+			width: auto;
+		}
+
+		nav {
+			border-radius: var(--border-radius-tight);
+			border: 1px solid var(--color-menu-border);
+
+			display: flex;
+			flex-direction: column;
+			justify-content: flex-start;
+			justify-content: space-between;
+			flex-grow: 1;
+			gap: 1em;
+
+			ul:first-child {
+				justify-content: flex-end;
+			}
+
+			/* full-width for nested menus */
+			&:has(ul:nth-child(2)) {
+				width: 100%;
+
+				ul:first-child {
+					padding-inline: 2ch;
+					justify-content: space-between;
+				}
+			}
+
+			ul {
+				list-style: none;
+				padding-left: 0;
+
+				width: 100%;
+				display: flex;
+				justify-content: space-between;
+				flex-wrap: wrap;
+			}
+
+			/* nested menus */
+			ul+ul {
+				padding: 1em 2ch;
+
+				justify-content: flex-start;
+				gap: 2ch;
+				border-radius: var(--border-radius-tight);
+				font-size: 0.9em;
+			}
+		}
 	}
 
-	a:hover {
-		color: var(--primary-link-hover-color);
-	}
+	nav[aria-label=Breadcrumbs] a {
+		text-transform: uppercase;
 
-	/* frontmatter */
+		&+a:before {
+			content: var(--separator-breadcrumb);
+			margin-inline: 1ch;
+		}
+	}
 
 	/* TODO: Only render contents when necessary */
 	nav[aria-label=Contents]:has(>ol:empty),
@@ -251,150 +244,34 @@ body {
 		display: none;
 	}
 
-	main>:not(section) {
-		color: var(--primary-heading-color);
-	}
-
-	time {
-		font-weight: 500;
-	}
-
 	/* table of contents */
-
 	nav[aria-label=Contents] {
+		border-width: 1px;
+		border-style: solid;
+		border-radius: var(--border-radius-tight);
+
+		&:before {
+			content: "Contents";
+			font-weight: 500;
+		}
+
+		ol {
+			list-style: none;
+		}
 
 		/* top-level items */
 		&>ol {
-			list-style: none;
 			padding: 0;
 
-			&:before {
-				content: "Contents";
-				color: var(--primary-heading-color);
-				font-weight: 500;
-			}
-		}
-
-		/* subitems */
-		ol {
-			list-style: none;
-			padding: 0;
-
+			/* sub-items */
 			ol {
-				padding-left: 1em;
-			}
-		}
-
-	}
-
-	@media (width >=700px) {
-		nav[aria-label=Contents] {
-			top: var(--large-gap);
-
-			grid-column: 2;
-			grid-row-start: 3;
-			height: 0px;
-			overflow: visible;
-			position: sticky;
-
-			&>ol {
-				height: calc(100vh - var(--large-gap));
-
-				overflow-y: auto;
-				overflow-x: hidden;
+				padding-left: 2ch;
 			}
 		}
 	}
 
-	/* header */
 
-	header {
-		color: var(--primary-heading-color);
-
-		align-items: center;
-		display: flex;
-		flex-direction: row;
-		flex-wrap: wrap;
-		gap: var(--small-gap) var(--gutter);
-		width: 100%;
-
-		a#title,
-		a#logo {
-			color: inherit;
-		}
-
-		#tagline {
-			display: none;
-		}
-
-		#logo {
-
-			/*
-				The URL of the SVG is applied as a variable to
-				the element in an inline style declaration. This
-				makes the SVG available to use as a mask, which
-				can allows coloring via background.
-			*/
-			background: currentColor;
-			mask-image: var(--logo-url);
-		}
-
-		#logo img {
-			height: 1.3cap;
-			width: auto;
-
-			/*
-				If the logo is colored via the background, then
-				the image itself should hide.
-			*/
-			visibility: hidden;
-		}
-
-		nav {
-			background: var(--soft-background);
-			border-radius: var(--border-radius-tight);
-			border: 1px solid var(--primary-border-color);
-			padding-inline: var(--gutter);
-
-			display: flex;
-			flex-direction: column;
-			justify-content: flex-start;
-			width: 100%;
-
-			ul {
-				list-style: none;
-				display: flex;
-				padding: 1em 0;
-				gap: var(--gutter);
-				flex-wrap: wrap;
-			}
-
-			ul+ul {
-				/*
-					TODO: This should be replaced with a gap decoration
-					at some point in the near future.
-				*/
-				border-top: 1px solid var(--primary-border-color);
-			}
-
-			[aria-current="page"] {
-				color: var(--secondary-link-color);
-			}
-		}
-	}
-
-	nav[aria-label=Breadcrumbs] {
-		text-transform: uppercase;
-		color: var(--primary-link-color);
-
-		a,
-		a:visited {
-			color: inherit;
-		}
-	}
-
-	/* Sidebar */
-
+	/* sidebar */
 	body>aside {
 		margin-top: auto;
 	}
@@ -402,10 +279,18 @@ body {
 	aside nav {
 		margin-inline: auto;
 
+		a {
+			color: var(--color-link-body);
+
+			&:hover {
+				color: var(--color-link-hover-body);
+			}
+		}
+
 		&>ul {
 			display: flex;
 			flex-direction: row;
-			gap: 2em;
+			gap: 4ch;
 			justify-content: center;
 		}
 
@@ -437,28 +322,9 @@ body {
 
 	/* main */
 
-	main,
-	article {
-		display: grid;
-		column-gap: 3em;
-		row-gap: 1em;
-
-		&>* {
-			min-width: 0;
-		}
-	}
-
-	@media (width >=700px) {
-		main {
-			grid-template-columns: 3fr 1fr;
-		}
-	}
-
-
 	p:where([itemprop=description]),
 	#content>p:first-of-type {
 		font-size: 1.3em;
-		color: var(--secondary-text-color);
 	}
 
 
@@ -467,22 +333,15 @@ body {
 		max-width: min(80ch, 100%);
 		/* margin-bottom: var(--large-gap); */
 
-		&>*:not(nav[aria-label=Contents]) {
-			grid-column: 1;
-		}
-
 		/* content */
 
 		section#content {
-			display: flex;
-			flex-direction: column;
-			gap: 1em;
 
 			a {
-				color: var(--primary-link-color);
+				color: var(--color-link-body);
 
 				&:hover {
-					color: var(--primary-link-hover-color);
+					color: var(--color-link-hover-body);
 				}
 			}
 
@@ -490,25 +349,41 @@ body {
 				border-radius: var(--border-radius-tight);
 			}
 
+			mark,
+			code {
+				padding: 0.1cap 0.5ch;
+				border-radius: 0.2cap;
+				box-decoration-break: clone;
+			}
+
+			mark {
+				background: var(--color-highlight-body);
+			}
+
 			pre,
 			:not(pre)>code {
-				background: linear-gradient(in oklch to bottom left,
-						light-dark(var(--primary-02), var(--primary-09)),
-						light-dark(var(--primary-01), var(--primary-10)));
-				border: 1px solid var(--code-border);
+				border: 1px solid var(--color-border-pre);
+				border-radius: var(--border-radius-tight);
+			}
+
+
+			pre,
+			code,
+			code.hljs {
+				background: var(--color-background-pre);
 			}
 
 			blockquote {
-				border-left: 5px solid var(--primary-border-color);
+				border-left: 0.5ch solid var(--color-border-body);
 			}
 
 			th,
 			td {
-				border-bottom: 1px solid var(--border-color-softer);
+				border-bottom: 1px solid var(--color-border-body);
 			}
 
 			hr {
-				border-top: 1px solid var(--primary-text-color);
+				border-top: 1px solid var(--color-border-body);
 			}
 
 			/* page list */
@@ -516,45 +391,24 @@ body {
 			&>ul._ {
 				display: flex;
 				flex-direction: column;
-				gap: 1em;
 				list-style: none;
 				padding: 0;
 			}
 
 			article {
-				border: 1px solid var(--primary-border-color);
-				background: var(--soft-background);
+				color: var(--color-text-panel);
+				border: 1px solid var(--color-border-panel);
+				background: var(--color-background-panel);
+				transition: background-color 0.2s;
 				border-radius: var(--border-radius-loose);
-				padding: 2rem;
-				display: flex;
-				flex-direction: column;
+
+				&:hover {
+					border-color: var(--color-border-hover-panel);
+					background: var(--color-background-hover-panel);
+				}
 
 				img {
 					order: -1;
-				}
-
-				a {
-					display: flex;
-					flex-direction: column;
-					row-gap: 1em;
-
-					&>* {
-						margin: 0;
-					}
-				}
-
-				article a,
-				article a:hover {
-					color: unset;
-				}
-
-				h1 {
-					grid-area: title;
-					font-size: 1.6rem;
-				}
-
-				p {
-					font-size: 1.6rem;
 				}
 			}
 
@@ -562,50 +416,52 @@ body {
 			/* alerts */
 
 			aside.alert {
-				--color-00: oklch(from var(--color) var(--shade-01) calc(c * var(--chroma-01)) h);
-				--color-01: oklch(from var(--color) var(--shade-02) calc(c * var(--chroma-02)) h);
-				--color-02: oklch(from var(--color) var(--shade-03) calc(c * var(--chroma-03)) h);
-				--color-03: oklch(from var(--color) var(--shade-04) calc(c * var(--chroma-04)) h);
-				--color-04: oklch(from var(--color) var(--shade-05) calc(c * var(--chroma-05)) h);
-				--color-05: oklch(from var(--color) var(--shade-06) calc(c * var(--chroma-06)) h);
-				--color-06: oklch(from var(--color) var(--shade-07) calc(c * var(--chroma-07)) h);
-				--color-07: oklch(from var(--color) var(--shade-08) calc(c * var(--chroma-08)) h);
-				--color-08: oklch(from var(--color) var(--shade-09) calc(c * var(--chroma-09)) h);
-				--color-09: oklch(from var(--color) var(--shade-10) calc(c * var(--chroma-10)) h);
-				--color-10: oklch(from var(--color) var(--shade-11) calc(c * var(--chroma-11)) h);
-				--color-11: oklch(from var(--color) var(--shade-12) calc(c * var(--chroma-12)) h);
-
 				&.danger {
-					--color: var(--danger);
 					--icon: '⛔️';
+					background: var(--color-background-danger);
+					color: var(--color-text-danger);
+					border-color: var(--color-border-danger);
+
+					h2 {
+						color: var(--color-heading-danger);
+					}
 				}
 
 				&.note {
-					--color: var(--info);
 					--icon: 'ℹ️';
+					background: var(--color-background-note);
+					color: var(--color-text-note);
+					border-color: var(--color-border-note);
+
+					h2 {
+						color: var(--color-heading-note);
+					}
 				}
 
 				&.success {
-					--color: var(--success);
 					--icon: '💡';
+					background: var(--color-background-success);
+					color: var(--color-text-success);
+					border-color: var(--color-border-success);
+
+					h2 {
+						color: var(--color-heading-success);
+					}
 				}
 
 				&.warning {
-					--color: var(--warning);
 					--icon: '⚠️';
+					background: var(--color-background-warning);
+					color: var(--color-text-warning);
+					border-color: var(--color-border-warning);
+
+					h2 {
+						color: var(--color-heading-warning);
+					}
 				}
 
-				--gradient: radial-gradient(at top right in oklch,
-					light-dark(var(--color-03), var(--color-08)),
-					light-dark(var(--color-02), var(--color-09)));
-				--text: light-dark(var(--color-10), var(--color-01));
-				--border: light-dark(var(--color-04), var(--color-06));
-				--heading: light-dark(var(--color-08), var(--color-02));
-
-				padding: 1.5rem 2rem;
-				background: var(--gradient);
-				color: var(--text);
-				border-left: 3px solid var(--border);
+				border-left-width: 0.5ch;
+				border-left-style: solid;
 
 				h2 {
 					color: var(--heading);
@@ -626,7 +482,23 @@ body {
 
 footer {
 	text-align: center;
-	/* margin-top: var(--large-gap); */
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2lh;
+
+	section {
+		display: block;
+	}
+
+	a {
+		color: var(--color-link-menu);
+
+		&:hover {
+			color: var(--color-link-hover-menu);
+		}
+	}
+
 }
 
 /* homepage */
@@ -634,39 +506,23 @@ footer {
 body.home {
 
 	/*
-		Single-column layout
-	*/
-	main {
-		grid-template-columns: 1fr;
-	}
-
-	/*
 		Hero tagline
 	*/
 	#tagline {
-		background-image: var(--accent-background);
-		border-radius: var(--border-radius-loose);
-		border: 1px solid var(--accent-border-color);
-		color: var(--accent-text-color);
-		padding-block: var(--large-gap);
+		/* padding-block: var(--large-gap); */
+		/* font-size: 3em; */
 
-		display: block;
-		order: 1;
-		text-align: center;
-		width: 100%;
+		width: max-content;
+		margin: auto;
 	}
 
 	/*
 		Hide breadcrumbs
 	*/
-	[aria-label=Breadcrumbs] {
-		display: none;
-	}
-
-	/*
-		Hide h1
-	*/
+	[aria-label=Breadcrumbs],
+	[aria-label=Contents],
 	&>main>h1 {
 		display: none;
 	}
+
 }
