@@ -43,8 +43,7 @@ const editorClientScript = readFileSync(path.join(import.meta.dirname, "bundle/i
  * @param {number} num
  */
 /**
- * The site's title: the nearest `title` in the settings cascade, which
- * settings.md contributes when the author set one, else the title of the
+ * The site's name: the root settings.md's `name:`, else the title of the
  * index page - but only an index the author actually wrote. The
  * synthesized one (source null) is a placeholder called "Home" and
  * doesn't name a site. Both reads are tracked, so a page that shows
@@ -58,8 +57,11 @@ const editorClientScript = readFileSync(path.join(import.meta.dirname, "bundle/i
  * @param {any} api
  * @returns {string | undefined}
  */
-function siteTitle(settings, api) {
-  const configured = settings.lastNonNull("title")
+function siteName(settings, api) {
+  // The root's own `name:` - index 0 of the cascade - not the nearest
+  // folder's: the header names the site, whatever section a page is
+  // in. Sections contribute to <title> instead (createTitle).
+  const configured = settings.raw("fm_name")?.[0]?.at(-1)
   if (configured) return configured
   const index = api.target("index.html")
   if (!index?.source) return
@@ -317,34 +319,25 @@ function writeFile(target, { settings, api, config }) {
         )
   })
 
+  // The document title: the page's own title, then every `name:` from
+  // the page's folder up to the root, hyphen-delimited - "Hats - Shop -
+  // Site". The homepage is the site's front door and shows the site's
+  // name and tagline instead.
   function createTitle() {
     if (isRoot) {
-      const title = [settings.lastNonNull("title") || metadata?.title, settings.lastNonNull("fm_tagline")]
+      return [site || metadata?.title, settings.lastNonNull("fm_tagline")]
         .filter(a => a)
         .join(" - ")
-
-      return title
     }
 
-    // FIXME Check that this works properly
-    const chain = settings.flat("title").reverse()
-    if (metadata.title && chain.length) {
-      return [metadata.title, ...chain].join(" - ")
-    }
-
-    if (metadata.title && site) {
-      return `${metadata.title} - ${site}`
-    }
-
-    if (metadata.title || chain.length) {
-      return metadata.title || chain[0]
-    }
-
-    return "Website"
+    const names = settings.flat("fm_name").reverse()
+    const chain = names.length ? names : (site ? [site] : [])
+    const parts = [metadata.title, ...chain].filter(a => a)
+    return parts.length ? parts.join(" - ") : "Website"
   }
 
 
-  const site = siteTitle(settings, api)
+  const site = siteName(settings, api)
   const title = createTitle()
 
 

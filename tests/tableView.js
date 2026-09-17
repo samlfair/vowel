@@ -13,7 +13,7 @@ test("?view=table renders a glob as a table with the named columns, and the dire
   let site
   try {
     await mkdir(path.join(sourceFolder, "ideas"))
-    await writeFile(path.join(sourceFolder, "settings.md"), "---\ntitle: T\n---\n")
+    await writeFile(path.join(sourceFolder, "settings.md"), "---\nname: T\n---\n")
     await writeFile(path.join(sourceFolder, "ideas", "one.md"), "---\nauthor: Ann\n---\n\n# One\n\nFirst idea.\n")
     await writeFile(path.join(sourceFolder, "ideas", "two.md"), "---\nauthor: Bob\n---\n\n# Two\n\nSecond idea.\n")
     await writeFile(path.join(sourceFolder, "index.md"), "# Home\n\n/ideas/**?view=table&properties=title,description,author\n")

@@ -89,12 +89,12 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
 
       box(`Change these configurations by editing 'settings.md'.`)
 
-      const websiteTitle = await text({
-        message: "Website title",
+      const websiteName = await text({
+        message: "Website name",
         placeholder: "My Cool Website"
       })
 
-      frontmatter.push(`title: ${websiteTitle}`)
+      frontmatter.push(`name: ${websiteName}`)
 
       const tagline = await text({
         message: "Website tagline (leave empty to skip)",

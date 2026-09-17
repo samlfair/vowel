@@ -88,7 +88,7 @@ test("displayPath and saltsIn: the name survives, the salt is separable", () => 
 
 test("a secret page is published only at its hashed path, and every listing omits it", async () => {
   await withSite({
-    "settings.md": "---\ndomain: example.com\ntitle: T\n---\n",
+    "settings.md": "---\ndomain: example.com\nname: T\n---\n",
     "home.md": "# Home\n\n/**",
     "blog/post.md": "# Public post\n\nVisible.",
     "blog/hidden##purple-bear/hello.md": "# Secret page\n\nShh."
@@ -111,7 +111,7 @@ test("a secret page is published only at its hashed path, and every listing omit
 
 test("nothing in the output folder contains a salt - the property the feature exists for", async () => {
   await withSite({
-    "settings.md": "---\ndomain: example.com\ntitle: T\n---\n",
+    "settings.md": "---\ndomain: example.com\nname: T\n---\n",
     "home.md": "# Home\n\n/**",
     "blog/hidden##purple-bear/hello.md": "# Secret page\n\nShh.",
     "blog/hidden##purple-bear/sub/deep.md": "# Deeper\n\nStill secret.",

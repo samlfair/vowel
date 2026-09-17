@@ -38,14 +38,14 @@ async function withPreview(files, run) {
 
 test("a previewed page carries its own source and the root settings.md, and nothing is served for either", async () => {
   await withPreview({
-    "settings.md": "---\ntitle: My Site\n---\n",
+    "settings.md": "---\nname: My Site\n---\n",
     "home.md": "# Home\n\nHello."
   }, async ({ base, source, targetFolder }) => {
     const home = await source("/")
     assert.equal(home.path, "home.md")
     assert.equal(home.markdown, "# Home\n\nHello.")
     assert.equal(home.settings.path, "settings.md")
-    assert.equal(home.settings.markdown, "---\ntitle: My Site\n---\n")
+    assert.equal(home.settings.markdown, "---\nname: My Site\n---\n")
 
     assert.equal((await fetch(base + "/settings.md")).status, 404, "settings.md is no longer a target")
     assert.equal((await fetch(base + "/?source")).headers.get("content-type").startsWith("text/html"), true, "?source is not an endpoint")

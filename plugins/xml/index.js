@@ -147,7 +147,7 @@ const processor = {
           }
         },
         {
-          title: settings.lastNonNull("title")
+          title: settings.raw("fm_name")?.[0]?.at(-1)
         },
       )
 

@@ -29,7 +29,7 @@ test("a bare URL paragraph becomes a link preview once its fetch has landed", as
   let site
 
   try {
-    await writeFile(path.join(sourceFolder, "settings.md"), "---\ntitle: T\n---\n")
+    await writeFile(path.join(sourceFolder, "settings.md"), "---\nname: T\n---\n")
     await writeFile(path.join(sourceFolder, "post.md"), `# Post\n\nSome prose.\n\n${url}\n\nMore prose.\n`)
 
     const targetFolder = path.join(systemFolder, "output")

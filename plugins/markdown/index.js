@@ -152,7 +152,7 @@ function readFile(source, { api, config }) {
     data: string,
     write: metadata.html_file ?? true,
     metadata: withDeclaredTypes({ ...targetMetadata, hastAbstract: hast }),
-    settings: pathInfo.base === "settings.md" ? settingsContribution(metadata) : undefined
+    settings: pathInfo.base === "settings.md" ? settingsContribution(metadata, filePath, config?.log) : undefined
   }
 }
 
@@ -180,17 +180,22 @@ function withDeclaredTypes(metadata) {
  * and nothing inferred. It used to contribute its whole metadata, so a
  * settings.md with no `title:` set the site title to "Settings" - the
  * label inferred from its own filename - and its first paragraph became
- * the description. `title` is the one derived key kept, because every
- * reader asks for the unprefixed label; it is the declared `title:` or
- * nothing. `markdown` is the source, which the settings panel edits.
+ * the description. The site's name is `name:` (read as `fm_name`); a
+ * `title:` here is an old spelling and is warned about, since a page
+ * has a title and a site has a name. `markdown` is the source, which the
+ * settings panel edits.
  * @param {Record<string, any>} metadata
+ * @param {string} filePath
+ * @param {(level: string, message: string) => void} [log]
  */
-function settingsContribution(metadata) {
+function settingsContribution(metadata, filePath, log) {
+  if (metadata.fm_title !== undefined && metadata.fm_name === undefined) {
+    log?.("warn", `${filePath}: \`title:\` in a settings file does nothing - the site's name is \`name:\``)
+  }
   const declared = Object.entries(metadata)
     .filter(([key]) => key.startsWith("fm_") || reservedProperties.includes(key))
   return {
     ...Object.fromEntries(declared),
-    ...(metadata.fm_title ? { title: metadata.fm_title } : {}),
     frontmatter_keys: metadata.frontmatter_keys,
     markdown: metadata.markdown
   }

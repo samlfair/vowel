@@ -45,7 +45,7 @@ test("atproto.did in settings.md is served at /.well-known/atproto-did, and remo
   }, async ({ sourceFolder, rebuild, wellKnown, exists }) => {
     assert.equal(await readFile(wellKnown, "utf-8"), "did:plc:ewvi7nxzyoun6zhxrhs64oiz")
 
-    await writeFile(path.join(sourceFolder, "settings.md"), "---\ntitle: T\n---\n")
+    await writeFile(path.join(sourceFolder, "settings.md"), "---\nname: T\n---\n")
     await rebuild()
     assert.equal(await exists(), false, "no did, no file: a stub that stops being declared takes its file with it")
   })

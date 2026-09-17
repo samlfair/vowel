@@ -7,7 +7,7 @@ import {
 } from "../plugins/html/editor/settings-file.js"
 
 const file = `---
-title: Style Builder
+name: Style Builder
 theme:
   name: Default
   colors:
@@ -24,7 +24,7 @@ test("settings file: frontmatter splits off from the body", () => {
   const { data, body, had } = splitFrontmatter(file)
 
   assert.equal(had, true)
-  assert.equal(data.title, "Style Builder")
+  assert.equal(data.name, "Style Builder")
   assert.deepEqual(data.theme.colors, ["#ff0000"])
   assert.equal(body, "# Hello\n\nBody text.\n")
 })
@@ -44,7 +44,7 @@ test("settings file: writing one key leaves every other key and the body alone",
 
   const reread = splitFrontmatter(written)
 
-  assert.equal(reread.data.title, "Style Builder")
+  assert.equal(reread.data.name, "Style Builder")
   assert.equal(reread.data.domain, "style.com")
   assert.equal(reread.data.theme.name, "Default")
   assert.deepEqual(reread.data.theme.colors, ["#ff0000"])

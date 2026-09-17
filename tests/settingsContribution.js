@@ -13,7 +13,7 @@ import { createConfig } from "../config.js"
  * its own filename), and its first paragraph became a description.
  */
 
-async function withSite(files, run) {
+async function withSite(files, run, overrides = {}) {
   const sourceFolder = await mkdtemp(path.join(tmpdir(), "vowel-settings-"))
   const systemFolder = await mkdtemp(path.join(tmpdir(), "vowel-settings-sys-"))
   const targetFolder = path.join(systemFolder, "output")
@@ -28,7 +28,8 @@ async function withSite(files, run) {
       targetFolder,
       databasePath: path.join(systemFolder, ".votive.db"),
       cacheDirectory: path.join(systemFolder, ".cache"),
-      logging: "silent"
+      logging: "silent",
+      ...overrides
     }))
     await (await site.build()).deferred
     await run({ site, targetFolder })
@@ -59,14 +60,42 @@ test("a settings.md with no title: does not name the site after itself", async (
   })
 })
 
-test("a declared title: in settings.md is the site title", async () => {
+test("a declared name: in settings.md is the site name: the header shows the root's, <title> appends every folder's, leaf first", async () => {
   await withSite({
-    "settings.md": "---\ntitle: Configured\n---\n",
+    "settings.md": "---\nname: Site\ntagline: Small things\n---\n",
     "home.md": "# Home\n",
+    "about.md": "# About\n",
+    "shop/settings.md": "---\nname: Shop\n---\n",
+    "shop/hats.md": "# Hats\n",
+    "shop/hats/red.md": "# Red\n"
+  }, async ({ site, targetFolder }) => {
+    assert.deepEqual(site.database.setting.getByFolder("").fm_name?.[0], ["Site"])
+    assert.equal(site.database.setting.getByFolder("").title, undefined)
+
+    const page = (file) => readFile(path.join(targetFolder, file), "utf-8")
+    assert.match(await page("index.html"), /<title>Site - Small things<\/title>/)
+    assert.match(await page("about.html"), /<title>About - Site<\/title>/)
+    assert.match(await page(path.join("shop", "hats.html")), /<title>Hats - Shop - Site<\/title>/)
+    assert.match(await page(path.join("shop", "hats", "red.html")), /<title>Red - Shop - Site<\/title>/)
+
+    // The header names the site everywhere, not the section.
+    for (const file of ["about.html", path.join("shop", "hats.html")]) {
+      assert.match(await page(file), /<a id=title href=\/ rel=home>Site<\/a>/)
+    }
+  })
+})
+
+test("title: in a settings.md is an old spelling: it sets nothing and is warned about", async () => {
+  const warnings = []
+  await withSite({
+    "settings.md": "---\ntitle: Old\n---\n",
+    "home.md": "# My Site\n",
     "about.md": "# About\n"
   }, async ({ site, targetFolder }) => {
-    assert.deepEqual(site.database.setting.getByFolder("").title?.[0], ["Configured"])
-    const about = await readFile(path.join(targetFolder, "about.html"), "utf-8")
-    assert.match(about, /<title>About - Configured<\/title>/)
-  })
+    assert.equal(site.database.setting.getByFolder("").title, undefined)
+    assert.deepEqual(site.database.setting.getByFolder("").fm_title?.[0], ["Old"], "still stored, read by nothing")
+    // The site name falls back to the homepage's title.
+    assert.match(await readFile(path.join(targetFolder, "about.html"), "utf-8"), /<title>About - My Site<\/title>/)
+  }, { log: (level, message) => warnings.push([level, message]) })
+  assert.ok(warnings.some(([level, message]) => level === "warn" && /title:.*name:/.test(message)), JSON.stringify(warnings))
 })

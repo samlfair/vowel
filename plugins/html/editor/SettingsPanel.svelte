@@ -47,7 +47,7 @@
 	// settings vowel actually consumes are here - `author` is in both demo
 	// settings.md files and is read by nothing, so it isn't offered.
 	const siteFields = [
-		{ key: 'title', label: 'Title', hint: 'The site name, shown in the header' },
+		{ key: 'name', label: 'Name', hint: 'The site name, shown in the header' },
 		{ key: 'tagline', label: 'Tagline', hint: 'Shown as the homepage hero' },
 		{ key: 'breadcrumb', label: 'Breadcrumb', hint: 'Label for the site root in navigation' },
 		{ key: 'domain', label: 'Domain', hint: 'Needed for the sitemap and feed' },

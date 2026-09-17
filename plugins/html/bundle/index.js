@@ -19961,8 +19961,8 @@ ${fallback_html}`;
 		// settings.md files and is read by nothing, so it isn't offered.
 		const siteFields = [
 			{
-				key: 'title',
-				label: 'Title',
+				key: 'name',
+				label: 'Name',
 				hint: 'The site name, shown in the header'
 			},
 

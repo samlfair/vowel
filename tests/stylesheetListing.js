@@ -26,7 +26,7 @@ test("a subfolder's styles.css links from its own pages only, after the theme sh
 
   try {
     await mkdir(path.join(sourceFolder, "blog"))
-    await writeFile(path.join(sourceFolder, "settings.md"), "---\ntitle: T\n---\n")
+    await writeFile(path.join(sourceFolder, "settings.md"), "---\nname: T\n---\n")
     await writeFile(path.join(sourceFolder, "about.md"), "# About\n\nProse.\n")
     await writeFile(path.join(sourceFolder, "styles.css"), "body { color: red }\n")
     await writeFile(path.join(sourceFolder, "blog", "post.md"), "# Post\n\nA post.\n")
