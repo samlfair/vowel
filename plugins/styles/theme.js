@@ -1,3 +1,4 @@
+import { hash } from "node:crypto"
 import { typographyCSS } from "../markdown/typography.js"
 
 /**
@@ -22,6 +23,32 @@ function resolveTheme(themeSetting) {
 }
 
 /**
+ * A short, stable identity for a theme configuration: its canonical
+ * JSON (keys sorted at every depth), hashed. Two settings.md files that
+ * spell the same theme get the same key, and the same generated sheets.
+ * @param {unknown} themeSetting
+ */
+function themeKey(themeSetting) {
+  const { config, name } = resolveTheme(themeSetting)
+  return hash("MD5", canonical({ ...config, name })).slice(0, 8)
+}
+
+/** @param {unknown} value */
+function canonical(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`
+  }
+  return JSON.stringify(value)
+}
+
+/** The generated sheets, the ones a theme's configuration decides. */
+const GENERATED = /^(colors|type)(-[0-9a-f]{8})?\.css$/
+
+/** The bundled sheets, part of the software rather than the project. */
+const BUNDLED_SHEETS = ["reset.css", "typography.css", "default.css", "syntax-highlighting.css"]
+
+/**
  * The theme's stylesheets, in cascade order.
  *
  * **The single source of truth for two questions that must agree**: which
@@ -33,24 +60,57 @@ function resolveTheme(themeSetting) {
  * step - a sheet that is declared is linked, and nothing links a sheet
  * that was never declared.
  *
+ * A theme is a folder setting, so a folder can have its own - and the
+ * generated sheets (`colors.css`, `type.css`) are what differ between
+ * two themes; the bundled ones are shared. The root's theme keeps the
+ * plain names; any other theme's generated sheets carry the theme's
+ * key (`colors-3f9a2c1d.css`), so folders sharing a theme share a file
+ * and nothing is written twice.
+ *
  * `type.css` is emitted only when the theme actually drives dynamic
  * typography, and it comes before `colors.css`/`default.css` because a
  * later `@layer` statement appends unseen layers to the end of the order.
- * @param {unknown} themeSetting
+ *
+ * Every built-in is named here, `default` included: an undefined theme
+ * *is* the default theme, and a folder with none declared inherits
+ * whatever its nearest ancestor declared - `reset` at the root means
+ * `reset` below it, not `default`.
+ * @param {unknown} themeSetting - this folder's resolved theme
+ * @param {unknown} [rootThemeSetting] - the root's; omitted means "this
+ *   is the root's". A rest parameter rather than a default, because an
+ *   undeclared root theme is a real `undefined` that must not collapse
+ *   into "same as this one".
  * @returns {string[]}
  */
-function themeStylesheets(themeSetting) {
+function themeStylesheets(themeSetting, ...root) {
+  const rootThemeSetting = root.length ? root[0] : themeSetting
   const { config, name, known } = resolveTheme(themeSetting)
   if (!known) return []
 
-  const sheets = ["reset.css"]
-  if (name === "reset") return sheets
+  const key = themeKey(themeSetting)
+  const suffix = key === themeKey(rootThemeSetting) ? "" : `-${key}`
+  const generated = (sheet) => `${sheet}${suffix}.css`
 
-  sheets.push("typography.css")
-  if (typographyCSS(config)) sheets.push("type.css")
-  if (name === "typography") return sheets
-
-  return [...sheets, "colors.css", "default.css"]
+  switch (name) {
+    case "reset":
+      return ["reset.css"]
+    case "typography":
+      return ["reset.css", "typography.css", ...(typographyCSS(config) ? [generated("type")] : [])]
+    case "default":
+      return ["reset.css", "typography.css", ...(typographyCSS(config) ? [generated("type")] : []), generated("colors"), "default.css"]
+    default:
+      return []
+  }
 }
 
-export { resolveTheme, themeStylesheets, BUILT_IN_THEMES }
+/**
+ * Whether a stylesheet path is vowel's - bundled, or generated from a
+ * theme - as opposed to the project's own. Every one of them is a stub
+ * with a source path like any other source, so this is the test that
+ * separates them.
+ */
+function isVowelStylesheet(sheetPath) {
+  return BUNDLED_SHEETS.includes(sheetPath) || GENERATED.test(sheetPath)
+}
+
+export { resolveTheme, themeStylesheets, themeKey, isVowelStylesheet, BUNDLED_SHEETS, BUILT_IN_THEMES }

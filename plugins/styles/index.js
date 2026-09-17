@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { styleText } from "node:util"
 import { transform } from "lightningcss"
 import { hash } from "node:crypto"
-import { resolveTheme, themeStylesheets } from "./theme.js"
+import { resolveTheme, themeStylesheets, themeKey } from "./theme.js"
 import { themeColorSchemeCSS } from "../markdown/colorScheme.js"
 import { typographyCSS } from "../markdown/typography.js"
 
@@ -38,17 +38,27 @@ const BUNDLED = {
  *
  * @type {Votive.ProcessorStubs}
  */
-function createStubs({ settings }) {
-  const themeSetting = settings.lastNonNull("theme")
-  const { config } = resolveTheme(themeSetting)
+function createStubs({ api, settings }) {
+  // Every theme any folder declares, plus the root's resolved one (which
+  // is the default when nothing declares it), one set of generated sheets
+  // each. The `settings` handed here is the root's view; settingValues
+  // is how the enumerator sees what subfolders declared.
+  const rootTheme = settings.lastNonNull("theme")
+  const declared = api.settingValues("theme")
+  const themes = [rootTheme, ...declared].filter((theme, index, all) => (
+    all.findIndex(other => themeKey(other) === themeKey(theme)) === index
+  ))
 
-  const sheets = themeStylesheets(themeSetting).map(sheet => {
-    // Generated sheets carry the part of the theme they are generated
-    // from, so they re-expand exactly when that part changes.
-    if (sheet === "colors.css") return { path: sheet, params: { colors: config.colors ?? null } }
-    if (sheet === "type.css") return { path: sheet, params: { theme: config } }
-    return { path: sheet }
-  })
+  const sheets = themes.flatMap(theme => {
+    const { config } = resolveTheme(theme)
+    return themeStylesheets(theme, rootTheme).map(sheet => {
+      // Generated sheets carry the part of the theme they are generated
+      // from, so they re-expand exactly when that part changes.
+      if (sheet.startsWith("colors")) return { path: sheet, params: { colors: config.colors ?? null } }
+      if (sheet.startsWith("type")) return { path: sheet, params: { theme: config } }
+      return { path: sheet }
+    })
+  }).filter((sheet, index, all) => all.findIndex(other => other.path === sheet.path) === index)
 
   // Always declared, unlike the rest: it was created from the html
   // writeFile the first time a page happened to contain a code block,
@@ -66,7 +76,7 @@ function expandStubs({ path: sourcePath, params }) {
     return { text: readFileSync(path.join(VOWEL_DIR, "stylesheets", bundled), "utf-8") }
   }
 
-  if (sourcePath === "colors.css") {
+  if (/^colors(-[0-9a-f]{8})?\.css$/.test(sourcePath)) {
     // Reports and falls back rather than throwing: a site with unusable
     // colours should lose its palette, not its build.
     return {
@@ -76,7 +86,7 @@ function expandStubs({ path: sourcePath, params }) {
     }
   }
 
-  if (sourcePath === "type.css") {
+  if (/^type(-[0-9a-f]{8})?\.css$/.test(sourcePath)) {
     return { text: typographyCSS(params?.theme)?.css ?? "" }
   }
 

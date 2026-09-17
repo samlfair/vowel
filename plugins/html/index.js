@@ -22,7 +22,7 @@ import toc from "@jsdevtools/rehype-toc"
 import slug from "rehype-slug"
 import createDynamicImage from "./image.js"
 import { listPages } from "./../../utils.js"
-import { themeStylesheets } from "../styles/theme.js"
+import { themeStylesheets, isVowelStylesheet } from "../styles/theme.js"
 import { displayPath } from "../../secretPaths.js"
 import { socialLinksNav } from "./socialLinks.js"
 import { writeWalk } from "./writeRules.js"
@@ -269,16 +269,22 @@ function writeFile(target, { settings, api, config }) {
   // needs. (Order among the two groups is cosmetic: every theme sheet
   // is in an @layer, and an unlayered project sheet wins over any layer
   // wherever it appears.)
+  // Vowel's own sheets sit at the root beside the project's, each with
+  // a source path (they are stubs), so they are excluded by name:
+  // another folder's colors-<key>.css, and syntax-highlighting.css,
+  // which is linked below only on pages with code - it used to be
+  // picked up here as a project sheet on every page.
   const projectSheets = [...ancestorFolders, targetAsDir].flatMap(folder => (
     api.targets({ folder, recursive: false })
-      .filter(sheet => sheet.source && path.extname(sheet.path) === ".css")
+      .filter(sheet => sheet.source && path.extname(sheet.path) === ".css" && !isVowelStylesheet(sheet.path))
       .map(sheet => sheet.path)
   ))
 
   // The theme's sheets come from the same function the styles processor
   // enumerates from, so a sheet that is linked is a sheet that exists.
-  // This used to read a `stylesheets` setting the folder pass wrote.
-  const themeSheets = themeStylesheets(settings.lastNonNull("theme"))
+  // This page's theme is its folder's (a theme cascades like any
+  // setting); the root's decides which theme gets the plain file names.
+  const themeSheets = themeStylesheets(settings.lastNonNull("theme"), settings.raw("theme")?.[0]?.at(-1))
 
   // A stub stylesheet has a source path like any other source, so the
   // `sheet.source` test alone no longer separates vowel's sheets from the
