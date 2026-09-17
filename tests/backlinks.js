@@ -6,6 +6,7 @@ import path from "node:path"
 import votive from "votive"
 import { createConfig } from "../config.js"
 import { normalizeLink, collectLinks } from "../plugins/markdown/links.js"
+import { readWalk } from "../plugins/markdown/readRules.js"
 import { fromMarkdown } from "mdast-util-from-markdown"
 
 async function withSite(files, run) {
@@ -56,8 +57,12 @@ test("normalizeLink: ./ becomes a source path, / a target url, everything else i
 
 test("collectLinks: markdown links, bare references and frontmatter links; not globs, externals or fragments", () => {
   const tree = fromMarkdown("See [a](./a.md) and [b](/blog/b) and [x](https://x.com) and [t](#top).\n\n/blog/**\n\n/blog/ref\n")
+  // The tree's links come from the read walk; collectLinks adds the frontmatter's.
+  const walked = { filePath: "index.md", tags: [], links: [] }
+  readWalk(tree, walked)
+  assert.deepEqual(walked.links, ["a.md", "/blog/b", "/blog/ref"])
   const metadata = { frontmatter_keys: ["related", "image", "tags"], fm_related: "./c.md", fm_image: "/pic.jpg", fm_tags: ["one"] }
-  assert.deepEqual(collectLinks(tree, metadata, "index.md"), ["a.md", "/blog/b", "/blog/ref", "c.md", "/pic.jpg"])
+  assert.deepEqual(collectLinks(walked.links, metadata, "index.md"), ["a.md", "/blog/b", "/blog/ref", "c.md", "/pic.jpg"])
 })
 
 test("a page lists the pages that explicitly link to it, and only those", async () => {

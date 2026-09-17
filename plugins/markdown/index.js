@@ -13,13 +13,13 @@ import { gfmTable } from 'micromark-extension-gfm-table'
 import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
 import { normalizeHeadingLevels } from './metadata.js'
 import { readFileSync } from "fs"
-import { testURL, testHashtags, createHashtagPage, toTitleCase, hashtagRegexSingle } from "./../../utils.js"
+import { createHashtagPage, toTitleCase } from "./../../utils.js"
 import { toHast } from 'mdast-util-to-hast'
 import { toString as hastToString } from 'hast-util-to-string'
-import { visit } from "unist-util-visit"
 import getMetadata, { reservedProperties } from "./metadata.js"
 import { isSecretPath } from "./../../secretPaths.js"
 import { collectLinks } from "./links.js"
+import { readWalk } from "./readRules.js"
 import { h } from "hastscript"
 
 import { styleText } from "node:util"
@@ -88,81 +88,12 @@ function readFile(source, { api, config }) {
   }
 
 
-  visit(mdast, (node, index, parent) => {
-    if (node.type === "text" && parent.children.length === 1 && parent.type === "paragraph") {
-      const validURL = testURL(node.value)
-
-      // A bare URL paragraph is a link preview; the urls plugin asks for
-      // it on the transform side and the html plugin renders it.
-      if (validURL) return
-
-      const hashtags = testHashtags(node.value)
-
-      // TODO: Tags should not appear in menus
-      // TODO: Make this work when tags are embedded in text
-
-      if (hashtags) {
-        function convertTagsToLinks(value) {
-          const match = value.match(hashtagRegexSingle)
-          if (match) {
-            const remainder = value.slice(match[0].length)
-            const child = {
-              type: "link",
-              url: `/tags/${match[3]}`,
-              children: [
-                {
-                  type: "text",
-                  value: match[0]
-                }
-              ]
-            }
-
-            return [
-              {
-                type: "text",
-                value: match[1]
-              },
-              child,
-              {
-                type: "text",
-                value: match[4]
-              },
-
-              ...convertTagsToLinks(remainder)
-            ]
-          }
-          return [
-            {
-              type: "text",
-              value: value
-            }
-          ]
-        }
-
-        parent.children = convertTagsToLinks(node.value)
-
-        // The tags index and the per-tag pages are stubs now (see `stubs`
-        // below). This hook's only remaining job for a hashtag is to
-        // record it on *this* page, which is what the enumerator then
-        // reads back through api.metadataValues("tags"). Every tagged page used
-        // to create every tag page it mentioned - the many-producers-per
-        // -target shape the whole design exists to remove.
-        if (hashtags) {
-          if (!metadata.tags) {
-            metadata.tags = []
-          } else if (!Array.isArray(metadata.tags)) {
-            metadata.tags = []
-          }
-
-          metadata.tags = []
-
-          hashtags.forEach(hashtag => {
-            metadata.tags.push(hashtag)
-          })
-        }
-      }
-    }
-  })
+  // One walk: hashtags become links and are recorded, and every explicit
+  // link is recorded for backlinks. See readRules.js. Frontmatter links
+  // are not in the tree; collectLinks adds them from metadata.
+  const walked = { filePath, tags: [], links: [] }
+  readWalk(mdast, walked)
+  if (walked.tags.length) metadata.tags = walked.tags
 
 
   // sitemap.xml and feed.xml are stubs on the xml processor now. They
@@ -199,7 +130,7 @@ function readFile(source, { api, config }) {
 
   // The pages this one links to, explicitly - what a backlinks section
   // on those pages is built from. See links.js for what counts.
-  metadata.links = collectLinks(mdast, metadata, filePath)
+  metadata.links = collectLinks(walked.links, metadata, filePath)
 
   const targetMetadata = { ...metadata, hastAbstract: hast }
 

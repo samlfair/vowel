@@ -90,3 +90,19 @@ test("inline markup: bold that is not a date is left alone", () => {
   assert.match(html, /<p><strong>Just bold\.<\/strong><\/p>/)
   assert.ok(!html.includes("<time"))
 })
+
+test("hashtags: recorded from every paragraph, linked in place with the hashtag class, embedded in prose, never in code", () => {
+  const { html, metadata } = render("# T\n\nFirst #one here.\n\n#two #three\n\n`not #four` and [#five](/x)\n\n```\n#six\n```\n")
+
+  assert.deepEqual(metadata.tags, ["one", "two", "three"])
+  assert.match(html, /First <a href="\/tags\/one" class="hashtag">#one<\/a> here\./)
+  assert.match(html, /<a href="\/tags\/two" class="hashtag">#two<\/a> <a href="\/tags\/three" class="hashtag">#three<\/a>/)
+  assert.match(html, /<code>not #four<\/code>/)
+  assert.match(html, /<a href="\/x">#five<\/a>/)
+  assert.match(html, /<code>#six\n<\/code>/)
+})
+
+test("hashtags: a page with none records no tags", () => {
+  const { metadata } = render("# T\n\nJust prose, and a url https://x.com/#top\n")
+  assert.equal(metadata.tags, undefined)
+})

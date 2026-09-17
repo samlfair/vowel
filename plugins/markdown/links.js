@@ -70,31 +70,21 @@ function normalizeLink(href, fromPath) {
 }
 
 /**
- * @param {object} mdast
+ * The tree's links come from the read walk (readRules.js); this adds the
+ * frontmatter's - any declared key whose value is a link - and keeps
+ * the list distinct, in order of first appearance.
+ * @param {string[]} fromTree - already normalized, from the walk
  * @param {object} metadata - after getMetadata, with frontmatter on it
- * @param {string} fromPath
- * @returns {string[]} distinct, in order of first appearance
+ * @param {string} fromPath - the linking page's source path
+ * @returns {string[]}
  */
-function collectLinks(mdast, metadata, fromPath) {
-  const found = []
+function collectLinks(fromTree, metadata, fromPath) {
+  const found = [...fromTree]
   const add = (href) => {
     const link = normalizeLink(href, fromPath)
     if (link && !found.includes(link)) found.push(link)
   }
 
-  const walk = (node) => {
-    if (!node || typeof node !== "object") return
-    if (node.type === "link") add(node.url)
-    // A bare reference paragraph: one text child that is a site path.
-    if (node.type === "paragraph" && node.children?.length === 1 && node.children[0].type === "text") {
-      const value = node.children[0].value.trim()
-      if (/^\/\S*$/.test(value)) add(value)
-    }
-    node.children?.forEach(walk)
-  }
-  walk(mdast)
-
-  // Frontmatter: any declared key whose value is a link.
   for (const key of metadata.frontmatter_keys || []) {
     const value = metadata[key] ?? metadata[`fm_${key}`]
     const values = Array.isArray(value) ? value : [value]
