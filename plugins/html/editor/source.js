@@ -10,7 +10,7 @@
  * was emitted as a target so the panel could GET it. Neither exists now.
  */
 
-const empty = { path: null, markdown: null, settings: { path: "settings.md", markdown: null } }
+const empty = { path: null, markdown: null, settings: { path: "settings.md", markdown: null }, editor: false }
 
 let current = null
 

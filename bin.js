@@ -263,7 +263,9 @@ async function main() {
   }
 
 
-  init(args)
+  // `--editor` is deliberately undocumented: the in-page editor is not
+  // part of 1.0. It reaches the html plugin as config.editor.
+  init({ ...args, editor: Boolean(args.editor) })
 }
 
 

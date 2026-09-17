@@ -5,6 +5,7 @@ import SettingsPanel from "./SettingsPanel.svelte"
 import createSession from "./create-session.js"
 import readFrontmatter from "./frontmatter.js"
 import openSocket from "./socket.js"
+import { getSource } from "./source.js"
 
 openSocket()
 
@@ -82,7 +83,10 @@ function toggleSettings() {
   })
 }
 
-if (content) {
+// Gated: the editor is not part of 1.0, and mounts only when the dev
+// server was started with `vowel --editor`. The socket above is the
+// live-reload client and runs regardless.
+if (content && getSource().editor) {
   mount(EditButton, {
     target: document.body,
     props: { onedit: startEditing, onsettings: toggleSettings }

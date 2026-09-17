@@ -19474,7 +19474,7 @@ ${fallback_html}`;
 
 	delegate(['mousedown', 'click']);
 
-	const empty = { path: null, markdown: null, settings: { path: "settings.md", markdown: null } };
+	const empty = { path: null, markdown: null, settings: { path: "settings.md", markdown: null }, editor: false };
 	let current = null;
 	function seed() {
 	  if (current) return current
@@ -21554,7 +21554,7 @@ ${fallback_html}`;
 	    props: { onclose: closeSettings }
 	  });
 	}
-	if (content) {
+	if (content && getSource().editor) {
 	  mount(EditButton, {
 	    target: document.body,
 	    props: { onedit: startEditing, onsettings: toggleSettings }

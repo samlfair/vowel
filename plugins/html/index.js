@@ -809,20 +809,25 @@ function makeTable(classes, properties, targets, api) {
  * `settings` is the folder's view; the root slot of `markdown` is the
  * root settings.md, or null when the project has none yet.
  */
-function previewSource(target, settings) {
+function previewSource(target, settings, config) {
   const rootSettings = settings?.raw?.("markdown")?.[0]
   return {
     path: target?.source ?? null,
     markdown: target?.metadata?.markdown ?? null,
-    settings: { path: "settings.md", markdown: rootSettings?.at(-1) ?? null }
+    settings: { path: "settings.md", markdown: rootSettings?.at(-1) ?? null },
+    // The in-page editor is not part of 1.0: it mounts only when the
+    // dev server was started with `vowel --editor` (config.editor).
+    // The client bundle is injected regardless, because it is also
+    // the live-reload client.
+    editor: config?.editor === true
   }
 }
 
-function handlePreviewRequest(body, { target, settings } = {}) {
+function handlePreviewRequest(body, { target, settings, config } = {}) {
   const html = body.toString("utf-8")
   const fileSplit = html.split("</body>")
   // "<" escaped so a "</script>" inside the markdown cannot end the tag.
-  const source = JSON.stringify(previewSource(target, settings)).replaceAll("<", "\\u003c")
+  const source = JSON.stringify(previewSource(target, settings, config)).replaceAll("<", "\\u003c")
   fileSplit.splice(1, 0, `<script type="application/json" id="vowel-source">${source}</script><script type="module">${editorClientScript}</script>`)
   return fileSplit.join("")
 }

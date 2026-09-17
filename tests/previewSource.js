@@ -7,7 +7,7 @@ import { startServer } from "votive"
 import { createConfig } from "../config.js"
 import { hashSegmentInput } from "../secretPaths.js"
 
-async function withPreview(files, run) {
+async function withPreview(files, run, overrides = {}) {
   const sourceFolder = await mkdtemp(path.join(tmpdir(), "vowel-preview-"))
   const systemFolder = await mkdtemp(path.join(tmpdir(), "vowel-preview-sys-"))
   let server
@@ -20,7 +20,8 @@ async function withPreview(files, run) {
     const targetFolder = path.join(systemFolder, "output")
     server = await startServer(createConfig(sourceFolder, {
       targetFolder, databasePath: path.join(systemFolder, ".votive.db"),
-      cacheDirectory: path.join(systemFolder, ".cache"), logging: "silent", port: 0
+      cacheDirectory: path.join(systemFolder, ".cache"), logging: "silent", port: 0,
+      ...overrides
     }))
     const base = `http://127.0.0.1:${server.port}`
     const source = async (page) => {
@@ -76,4 +77,13 @@ test("a project with no settings.md previews an empty one, so the panel can crea
     const home = await source("/")
     assert.deepEqual(home.settings, { path: "settings.md", markdown: null })
   })
+})
+
+test("the editor is gated: a preview says editor: false unless the server was started with the flag", async () => {
+  await withPreview({ "home.md": "# Home\n" }, async ({ source }) => {
+    assert.equal((await source("/")).editor, false)
+  })
+  await withPreview({ "home.md": "# Home\n" }, async ({ source }) => {
+    assert.equal((await source("/")).editor, true)
+  }, { editor: true })
 })
