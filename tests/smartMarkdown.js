@@ -99,3 +99,16 @@ test("shortcodes: an emoji becomes the character, an icon becomes an image from 
     assert.match(html, /Hello 🎉 and <img class=icon data-icon=fa\/surfer alt=surfer src=\/fa\/surfer.svg style='--icon-url: url\(&#34\/fa\/surfer.svg&#34\)'> but :womp-womp: and :fa\/missing: stay, <code>:tada:<\/code> too\./)
   })
 })
+
+test("the table of contents carries no generated class names", async () => {
+  await withSite({
+    "home.md": "# Home\n",
+    "post.md": "# Post\n\n## One\n\n### Deeper\n\n## Two\n"
+  }, async ({ page }) => {
+    const html = await page("post.html")
+    const contents = html.match(/<nav aria-label=Contents>([\s\S]*?)<\/nav>/)?.[1]
+    assert.ok(contents, "a contents nav")
+    assert.ok(!/class=/.test(contents), `no classes in the contents: ${contents}`)
+    assert.match(contents, /<ol><li><a href=#one>One<\/a><ol><li><a href=#deeper>Deeper<\/a><\/ol><li><a href=#two>Two<\/a><\/ol>/)
+  })
+})

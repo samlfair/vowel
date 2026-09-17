@@ -562,6 +562,10 @@ function writeFile(target, { settings, api, config }) {
   const slugger = unified()
     .use(slug)
     .use(toc, {
+      // No class per level, item and link: the nesting is the <ol>
+      // structure, and `nav[aria-label=Contents]` is the hook. An empty
+      // string is how rehype-toc turns each one off.
+      cssClasses: { toc: "", list: "", listItem: "", link: "" },
       customizeTOC: (toc) => {
         toc.properties = {
           "aria-label": "Contents"
