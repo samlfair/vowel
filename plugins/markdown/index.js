@@ -13,7 +13,7 @@ import { gfmTable } from 'micromark-extension-gfm-table'
 import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
 import { normalizeHeadingLevels } from './metadata.js'
 import { readFileSync } from "fs"
-import { createHashtagPage, toTitleCase } from "./../../utils.js"
+import { createHashtagPage, toTitleCase, listPages } from "./../../utils.js"
 import { toHast } from 'mdast-util-to-hast'
 import { toString as hastToString } from 'hast-util-to-string'
 import getMetadata, { reservedProperties } from "./metadata.js"
@@ -246,6 +246,9 @@ function createStubs({ api }) {
     ...(homeIsOurs ? [{ path: "home.md" }] : []),
     { path: "404.md" },
 
+    // A section index per folder with a listed page (see folderIndexes).
+    ...folderIndexes(api),
+
     // The tags index exists only while some page is tagged. A site with
     // no hashtags has no Tags page, and deleting the last hashtag takes
     // the page and its file with it.
@@ -254,6 +257,46 @@ function createStubs({ api }) {
     // One page per tag. `params` is what expand needs and nothing more.
     ...tags.map(tag => ({ path: path.join("tags", `${tag}.md`), params: { tag } }))
   ]
+}
+
+/**
+ * One `<folder>/index.md` per folder that has a listed page, at any
+ * depth - the section index the folder pass used to create as an
+ * alias page. It routes to `<folder>.html` like `<folder>/home.md`
+ * does, so `/blog` is a page, and the breadcrumb and nav (which look
+ * up `<folder>.html`) find it with no change.
+ *
+ * Derived from the targets, since there is no api.folders(): a folder
+ * counts when a page *listPages would show* lives in it or below it.
+ * An empty folder, an asset-only folder and a secret folder (every page
+ * hidden) get no index, and a folder whose last page goes loses its
+ * index on that pass - the stub is simply no longer declared.
+ *
+ * The stub stands down when `<folder>.html` already has another source:
+ * an author's `<folder>/home.md`, or the `tags.md` stub. An author's
+ * own `<folder>/index.md` shadows it by path, votive's ordinary rule.
+ * Checking `source` rather than mere existence is what stops it
+ * oscillating, as with home.md above.
+ * @param {any} api - the enumerator's untracked api
+ */
+function folderIndexes(api) {
+  const pages = listPages(api, { folder: "", recursive: true })
+    .filter(page => page.source && page.dir)
+
+  const folders = new Set()
+  for (const page of pages) {
+    const segments = page.dir.split(path.sep)
+    for (let depth = 1; depth <= segments.length; depth++) {
+      folders.add(segments.slice(0, depth).join(path.sep))
+    }
+  }
+
+  return [...folders].sort().flatMap(folder => {
+    const stubPath = path.join(folder, "index.md")
+    const indexTarget = api.target(`${folder}.html`)
+    const ours = !indexTarget || indexTarget.source === stubPath
+    return ours ? [{ path: stubPath, params: { folder } }] : []
+  })
 }
 
 /**
@@ -286,6 +329,15 @@ function expandStubs({ path: sourcePath, params }) {
     return { text: createHashtagPage(params.tag) }
   }
 
+  if (params?.folder !== undefined) {
+    // The folder's name as its title, and a listing of the folder - not
+    // recursive: a nested section has an index of its own, and that
+    // index is what appears here.
+    const name = params.folder.split(path.sep).at(-1)
+    const url = "/" + params.folder.split(path.sep).join("/")
+    return { text: `# ${toTitleCase(name)}\n\n${url}/*` }
+  }
+
   return null
 }
 
@@ -298,7 +350,11 @@ function router(args) {
   switch (name) {
     case "settings":
       return false
+    // `home.md` and `index.md` are two spellings of one thing: the
+    // section index. At the root both land on index.html; in a folder
+    // both land on `<folder>.html`.
     case "home":
+    case "index":
       if (inRootDir) {
         return {
           dir,

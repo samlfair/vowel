@@ -125,6 +125,12 @@ function recognizeData(block, metadata) {
 
   const text = mdastToString(block)
 
+  // A reference or a listing directive (`/blog/post`, `/blog/**`) is an
+  // instruction to the html plugin, not prose - it must not become the
+  // page's description, which is what a section index's own listing
+  // line was doing.
+  if (child.type === "text" && /^\/\S*$/.test(text.trim())) return true
+
   if (testURL(text)) {
     const url = new URL(text)
     if (text.match(/\.(jpeg|jpg|png)$/)) {
