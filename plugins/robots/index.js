@@ -8,18 +8,25 @@ import generateRobots from "./robots.js"
  * override rule. It used to be created from the markdown plugin's
  * readFolder, which is why generateRobots lived over there.
  *
- * No params: the content is a constant, so it is expanded once and never
- * re-expanded on a warm database. See
- * tasks/1-proposed/post-stubs-vowel-followups.md section 3 for the
- * version-stamp question that raises, which is parked.
+ * Configured from the root settings.md's `robots` setting (see
+ * agents.js for the groups), and it names the sitemap when `domain` is
+ * set. Both ride in the stub's params, so a change to either re-expands
+ * the file and nothing else does. The default list still has no
+ * version stamp: see tasks/1-proposed/wipe-cache-on-upgrade.md.
  *
  * @type {Votive.VotiveProcessor}
  */
 const processor = {
   extensions: [".txt"],
   format: "text",
-  createStubs: () => [{ path: "robots.txt" }],
-  expandStubs: () => ({ text: generateRobots() }),
+  createStubs: ({ settings }) => [{
+    path: "robots.txt",
+    params: {
+      robots: settings.lastNonNull("fm_robots") ?? null,
+      domain: settings.lastNonNull("fm_domain") ?? null
+    }
+  }],
+  expandStubs: ({ params }) => ({ text: generateRobots(params.robots ?? {}, params.domain ?? undefined) }),
   // A .txt source carries no metadata worth inferring; its text is the
   // target's content and the write pass hands it straight back.
   readFile: (source) => ({ data: source.text, metadata: {} }),
