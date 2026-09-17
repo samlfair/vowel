@@ -15,6 +15,20 @@ import vowelURLsPlugin from "./plugins/urls/index.js"
 
 /** @import {VotiveConfig} from "votive" */
 
+/**
+ * Vowel's routing cascade: secret segments hashed, then the whole path
+ * lowercased. Votive stores a routed path verbatim, and only the
+ * markdown router lowercases its own output - images, fonts, styles and
+ * vectors pass their names through - so this is the one place that
+ * makes every vowel url lowercase. After the hash, not before: the
+ * hash input is the path as the author typed it (secretPaths.js pins
+ * the values), and a hex digest is lowercase already.
+ * @param {string} sourcePath
+ */
+function vowelRouter(sourcePath) {
+  return secretRouter(sourcePath).toLowerCase()
+}
+
 const defaultPlugins = [
   vowelReadMarkdownPlugin,
   vowelImagesPlugin,
@@ -69,7 +83,7 @@ function createConfig(sourceFolder = ".", overrides = {}) {
     // Applied before every processor's own router, so a secret folder
     // hides its images and fonts too - not just its pages. See
     // secretPaths.js for why this cannot live in a processor.
-    router: secretRouter,
+    router: vowelRouter,
     // Fetched link previews live in the project, one YAML file per host,
     // so they survive a cache wipe, travel with the project, and reach
     // coworkers through the repo. Visible rather than votive's hidden

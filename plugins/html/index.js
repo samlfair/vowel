@@ -696,7 +696,8 @@ function writeFile(target, { settings, api, config }) {
         const targetFilePathInfo = path.parse(child.value)
         targetFilePathInfo.ext ||= ".html"
         delete targetFilePathInfo.base
-        const targetFilePath = path.relative("/", path.format(targetFilePathInfo))
+        // Lowercased: every vowel target path is (config.js's router).
+        const targetFilePath = path.relative("/", path.format(targetFilePathInfo)).toLowerCase()
         const target = api.target(targetFilePath)
 
         if (target) {

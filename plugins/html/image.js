@@ -54,7 +54,9 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
 
   if (!isImg) return
 
-  const relativePath = imagePath.startsWith("/") ? path.relative("/", imagePath) : imagePath
+  // Lowercased: every vowel target path is (config.js's router), and
+  // the author may well have typed the file's real name.
+  const relativePath = (imagePath.startsWith("/") ? path.relative("/", imagePath) : imagePath).toLowerCase()
   const image = api.target(relativePath)
   if (!image) return
   const formats = createImagePaths(image.source, "./", image.metadata.uuid)
