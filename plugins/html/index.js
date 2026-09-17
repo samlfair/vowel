@@ -27,6 +27,7 @@ import { globClasses } from "./editor/directives.js"
 import { listPages } from "./../../utils.js"
 import { themeStylesheets } from "../styles/theme.js"
 import { displayPath } from "../../secretPaths.js"
+import { socialLinksNav } from "./socialLinks.js"
 
 /** @import * as Votive from "votive" */
 /** @import * as Vowel from "./../../index.js" */
@@ -634,9 +635,13 @@ function writeFile(target, { settings, api, config }) {
     headerElements.push(h('p#tagline', tagline))
   }
 
+  // Same list in the header and the footer; a theme shows whichever it
+  // wants. Built twice rather than shared: a hast node in two parents
+  // would be visited twice by every rehype pass below.
   const treeHeader = h('header', [
     ...headerElements,
-    treeNav
+    treeNav,
+    socialLinksNav(settings)
   ])
 
 
@@ -947,6 +952,7 @@ function writeFile(target, { settings, api, config }) {
   const treeAside = h('aside', treeGlobalNav)
 
   const treeFooter = h('footer', [
+    socialLinksNav(settings),
     h('section#copyright', `© ${new Date().getFullYear()}`),
     h('section#shoutout', [
       "Made with ",
