@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { typographyCSS, typographyVariables, rampSettings, fontSettings } from "../plugins/markdown/typography.js"
+import { typographyCSS, typographyVariables, rampSettings } from "../plugins/markdown/typography.js"
 import { readFileSync } from "node:fs"
 
 /**
@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs"
 const sheet = readFileSync(new URL("../stylesheets/TypographyStyles.css", import.meta.url), "utf-8")
 
 test("typography: every setting maps to a variable the sheet actually declares", () => {
-  for (const { variable } of [...rampSettings, ...fontSettings]) {
+  for (const { variable } of rampSettings) {
     assert.ok(sheet.includes(`${variable}:`), `${variable} is declared in TypographyStyles.css`)
   }
 })
@@ -41,12 +41,8 @@ test("typography: values are clamped to their range and trailing zeroes dropped"
   assert.equal(pairs["--font-size-decay"], "2.5")
 })
 
-test("typography: a font name is quoted; a stack or an already-quoted name is left alone", () => {
-  const pairs = Object.fromEntries(typographyVariables({ font: "Mona Sans", "serif-font": "Georgia, serif", "monospace-font": "'Fira Code'" }))
-  assert.equal(pairs["--font-sans-brand"], '"Mona Sans"')
-  assert.equal(pairs["--font-serif-brand"], "Georgia, serif")
-  assert.equal(pairs["--font-monospace-brand"], "'Fira Code'")
-  assert.equal(typographyVariables({ font: "   " }).length, 0)
+test("typography: a font is CSS, not a setting", () => {
+  assert.deepEqual(typographyVariables({ font: "Georgia", "serif-font": "x", "monospace-font": "y" }), [])
 })
 
 test("typography: a non-numeric ramp value is ignored rather than emitted", () => {

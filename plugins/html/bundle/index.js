@@ -18819,7 +18819,7 @@ ${fallback_html}`;
 	var root_5$1 = from_html(`<button title="Highlight">H</button>`);
 	var root_6$1 = from_html(`<button title="Strikethrough">S</button>`);
 	var root_7$1 = from_html(`<!> <!> <!> <!> <!>`, 1);
-	var root_8$1 = from_html(`<button title="Insert (↵)" class="svelte-zh32e5"><svg class="toolbar-icon svelte-zh32e5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M7.5 3V12M3 7.5H12" stroke="currentColor" stroke-linecap="square"></path></svg></button>`);
+	var root_8 = from_html(`<button title="Insert (↵)" class="svelte-zh32e5"><svg class="toolbar-icon svelte-zh32e5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M7.5 3V12M3 7.5H12" stroke="currentColor" stroke-linecap="square"></path></svg></button>`);
 	var root_9 = from_html(`<button title="Delete backwards (⌫)" class="svelte-zh32e5">&#9003;</button>`);
 	var root_10 = from_html(`<button title="Undo" class="svelte-zh32e5">&#8630;</button> <button title="Redo" class="svelte-zh32e5">&#8631;</button>`, 1);
 	var root_11 = from_html(`<!> <!>`, 1);
@@ -19024,7 +19024,7 @@ ${fallback_html}`;
 		};
 
 		const insert_button = ($$anchor) => {
-			var button_6 = root_8$1();
+			var button_6 = root_8();
 
 			template_effect(() => button_6.disabled = !get$1(can_insert_default));
 			delegated('mousedown', button_6, insert_default_node);
@@ -19693,11 +19693,6 @@ ${fallback_html}`;
 	  { key: "h6-weight", variable: "--font-weight-h6", label: "h6 weight", unit: "", min: 100, max: 900, step: 10, default: 600 },
 	  { key: "weight-decay", variable: "--font-weight-decay", label: "Weight decay", unit: "", min: 0.5, max: 6, step: 0.1, default: 2 }
 	];
-	const fontSettings = [
-	  { key: "font", variable: "--font-sans-brand", label: "Font", hint: "Body and headings; a family the browser has or the site ships" },
-	  { key: "serif-font", variable: "--font-serif-brand", label: "Serif font", hint: "Where the theme uses a serif" },
-	  { key: "monospace-font", variable: "--font-monospace-brand", label: "Monospace font", hint: "Code" }
-	];
 	function themeSettings(theme) {
 	  return theme && typeof theme === "object" && !Array.isArray(theme) ?  (theme) : {}
 	}
@@ -19706,10 +19701,6 @@ ${fallback_html}`;
 	  const number = String(Number(clamped.toFixed(4)));
 	  if (setting.unit === "x") return `calc(${number} * var(--font-size-root))`
 	  return `${number}${setting.unit}`
-	}
-	function fontValue(name) {
-	  const trimmed = name.trim();
-	  return /[,"']/.test(trimmed) ? trimmed : `"${trimmed}"`
 	}
 	function typographyVariables(theme) {
 	  const settings = themeSettings(theme);
@@ -19720,11 +19711,6 @@ ${fallback_html}`;
 	    if (raw === undefined || raw === null || raw === "" || !Number.isFinite(value)) continue
 	    pairs.push([setting.variable, rampValue(setting, value)]);
 	  }
-	  for (const setting of fontSettings) {
-	    const raw = settings[setting.key];
-	    if (typeof raw !== "string" || !raw.trim()) continue
-	    pairs.push([setting.variable, fontValue(raw)]);
-	  }
 	  return pairs
 	}
 
@@ -19733,11 +19719,10 @@ ${fallback_html}`;
 	var root_1$1 = from_html(`<p class="note svelte-14cc0vj">Reading settings.md…</p>`);
 	var root_2 = from_html(`<label class="field svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="text" class="svelte-14cc0vj"/></label>`);
 	var root_3 = from_html(`<label class="field color svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="color" class="svelte-14cc0vj"/> <input type="text" class="hex svelte-14cc0vj" spellcheck="false"/></label>`);
-	var root_4 = from_html(`<label class="field svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="text" placeholder="System" spellcheck="false" class="svelte-14cc0vj"/></label>`);
-	var root_5 = from_html(`<label class="slider svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="range" class="svelte-14cc0vj"/> <output class="svelte-14cc0vj"> </output></label>`);
-	var root_6 = from_html(`<section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Site</h3> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Colors</h3> <p class="note svelte-14cc0vj">Two seeds; every shade on the site is generated from them.</p> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Typography</h3> <p class="note svelte-14cc0vj">Previews as you type and drag. Colours apply on save.</p> <!> <!></section>`, 1);
-	var root_7 = from_html(`<p class="error svelte-14cc0vj"> </p>`);
-	var root_8 = from_html(`<aside class="settings-drawer svelte-14cc0vj" aria-label="Site settings" data-vowel-client=""><header class="svelte-14cc0vj"><h2 class="svelte-14cc0vj">Settings</h2> <button class="close svelte-14cc0vj" title="Close settings">&#10005;</button></header> <!> <!> <footer class="svelte-14cc0vj"><button class="save svelte-14cc0vj"> </button></footer></aside>`);
+	var root_4 = from_html(`<label class="slider svelte-14cc0vj"><span class="svelte-14cc0vj"> </span> <input type="range" class="svelte-14cc0vj"/> <output class="svelte-14cc0vj"> </output></label>`);
+	var root_5 = from_html(`<section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Site</h3> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Colors</h3> <p class="note svelte-14cc0vj">Two seeds; every shade on the site is generated from them.</p> <!></section> <section class="svelte-14cc0vj"><h3 class="svelte-14cc0vj">Typography</h3> <p class="note svelte-14cc0vj">Previews as you drag. Colours apply on save. A font family is set in your own stylesheet.</p> <!></section>`, 1);
+	var root_6 = from_html(`<p class="error svelte-14cc0vj"> </p>`);
+	var root_7 = from_html(`<aside class="settings-drawer svelte-14cc0vj" aria-label="Site settings" data-vowel-client=""><header class="svelte-14cc0vj"><h2 class="svelte-14cc0vj">Settings</h2> <button class="close svelte-14cc0vj" title="Close settings">&#10005;</button></header> <!> <!> <footer class="svelte-14cc0vj"><button class="save svelte-14cc0vj"> </button></footer></aside>`);
 
 	const $$css$1 = {
 		hash: 'svelte-14cc0vj',
@@ -19828,7 +19813,7 @@ ${fallback_html}`;
 			const root = document.documentElement;
 			const set = new Set(get$1(preview).map(([name]) => name));
 
-			for (const { variable } of [...rampSettings, ...fontSettings]) {
+			for (const { variable } of rampSettings) {
 				if (!set.has(variable)) root.style.removeProperty(variable);
 			}
 
@@ -19885,7 +19870,7 @@ ${fallback_html}`;
 			}
 		}
 
-		var aside = root_8();
+		var aside = root_7();
 		var header = child(aside);
 		var button = sibling(child(header), 2);
 
@@ -19899,7 +19884,7 @@ ${fallback_html}`;
 			};
 
 			var alternate = ($$anchor) => {
-				var fragment = root_6();
+				var fragment = root_5();
 				var section = first_child(fragment);
 				var node_1 = sibling(child(section), 2);
 
@@ -19945,46 +19930,28 @@ ${fallback_html}`;
 				var section_2 = sibling(section_1, 2);
 				var node_3 = sibling(child(section_2), 4);
 
-				each(node_3, 17, () => fontSettings, (setting) => setting.key, ($$anchor, setting) => {
+				each(node_3, 17, () => rampSettings, (setting) => setting.key, ($$anchor, setting) => {
+					const current = user_derived(() => Number(get$1(theme)[get$1(setting).key] ?? get$1(setting).default));
 					var label_3 = root_4();
 					var span_2 = child(label_3);
 					var text_2 = only_child(span_2, true);
 					var input_3 = sibling(span_2, 2);
 
+					var output = sibling(input_3, 2);
+					var text_3 = only_child(output);
+
 					template_effect(() => {
+						set_attribute(label_3, 'title', get$1(setting).hint);
 						set_text(text_2, get$1(setting).label);
-						set_value(input_3, get$1(theme)[get$1(setting).key] ?? '');
-						set_attribute(input_3, 'title', get$1(setting).hint);
+						set_attribute(input_3, 'min', get$1(setting).min);
+						set_attribute(input_3, 'max', get$1(setting).max);
+						set_attribute(input_3, 'step', get$1(setting).step);
+						set_value(input_3, get$1(current));
+						set_text(text_3, `${get$1(current) ?? ''}${get$1(setting).unit ?? ''}`);
 					});
 
-					delegated('input', input_3, (event) => setTheme(get$1(setting).key, event.currentTarget.value || undefined));
+					delegated('input', input_3, (event) => setTheme(get$1(setting).key, Number(event.currentTarget.value)));
 					append($$anchor, label_3);
-				});
-
-				var node_4 = sibling(node_3, 2);
-
-				each(node_4, 17, () => rampSettings, (setting) => setting.key, ($$anchor, setting) => {
-					const current = user_derived(() => Number(get$1(theme)[get$1(setting).key] ?? get$1(setting).default));
-					var label_4 = root_5();
-					var span_3 = child(label_4);
-					var text_3 = only_child(span_3, true);
-					var input_4 = sibling(span_3, 2);
-
-					var output = sibling(input_4, 2);
-					var text_4 = only_child(output);
-
-					template_effect(() => {
-						set_attribute(label_4, 'title', get$1(setting).hint);
-						set_text(text_3, get$1(setting).label);
-						set_attribute(input_4, 'min', get$1(setting).min);
-						set_attribute(input_4, 'max', get$1(setting).max);
-						set_attribute(input_4, 'step', get$1(setting).step);
-						set_value(input_4, get$1(current));
-						set_text(text_4, `${get$1(current) ?? ''}${get$1(setting).unit ?? ''}`);
-					});
-
-					delegated('input', input_4, (event) => setTheme(get$1(setting).key, Number(event.currentTarget.value)));
-					append($$anchor, label_4);
 				});
 				append($$anchor, fragment);
 			};
@@ -19994,29 +19961,29 @@ ${fallback_html}`;
 			});
 		}
 
-		var node_5 = sibling(node, 2);
+		var node_4 = sibling(node, 2);
 
 		{
 			var consequent_1 = ($$anchor) => {
-				var p_1 = root_7();
-				var text_5 = only_child(p_1, true);
+				var p_1 = root_6();
+				var text_4 = only_child(p_1, true);
 
-				template_effect(() => set_text(text_5, get$1(error)));
+				template_effect(() => set_text(text_4, get$1(error)));
 				append($$anchor, p_1);
 			};
 
-			if_block(node_5, ($$render) => {
+			if_block(node_4, ($$render) => {
 				if (get$1(error)) $$render(consequent_1);
 			});
 		}
 
-		var footer = sibling(node_5, 2);
+		var footer = sibling(node_4, 2);
 		var button_1 = child(footer);
-		var text_6 = only_child(button_1, true);
+		var text_5 = only_child(button_1, true);
 
 		template_effect(() => {
 			button_1.disabled = get$1(saving) || get$1(loading);
-			set_text(text_6, get$1(saving) ? 'Saving…' : 'Save');
+			set_text(text_5, get$1(saving) ? 'Saving…' : 'Save');
 		});
 
 		delegated('click', button, function (...$$args) {

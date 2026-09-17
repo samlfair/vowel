@@ -8,11 +8,11 @@
 // settings panel imports the same table to write the same variables on
 // the document for live preview, so preview and build cannot disagree.
 //
-// No bundled fonts. `font`, `serif-font` and `monospace-font` name a
-// family; the sheet's stacks put a system fallback after it, and an
-// author who wants a web font ships it in the project with an
-// @font-face in their own stylesheet (fonts by url is
-// tasks/2-in-progress/load-fonts.md). Free of node builtins.
+// No bundled fonts, and no font setting: a family is CSS - the author
+// sets `--font-sans-brand` (and the @font-face behind it) in their own
+// stylesheet, where the sheet's stacks put a system fallback after it.
+// Fonts by url is tasks/2-in-progress/load-fonts.md. Free of node
+// builtins.
 
 /**
  * @typedef {object} TypographySetting
@@ -39,13 +39,6 @@ export const rampSettings = [
   { key: "weight-decay", variable: "--font-weight-decay", label: "Weight decay", unit: "", min: 0.5, max: 6, step: 0.1, default: 2 }
 ]
 
-/** @type {{key: string, variable: string, label: string, hint: string}[]} */
-export const fontSettings = [
-  { key: "font", variable: "--font-sans-brand", label: "Font", hint: "Body and headings; a family the browser has or the site ships" },
-  { key: "serif-font", variable: "--font-serif-brand", label: "Serif font", hint: "Where the theme uses a serif" },
-  { key: "monospace-font", variable: "--font-monospace-brand", label: "Monospace font", hint: "Code" }
-]
-
 /**
  * The `theme` mapping, or {} for a bare theme name.
  * @param {unknown} theme
@@ -69,16 +62,6 @@ function rampValue(setting, value) {
 }
 
 /**
- * A family name as a font-family value: quoted, unless the author wrote
- * a stack or quoted it themselves.
- * @param {string} name
- */
-function fontValue(name) {
-  const trimmed = name.trim()
-  return /[,"']/.test(trimmed) ? trimmed : `"${trimmed}"`
-}
-
-/**
  * Every variable the theme sets, as [name, value] pairs - only the keys
  * the author wrote, so the sheet's defaults stand for the rest. What
  * the build emits and what the panel writes to the document.
@@ -94,12 +77,6 @@ export function typographyVariables(theme) {
     const value = typeof raw === "number" ? raw : Number(raw)
     if (raw === undefined || raw === null || raw === "" || !Number.isFinite(value)) continue
     pairs.push([setting.variable, rampValue(setting, value)])
-  }
-
-  for (const setting of fontSettings) {
-    const raw = settings[setting.key]
-    if (typeof raw !== "string" || !raw.trim()) continue
-    pairs.push([setting.variable, fontValue(raw)])
   }
 
   return pairs

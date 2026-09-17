@@ -10,7 +10,7 @@
 	// fields from `siteFields` below, the typography controls from the
 	// same table the build emits type.css from (typography.js), so the
 	// variables the panel writes for preview are the ones the sheet reads.
-	import { rampSettings, fontSettings, typographyVariables } from '../../markdown/typography.js';
+	import { rampSettings, typographyVariables } from '../../markdown/typography.js';
 	import { fallbackColors } from '../../markdown/brandColors.js';
 	import { readSettings, joinFrontmatter, themeObject, writeSettings } from './settings-file.js';
 
@@ -55,7 +55,7 @@
 	$effect(() => {
 		const root = document.documentElement;
 		const set = new Set(preview.map(([name]) => name));
-		for (const { variable } of [...rampSettings, ...fontSettings]) {
+		for (const { variable } of rampSettings) {
 			if (!set.has(variable)) root.style.removeProperty(variable);
 		}
 		for (const [name, value] of preview) root.style.setProperty(name, value);
@@ -158,21 +158,7 @@
 
 		<section>
 			<h3>Typography</h3>
-			<p class="note">Previews as you type and drag. Colours apply on save.</p>
-
-			{#each fontSettings as setting (setting.key)}
-				<label class="field">
-					<span>{setting.label}</span>
-					<input
-						type="text"
-						value={theme[setting.key] ?? ''}
-						placeholder="System"
-						title={setting.hint}
-						spellcheck="false"
-						oninput={(event) => setTheme(setting.key, event.currentTarget.value || undefined)}
-					/>
-				</label>
-			{/each}
+			<p class="note">Previews as you drag. Colours apply on save. A font family is set in your own stylesheet.</p>
 
 			{#each rampSettings as setting (setting.key)}
 				{@const current = Number(theme[setting.key] ?? setting.default)}
