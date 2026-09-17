@@ -49,7 +49,9 @@ test("dates: a bare date is still recorded and marked up in place", () => {
   const { html, metadata } = render("# T\n\n2026-03-04\n")
 
   assert.match(html, /<time datetime="2026-03-04T00:00:00\.000Z">2026-03-04<\/time>/)
-  assert.equal(metadata.inferred_date, "2026-03-04T00:00:00.000Z")
+  // The hook's own return carries the type declaration; votive unwraps it
+  // at the write, so a page reads back the plain ISO string.
+  assert.deepEqual(metadata.inferred_date, { $type: "date", $value: "2026-03-04T00:00:00.000Z" })
 })
 
 test("dates: a date with siblings in the paragraph is prose", () => {

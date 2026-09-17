@@ -106,3 +106,33 @@ test("findTitleNode ignores a heading that is not first", () => {
   assert.equal(findTitleNode(parse("Body.\n\n# Later\n")), null)
   assert.ok(findTitleNode(parse("# First\n\nBody.\n")))
 })
+
+test("a page's date is declared as a date: the value is unchanged and target.types says so", async () => {
+  const { mkdtemp, writeFile, rm } = await import("node:fs/promises")
+  const { tmpdir } = await import("node:os")
+  const path = await import("node:path")
+  const { default: votive } = await import("votive")
+  const { createConfig } = await import("../config.js")
+  const sourceFolder = await mkdtemp(path.join(tmpdir(), "vowel-types-"))
+  const systemFolder = await mkdtemp(path.join(tmpdir(), "vowel-types-sys-"))
+  let site
+  try {
+    await writeFile(path.join(sourceFolder, "post.md"), "---\ndate: March 4, 2026\n---\n# Post\n")
+    site = await votive(createConfig(sourceFolder, {
+      targetFolder: path.join(systemFolder, "output"),
+      databasePath: path.join(systemFolder, ".votive.db"),
+      cacheDirectory: path.join(systemFolder, ".cache"),
+      logging: "silent"
+    }))
+    await (await site.build()).deferred
+    const target = site.database.target.get("post.html")
+    assert.equal(target.metadata.date, "2026-03-04T00:00:00.000Z")
+    assert.equal(target.types.date, "date")
+    assert.equal(target.types.fm_date, "date")
+    assert.equal(target.types.title, "text")
+  } finally {
+    if (site) await site.close()
+    await rm(sourceFolder, { recursive: true, force: true })
+    await rm(systemFolder, { recursive: true, force: true })
+  }
+})

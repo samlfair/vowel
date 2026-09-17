@@ -215,9 +215,28 @@ function readFile(source, { api, config }) {
     // a consumer unsure of its structure parses `data` instead.
     data: string,
     write: metadata.html_file ?? true,
-    metadata: { ...targetMetadata, hastAbstract: hast },
+    metadata: withDeclaredTypes({ ...targetMetadata, hastAbstract: hast }),
     settings: pathInfo.base === "settings.md" ? settingsContribution(metadata) : undefined
   }
+}
+
+/**
+ * The labels vowel declares a type for, wrapped as `{ $type, $value }`
+ * for votive to unwrap at the write (see votive's ReadHookResult). The
+ * value stored and read back is unchanged - an ISO string, which sorts
+ * and compares lexically as a date does - and `target.types.date` says
+ * "date" for a consumer that wants to treat it as one: the editor's
+ * field, a lexicon mapping. Only at the return, so nothing in this
+ * file sees the wrapper either.
+ * @param {Record<string, any>} metadata
+ */
+function withDeclaredTypes(metadata) {
+  const declared = { ...metadata }
+  for (const label of ["date", "fm_date", "inferred_date"]) {
+    if (declared[label] === undefined) continue
+    declared[label] = { $type: "date", $value: declared[label] }
+  }
+  return declared
 }
 
 /**
