@@ -1,6 +1,5 @@
 import path from "node:path"
 import { hash } from "node:crypto"
-import rehypeHighlight from "rehype-highlight"
 import rehypePresetMinify from "rehype-preset-minify"
 import rehypeStringify from "rehype-stringify"
 import { fromMarkdown } from 'mdast-util-from-markdown'
@@ -19,44 +18,17 @@ import extractDate from "./../../extractDate.js"
 import { reservedProperties, hiddenProperties } from "./../markdown/metadata.js"
 import { toString as hastToString } from 'hast-util-to-string'
 import { unified } from "unified"
-import { EXIT, SKIP, visit } from "unist-util-visit"
 import toc from "@jsdevtools/rehype-toc"
 import slug from "rehype-slug"
 import createDynamicImage from "./image.js"
-import { globClasses } from "./editor/directives.js"
 import { listPages } from "./../../utils.js"
 import { themeStylesheets } from "../styles/theme.js"
 import { displayPath } from "../../secretPaths.js"
 import { socialLinksNav } from "./socialLinks.js"
+import { writeWalk } from "./writeRules.js"
 
 /** @import * as Votive from "votive" */
 /** @import * as Vowel from "./../../index.js" */
-
-const EXTERNAL_LINK_RE = /^https?:\/\/\S+$/
-
-/**
- * Matches a paragraph whose only content is a bare URL - a link preview,
- * per CLAUDE.md: "a URL that is the only child of a paragraph".
- *
- *   Dinosaurs lived 65,000,000 years ago.
- *
- *   https://dinosaurs.com/timeline
- *
- *   We still find their fossils today.
- *
- * Lives here, with the one walker that acts on it, rather than in the
- * urls plugin: asking for the url and rendering the card are the same
- * pass over the same node, and api.url() both reads and asks.
- * @param {any} node
- */
-function isExternalLinkParagraph(node) {
-  if (node.type !== "element") return false
-  if (node.tagName !== "p") return false
-  if (node.children.length !== 1) return false
-  const [child] = node.children
-  if (!child || typeof child.value !== "string") return false
-  return EXTERNAL_LINK_RE.test(child.value)
-}
 
 const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
 
@@ -231,40 +203,6 @@ function makeFrontmatter(metadata, api, config) {
 /** @type {Votive.ProcessorWrite} */
 function writeFile(target, { settings, api, config }) {
 
-  /** @param {string} relativePath */
-  function resolvePath(relativePath) {
-    // A stub has a source path but no directory of neighbours to resolve
-    // a "./" link against; leave the href as written.
-    if (!target.source) return
-    if (typeof relativePath !== "string" || !relativePath.startsWith("./")) return
-
-    // The href may arrive percent-encoded (toHast normalizes non-ASCII),
-    // so it is decoded before the lookup, which is by *source* path -
-    // the path as the author spelled it, marker and salt included.
-    // targetBySource answers with the *routed* target, which for a secret
-    // page is the hashed one. No second trip through the router. This is
-    // also why "##" is safe as the marker even though "#" begins a url
-    // fragment: the raw path never becomes an href, only its resolution
-    // does.
-    const dir = path.dirname(target.source)
-    const sourcePath = path.normalize(path.join(dir, decodeURIComponent(relativePath)))
-    const targetFile = api.targetBySource(sourcePath)
-
-    // A link to a file that produces no page - missing, or routed
-    // nowhere - is the author's to notice, not a reason to stop the
-    // build. This used to dereference undefined and crash.
-    if (!targetFile) {
-      config.log?.("warn", `${target.source}: link to ${relativePath} matches no page`)
-      return
-    }
-    return targetFile.metadata.prettyURL
-  }
-
-  visit(target.metadata.hastAbstract, { tagName: "a" }, (n, i, p) => {
-    const resolvedPath = resolvePath(n.properties.href)
-    if(resolvedPath) n.properties.href = resolvedPath
-  })
-
   const isRoot = target.path === "index.html"
 
 
@@ -276,20 +214,6 @@ function writeFile(target, { settings, api, config }) {
 
   const { metadata, ...rest } = target
   const abstract = metadata.hastAbstract
-
-  // Highlights fenced code blocks in place (adds an `hljs` class plus
-  // per-token spans to any <code class="language-x">) - run early, before
-  // treeStyleSheets below, so the stylesheet link can be added only for
-  // pages that actually end up with a highlighted block.
-  unified().use(rehypeHighlight).runSync(abstract)
-
-  let hasHighlightedCode = false
-  visit(abstract, { tagName: "code" }, (node) => {
-    if (node.properties?.className?.includes("hljs")) {
-      hasHighlightedCode = true
-      return EXIT
-    }
-  })
 
   /** @param {string} filePath */
   function listFolders(filePath) {
@@ -387,17 +311,6 @@ function writeFile(target, { settings, api, config }) {
         )
   })
 
-  if (hasHighlightedCode) {
-    // syntax-highlighting.css is always declared by the styles processor
-    // (a stub); a page only decides whether to link it.
-    treeStyleSheets.push(
-      h('link', {
-        rel: "stylesheet",
-        href: "/syntax-highlighting.css"
-      })
-    )
-  }
-
   function createTitle() {
     if (isRoot) {
       const title = [settings.lastNonNull("title") || metadata?.title, settings.lastNonNull("fm_tagline")]
@@ -427,6 +340,7 @@ function writeFile(target, { settings, api, config }) {
 
   const site = siteTitle(settings, api)
   const title = createTitle()
+
 
   const treeHead = h('head', [
     h('meta', {
@@ -645,15 +559,6 @@ function writeFile(target, { settings, api, config }) {
   ])
 
 
-  function testPaths(node, i, p) {
-    if (node.type !== 'element') return
-    if (node.tagName !== 'p') return
-    if (node.children.length !== 1) return
-    if (!node.children[0]) return
-    if (!node.children[0].value) return
-    return Boolean(node.children[0].value.match(/^\/\S*$/))
-  }
-
   const slugger = unified()
     .use(slug)
     .use(toc, {
@@ -672,132 +577,18 @@ function writeFile(target, { settings, api, config }) {
 
   treeMainHead.push(treeTableOfContents)
 
-  visit(abstract, { tagName: "img" }, (node, index, parent) => {
-    const { src, alt } = node.properties
-    const image = createDynamicImage(src, api, alt)
-    if (!image) return
-    if (index === 0 && parent.children.length > 1) {
-      const [_, ...caption] = parent.children
-      parent.children = [
-        h("figure", [image, h("figcaption", caption)])
-      ]
-    } else {
-      parent.children.splice(index, 1, image)
-    }
-  })
+  // One walk for everything that renders against other targets, settings
+  // or the url store: relative links, wikilinks, icons, code highlighting,
+  // images, directives, link previews and alerts. See writeRules.js.
+  // After the slugger, so a listing's headings stay out of the contents.
+  const walked = { target, api, config, settings, makeHeader, makeTable, highlighted: false }
+  writeWalk(abstract, walked)
 
-  try {
-    visit(abstract, testPaths, ({ children: [child] }, i, p) => {
-
-      // const recursive = child.value.endsWith("**")
-      // const many = child.value.endsWith("*")
-
-      const url = new URL(child.value, "thismessage://")
-      const { dir, base } = path.parse(url.pathname)
-      const recursive = base === "**"
-      const many = base === "*" || base === "**"
-
-      if (!many) {
-        const targetFilePathInfo = path.parse(child.value)
-        targetFilePathInfo.ext ||= ".html"
-        delete targetFilePathInfo.base
-        // Lowercased: every vowel target path is (config.js's router).
-        const targetFilePath = path.relative("/", path.format(targetFilePathInfo)).toLowerCase()
-        const target = api.target(targetFilePath)
-
-        if (target) {
-          const article = h('article.reference', makeHeader(target.metadata, target.metadata.prettyURL, api, config))
-
-          p.children.splice(i, 1, article)
-
-          return SKIP
-        }
-
-      }
-
-      if (many) {
-        const folder = path.relative("/", dir)
-        // const url = new URL(child.value, "thismessage://")
-        const count = url.searchParams.get("count")
-        const tag = url.searchParams.get("tag")
-        const view = url.searchParams.get("view")
-        // ?properties=title,description,image picks the table's columns,
-        // in order. A name is looked up as written, then with the fm_
-        // prefix, so an author writes `author`, not `fm_author`.
-        const properties = (url.searchParams.get("properties") || "")
-          .split(",").map(name => name.trim()).filter(Boolean)
-        const query = tag
-          ? { tags: { "~": tag } }
-          : {}
-
-        const targets = listPages(api, {
-          folder,
-          recursive,
-          query,
-          orderBy: { property: "date", direction: "desc" },
-          limit: count ? Number(count) : undefined
-        })
-
-        // Every parameter of the directive is carried in the class list so
-        // the expansion can be collapsed back to "/blog/**?count=5" from
-        // the rendered HTML alone - see plugins/html/editor/directives.js.
-        const listClasses = globClasses({ folder, recursive, limit: count, tag, view, properties })
-
-        const list = view === "table"
-          ? makeTable(listClasses, properties.length ? properties : ["title"], targets, api)
-          : h("ul", { class: listClasses },
-            targets.map(target => {
-              return h('li',
-                h('article', makeHeader(target.metadata, target.metadata.prettyURL, api, config))
-              )
-            })
-          )
-
-        p.children.splice(i, 1, list)
-
-        return SKIP
-      }
-
-    })
-  } catch (e) {
-    // console.log(JSON.stringify(abstract, null, 2))
+  if (walked.highlighted) {
+    // syntax-highlighting.css is always declared by the styles processor
+    // (a stub); a page only decides whether to link it.
+    treeHead.children.push(h('link', { rel: "stylesheet", href: "/syntax-highlighting.css" }))
   }
-
-  try {
-    visit(abstract, isExternalLinkParagraph, ({ children: [child] }, i, p) => {
-      const url = child.value
-      const preview = api.url(url)
-      if (!preview) return
-
-      const card = h('a.link-preview', { href: url, target: "_blank", rel: "noopener noreferrer" }, [
-        preview.image ? h('img.link-preview-image', { src: preview.image, alt: "" }) : null,
-        h('span.link-preview-body', [
-          h('span.link-preview-title', preview.title || url),
-          preview.description ? h('span.link-preview-description', preview.description) : null
-        ].filter(Boolean))
-      ].filter(Boolean))
-
-      p.children.splice(i, 1, card)
-
-      return SKIP
-    })
-  } catch (e) {
-    // console.log(JSON.stringify(abstract, null, 2))
-  }
-
-  // function copyTreeWithoutArticles(tree) {
-  //   if (tree.tagName !== 'article') {
-  //     return {
-  //       type: tree.type,
-  //       tagName: tree.tagName,
-  //       properties: tree.properties,
-  //       children: tree.children?.map(copyTreeWithoutArticles)
-  //     }
-  //   }
-  // }
-
-
-
 
   // Who links here. A listing filtered on `links`, so it stays correct
   // by the ordinary rule: a page gaining or losing a link to this one
@@ -808,7 +599,13 @@ function writeFile(target, { settings, api, config }) {
   const backlinks = target.source
     ? listPages(api, {
         recursive: true,
-        query: { "|": [{ links: { "~": target.source } }, { links: { "~": metadata.prettyURL } }] }
+        query: { "|": [
+          { links: { "~": target.source } },
+          { links: { "~": metadata.prettyURL } },
+          // A wikilink is recorded by name; two notes sharing one both
+          // list the linking page, which is the ambiguity the author wrote.
+          ...(metadata.inferred_label ? [{ links: { "~": `[[${metadata.inferred_label}]]` } }] : [])
+        ] }
       }).filter(page => page.path !== target.path)
     : []
 
@@ -834,55 +631,6 @@ function writeFile(target, { settings, api, config }) {
       h('section#content', abstract),
       treeBacklinks
     ].filter(Boolean))
-
-  visit(treeMain, (node, index, parent) => {
-    /* URLs */ if (node.type === "text" && parent.tagName === 'p' && parent.children.length === 1) {
-      const validURL = testURL(node.value)
-      if (validURL) {
-        const metadata = api.url(node.value)
-        if (metadata) {
-          parent.tagName = "article"
-          // Marks this <article> as an expansion of a bare URL rather than
-          // authored content, so the editor collapses it back to the URL.
-          parent.properties = { ...parent.properties, className: ["link-preview"] }
-          parent.children = [
-            h("a", { href: node.value },
-              h("h2", metadata.title)
-            )
-          ]
-        }
-      }
-    } /* GFM Alerts */ else if (node.tagName === "blockquote") {
-      if (node.children[1]
-        && node.children[1].tagName === "p"
-        && node.children[1].children.length === 1
-        && node.children[1].children[0].type === "text"
-      ) {
-        const matches = node.children[1].children[0].value.match(/^\[!(\w+)\]$/)
-
-        if (matches) {
-          const [_, alertLabel] = matches
-
-          node.tagName = "aside"
-          node.properties = {
-            class: `alert ${alertLabel.toLowerCase()}`
-          }
-
-          node.children.splice(0, 2, {
-            type: "element",
-            tagName: "h2",
-            children: [
-              {
-                value: toTitleCase(alertLabel),
-                type: "text"
-              }
-            ]
-          })
-        }
-
-      }
-    }
-  })
 
   const everything = listPages(api, {
     folder: "",

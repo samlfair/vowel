@@ -1,5 +1,7 @@
 import { createVisitor } from "./visitor.js"
 import { normalizeLink } from "./links.js"
+import { emojiFor } from "./emoji.js"
+import { toTitleCase } from "../../utils.js"
 
 /**
  * The read walk: one pass over the mdast that records what the page
@@ -76,13 +78,62 @@ function record(context, href) {
   if (normalized && !context.links.includes(normalized)) context.links.push(normalized)
 }
 
+/** `[[Name]]`, `[[Name#Section]]`, `[[Name|the words]]`, any combination. */
+const WIKILINK = /\[\[([^\]|#]+)(#[^\]|]+)?(\|[^\]]+)?\]\]/
+
+/** `:name:` or `:folder/name:` */
+const SHORTCODE = /:([a-z0-9_+-]+(?:\/[a-z0-9_+-]+)?):/
+
+/**
+ * `[[Hello World]]` is parsed here and resolved at write (the html
+ * plugin's writeRules.js), because resolution needs every target to
+ * exist and has to run again when the note appears. The node carries
+ * its parameters - name, section, label - so the write has what it
+ * needs and the editor can put `[[...]]` back. Recorded in `links` as
+ * `[[Name]]`, which is how the linked page finds its backlink.
+ * @type {import("./visitor.js").InlineRule}
+ */
+const wikilink = {
+  name: "wikilink",
+  pattern: WIKILINK,
+  resolve: (match, context) => {
+    const [, name, section, label] = match
+    const reference = `[[${toTitleCase(name.trim())}]]`
+    if (!context.links.includes(reference)) context.links.push(reference)
+    return {
+      type: "wikilink",
+      name: name.trim(),
+      section: section ? section.slice(1).trim() : undefined,
+      children: [{ type: "text", value: label ? label.slice(1) : name.trim() }]
+    }
+  }
+}
+
+/**
+ * No slash: an emoji shortcode - the character itself, since a
+ * shortcode is a way of typing one and the emoji is valid markdown on
+ * its own; unknown is left as written, like GitHub. A slash: an icon in
+ * the project, resolved at write.
+ * @type {import("./visitor.js").InlineRule}
+ */
+const shortcode = {
+  name: "shortcode",
+  pattern: SHORTCODE,
+  resolve: (match) => {
+    const [, name] = match
+    if (name.includes("/")) return { type: "icon", name }
+    const emoji = emojiFor(name)
+    return emoji ? { type: "text", value: emoji } : null
+  }
+}
+
 /** No tags inside code, and no link inside a link. */
 const skipped = new Set(["code", "inlineCode", "yaml", "html", "link", "linkReference", "definition"])
 
 const readWalk = createVisitor({
-  inline: [hashtag],
+  inline: [hashtag, wikilink, shortcode],
   block: [link, reference],
   skip: (node) => skipped.has(node.type)
 })
 
-export { readWalk, HASHTAG }
+export { readWalk, HASHTAG, WIKILINK, SHORTCODE }

@@ -114,6 +114,11 @@ function readFile(source, { api, config }) {
     unknownHandler: (state, node) => {
       if (node.type === "highlight") return h("mark", state.all(node))
       if (node.type === "time") return h("time", { datetime: node.datetime }, state.all(node))
+      // Parsed at read, resolved at write (writeRules.js): the element
+      // carries what the write needs, and what the editor needs to put
+      // the directive back.
+      if (node.type === "wikilink") return h("a.wikilink", { "data-note": node.name, "data-section": node.section }, state.all(node))
+      if (node.type === "icon") return h("img.icon", { "data-icon": node.name, alt: node.name.split("/").at(-1) })
     }
   })
 
@@ -206,11 +211,6 @@ function writeMarkdown(target) {
 }
 
 
-
-/** @type {Votive.ProcessorTransform} */
-function transformFile(target, context) {
-  return {}
-}
 
 /** @type {Votive.ProcessorReadFolder} */
 /**
@@ -329,8 +329,7 @@ const readMarkdown = {
   createStubs,
   expandStubs,
   readFile,
-  writeFile: writeMarkdown,
-  transformFile,
+  writeFile: writeMarkdown
 }
 
 
