@@ -26,6 +26,7 @@ import { themeStylesheets, isVowelStylesheet } from "../styles/theme.js"
 import { displayPath } from "../../secretPaths.js"
 import { socialLinksNav } from "./socialLinks.js"
 import { writeWalk } from "./writeRules.js"
+import { ASIDE_PARTIAL, navPartialPath, createPartialStubs, expandPartial, withCurrent, partialsProcessor } from "./partials.js"
 
 /** @import * as Votive from "votive" */
 /** @import * as Vowel from "./../../index.js" */
@@ -238,24 +239,6 @@ function writeFile(target, { settings, api, config }) {
   const ancestorFolders = listFolders(rest.dir)
   ancestorFolders.unshift("")
 
-  const family = [...ancestorFolders, targetAsDir].flatMap(folder => {
-    // FIXME typing
-    return listPages(api, {
-      folder: Array.isArray(folder) ? path.join(...folder) : folder,
-      recursive: false,
-      query: {
-        "!": {
-          "|": {
-            local_menu_item: 0, // FIXME: Change to boolean,
-            html_file: 0
-          }
-        }
-      }
-    })
-  }).filter(({ path, dir }) => {
-    return path && path !== "tags.html" && dir !== "tags"
-  })
-
   const treeStyleSheets = []
 
   // The theme's built-in sheets come from the settings cascade (the
@@ -413,44 +396,14 @@ function writeFile(target, { settings, api, config }) {
     }))
   }
 
-  function treeNavItems(navItem) {
-    return h('li', h('a', {
-      href: navItem.metadata.prettyURL,
-      "aria-current": metadata.prettyURL === navItem.metadata.prettyURL ? 'page' : null
-    }, navItem.metadata.breadcrumb))
-  }
-
-  function navItemFilter(nav_item) {
-    return !nav_item.metadata.date
-      && nav_item.path !== "index.html"
-      && nav_item.path !== "404.html"
-      && nav_item.extension === ".html"
-      && nav_item.path
-  }
-
-  function sort_items(a, b) {
-    if (typeof a === "number" && typeof b === "number") return a - b
-    if (typeof b === "number") return -1
-    if (typeof a === "number") return 1
-    if (a.metadata.breadcrumb && b.metadata.breadcrumb) return String(a.metadata.breadcrumb).localeCompare(String(b.metadata.breadcrumb))
-  }
-
-  function treeNavFolder(navFolder) {
-    const sorted = navFolder
-      .filter(navItemFilter)
-      .toSorted(sort_items)
-
-    return h('ul', sorted.map(treeNavItems))
-  }
-
-
-  const groupedNavs = Object.groupBy(family, ({ dir }) => dir)
-
-  const treeNav = h('nav', Object.entries(groupedNavs)
-    .sort(([a], [b]) => a.length - b.length)
-    .map(([k, v]) => treeNavFolder(v))
-    .filter(folder => folder.children.length)
-  )
+  // The header nav is a partial: the lists for this page's folder chain,
+  // computed once per pass by createPartialStubs and rendered once by
+  // the partials processor. A page whose own name is a folder (shop.html
+  // beside shop/) takes that folder's chain, which ends in its own
+  // list; otherwise its folder's. The first lookup may miss - votive
+  // tracks the miss, so the page is rebuilt if that folder appears.
+  const navPartial = api.target(navPartialPath(targetAsDir)) ?? api.target(navPartialPath(rest.dir))
+  const treeNav = navPartial ? withCurrent(navPartial.metadata.hast, metadata.prettyURL) : h("nav")
 
   let treeBreadcrumbs = []
 
@@ -635,72 +588,9 @@ function writeFile(target, { settings, api, config }) {
       treeBacklinks
     ].filter(Boolean))
 
-  const everything = listPages(api, {
-    folder: "",
-    recursive: true,
-  }).filter(target => target.path
-    && target.path.endsWith(".html")
-    && !target.metadata.date
-  )
-
-  const homeFile = everything.find(item => item.path === "index.html" && item.dir === "")
-
-  const globalNavItems = everything.filter(item => {
-    return item.dir === ""
-      && item.path !== "index.html"
-      && item.path !== "404.html"
-      && item.path !== "tags.html"
-      && item.metadata.global_menu_item !== 0 // FIXME: This data should come back as a boolean, not binary
-      && item.metadata.html_file !== 0
-  })
-    .map(getChildren)
-
-  globalNavItems.unshift(homeFile)
-
-  function getChildren(item) {
-    const children = everything.filter(child => {
-      return "/" + child.dir === item.metadata.prettyURL
-        && child.path !== "index.html"
-    })
-
-    const populatedChildren = children.length > 0 && children.map(child => {
-      return getChildren(child)
-    })
-
-    const node = {
-      path: "/" + item.path,
-      metadata: item.metadata
-    }
-
-    if (populatedChildren) node.children = populatedChildren
-
-    return node
-  }
-
-  function treeNavItem(item) {
-    if (item.children) {
-      return h('li', [
-        h('a', { href: item.path }, item.metadata.breadcrumb),
-        treeNavList(item.children)
-      ])
-    }
-
-    return h('li',
-      h('a', { href: item.path }, item.metadata.breadcrumb)
-    )
-  }
-
-  function treeNavList(items) {
-    return h('ul',
-      items.filter(a => a).map(treeNavItem)
-    )
-  }
-
-  const treeGlobalNav = h('nav',
-    treeNavList(globalNavItems)
-  )
-
-  const treeAside = h('aside', treeGlobalNav)
+  // The aside tree is one partial, the same on every page.
+  const asidePartial = api.target(ASIDE_PARTIAL)
+  const treeAside = h("aside", asidePartial ? asidePartial.metadata.hast : h("nav", h("ul")))
 
   const treeFooter = h('footer', [
     socialLinksNav(settings),
@@ -842,6 +732,10 @@ function handlePreviewError() {
 const writeHTML = {
   extensions: [".html"],
   format: "text",
+  // The partials (header nav per folder, the aside tree) are stubs this
+  // processor declares and the partials processor reads.
+  createStubs: ({ api }) => createPartialStubs(api),
+  expandStubs: expandPartial,
   writeFile,
   handlePreviewRequest,
   handlePreviewError
@@ -851,7 +745,7 @@ const writeHTML = {
 /** @type {Votive.VotivePlugin} */
 const vowelWriteHTMLPlugin = {
   name: "vowel-write-html",
-  processors: [writeHTML],
+  processors: [writeHTML, partialsProcessor],
 }
 
 export default vowelWriteHTMLPlugin
