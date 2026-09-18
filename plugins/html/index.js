@@ -259,11 +259,11 @@ function writeFile(target, { settings, api, config }) {
   // another folder's colors-<key>.css, and syntax-highlighting.css,
   // which is linked below only on pages with code - it used to be
   // picked up here as a project sheet on every page.
-  const projectSheets = [...ancestorFolders, targetAsDir].flatMap(folder => (
-    api.targets({ folder, recursive: false })
-      .filter(sheet => sheet.source && path.extname(sheet.path) === ".css" && !isVowelStylesheet(sheet.path))
-      .map(sheet => sheet.path)
-  ))
+  // The nav partial carries this page's folder chain: the header nav's
+  // lists and the project stylesheets along it (see partials.js). One
+  // read for both; a page whose own name is a folder takes that chain.
+  const navPartial = api.target(navPartialPath(targetAsDir)) ?? api.target(navPartialPath(rest.dir))
+  const projectSheets = navPartial?.metadata.sheets ?? []
 
   // The theme's sheets come from the same function the styles processor
   // enumerates from, so a sheet that is linked is a sheet that exists.
@@ -275,7 +275,8 @@ function writeFile(target, { settings, api, config }) {
   // `sheet.source` test alone no longer separates vowel's sheets from the
   // project's - exclude them by name instead, or every theme sheet would
   // be linked twice.
-  const sheets = [...themeSheets, ...projectSheets.filter(sheet => !themeSheets.includes(sheet))]
+  const sheets = [...themeSheets, ...projectSheets.map(sheet => sheet.path).filter(sheet => !themeSheets.includes(sheet))]
+  const projectHash = new Map(projectSheets.map(sheet => [sheet.path, sheet.hash]))
 
   sheets.forEach(sheet => {
         // Content hash, not Math.random() - a random value here changed
@@ -292,8 +293,9 @@ function writeFile(target, { settings, api, config }) {
         // so identical raw source always produces identical output.
         // Bonus over Math.random(): api.target() registers a real
         // dependency from this page to the stylesheet it references.
-        const stylesheetTarget = api.target(sheet)
-        const cacheBuster = stylesheetTarget?.metadata?.hash ?? ""
+        // A project sheet's hash rode in with the nav partial (one read for
+        // the whole chain); a theme sheet's is read here, tracked.
+        const cacheBuster = projectHash.has(sheet) ? projectHash.get(sheet) : (api.target(sheet)?.metadata?.hash ?? "")
         treeStyleSheets.push(
           h('link', {
             rel: "stylesheet",
@@ -402,7 +404,6 @@ function writeFile(target, { settings, api, config }) {
   // beside shop/) takes that folder's chain, which ends in its own
   // list; otherwise its folder's. The first lookup may miss - votive
   // tracks the miss, so the page is rebuilt if that folder appears.
-  const navPartial = api.target(navPartialPath(targetAsDir)) ?? api.target(navPartialPath(rest.dir))
   const treeNav = navPartial ? withCurrent(navPartial.metadata.hast, metadata.prettyURL) : h("nav")
 
   let treeBreadcrumbs = []

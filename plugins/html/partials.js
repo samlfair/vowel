@@ -1,6 +1,7 @@
 import path from "node:path"
 import { h } from "hastscript"
 import { listPages } from "../../utils.js"
+import { isVowelStylesheet } from "../styles/theme.js"
 
 /**
  * Partials: rendered fragments shared by many pages, built once per
@@ -18,7 +19,13 @@ import { listPages } from "../../utils.js"
  *
  * Paths: `partials/nav.partial` is the header nav for pages at the
  * root, `partials/nav/<folder>.partial` for pages in a folder - the
- * lists for every level from the root down to that folder. There is
+ * lists for every level from the root down to that folder, and the
+ * project's own stylesheets along that chain (a `.css` the author wrote
+ * in any of those folders, with its content hash for the cache-buster).
+ * Both are "what this page's folder chain contributes", so they share a
+ * stub; the stylesheet half used to be one listing per ancestor per
+ * page, whose folder-membership edge restaled every page whenever any
+ * file was added at the root. There is
  * one `partials/aside.partial`, the site tree, the same on every page.
  * `partials/backlinks/<page path>.partial` is the "linked from" list
  * of one page, declared only for pages something links to - a page
@@ -181,9 +188,22 @@ function createPartialStubs(api) {
   const folders = new Set([""])
   for (const page of pages) for (const folder of chain(page.dir)) folders.add(folder)
 
+  // The project's stylesheets by folder: a .css the author wrote (has a
+  // source, is not one vowel generates), with the hash its read recorded.
+  const sheets = new Map()
+  for (const sheet of api.targets({ folder: "", recursive: true })) {
+    if (!sheet.source || sheet.extension !== ".css" || isVowelStylesheet(sheet.path)) continue
+    if (!sheets.has(sheet.dir)) sheets.set(sheet.dir, [])
+    sheets.get(sheet.dir).push({ path: sheet.path, hash: sheet.metadata?.hash ?? "" })
+  }
+  for (const list of sheets.values()) list.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
+
   const navs = [...folders].sort().map(folder => ({
     path: navPartialPath(folder),
-    params: { levels: chain(folder).map(level => (lists.get(level) ?? []).map(item)) }
+    params: {
+      levels: chain(folder).map(level => (lists.get(level) ?? []).map(item)),
+      sheets: chain(folder).flatMap(level => sheets.get(level) ?? [])
+    }
   }))
 
   return [...navs, { path: ASIDE_PARTIAL, params: { items: asideTree(pages) } }, ...backlinks]
@@ -228,7 +248,9 @@ function readPartial(source) {
   const data = JSON.parse(source.text || "{}")
   const kind = source.path.split(path.sep)[1]?.replace(/\.partial$/, "")
   const render = kind === "aside" ? renderAside : kind === "backlinks" ? renderBacklinks : renderNav
-  return { metadata: { hast: render(data) }, write: false }
+  // A nav partial also carries its chain's stylesheets, as data: the
+  // page builds the <link>s, since the theme's sheets come first.
+  return { metadata: { hast: render(data), ...(data.sheets ? { sheets: data.sheets } : {}) }, write: false }
 }
 
 /**
