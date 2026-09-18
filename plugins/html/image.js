@@ -45,7 +45,7 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
         })
       })
 
-      // The derivative paths in srcset are uuid-based, so the original asset
+      // The derivative paths in srcset are hash-based, so the original asset
   // path cannot be recovered from them. Carried here rather than as a
   // <source>, which is a loading candidate a browser could select.
   return h("picture", { itemprop: itemprop && "image", "data-original": imagePath }, sources)
@@ -59,7 +59,12 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
   const relativePath = (imagePath.startsWith("/") ? path.relative("/", imagePath) : imagePath).toLowerCase()
   const image = api.target(relativePath)
   if (!image) return
-  const formats = createImagePaths(image.source, "./", image.metadata.uuid)
+  // Until the image has been read (a deferred buffer read) it has no
+  // hash and no derivatives; a plain <img> stands in, and the tracked
+  // read of `hash` rewrites this page when they arrive. Derivatives are
+  // named from the *target* path, as the images processor declares them.
+  if (!image.metadata.hash) return h("img", { src: "/" + image.path, alt, loading: "lazy" })
+  const formats = createImagePaths(image.path, "./", image.metadata.hash)
 
   // Intrinsic size, measured at read (plugins/images): the browser
   // reserves the right box before the bytes arrive, and the reset's
@@ -83,7 +88,7 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
     })
   })
 
-  // The derivative paths in srcset are uuid-based, so the original asset
+  // The derivative paths in srcset are hash-based, so the original asset
   // path cannot be recovered from them. Carried here rather than as a
   // <source>, which is a loading candidate a browser could select.
   // --dominant is the image's dominant colour, for a stylesheet to use
