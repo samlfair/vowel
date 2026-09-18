@@ -20,12 +20,21 @@ import { listPages } from "../../utils.js"
  * root, `partials/nav/<folder>.partial` for pages in a folder - the
  * lists for every level from the root down to that folder. There is
  * one `partials/aside.partial`, the site tree, the same on every page.
+ * `partials/backlinks/<page path>.partial` is the "linked from" list
+ * of one page, declared only for pages something links to - a page
+ * with no linkers reads a miss, which votive tracks, so it is rebuilt
+ * the moment a linker appears.
  * `.partial` is an extension nothing else claims, so a project file can
  * never be read as one; the targets are virtual (write: false), which
  * keeps them out of every listing, the sitemap and the feed.
  */
 
 const ASIDE_PARTIAL = path.join("partials", "aside.partial")
+
+/** @param {string} targetPath - the page's own target path */
+function backlinksPartialPath(targetPath) {
+  return path.join("partials", "backlinks", `${targetPath}.partial`)
+}
 
 /** @param {string} folder - stored form (path.sep), "" for the root */
 function navPartialPath(folder) {
@@ -93,12 +102,64 @@ function asideTree(pages) {
 }
 
 /**
+ * Who links to whom, from every page's recorded `links` (see
+ * plugins/markdown/links.js for the three spellings: a source path, a
+ * pretty url, a `[[Name]]`). Returns, per linked page, its linkers
+ * sorted by path. A name two pages share links both - the ambiguity
+ * the author wrote. The reverse index used to be a filtered listing
+ * per page: a full-table query with json_each per page, and a `links`
+ * change anywhere restaled every page.
+ * @param {any[]} pages - the linkers: what a listing shows
+ * @param {any[]} [linkable] - what can be linked to: every page, hidden
+ *   ones included (a secret page gets its backlinks; it just never
+ *   appears as a linker)
+ * @returns {Map<string, any[]>} target path -> linkers
+ */
+function backlinkIndex(pages, linkable = pages) {
+  const bySource = new Map()
+  const byURL = new Map()
+  const byLabel = new Map()
+  for (const page of linkable) {
+    if (page.source) bySource.set(page.source, page)
+    if (page.metadata.prettyURL) byURL.set(page.metadata.prettyURL, page)
+    if (page.metadata.inferred_label) {
+      const key = `[[${page.metadata.inferred_label}]]`
+      if (!byLabel.has(key)) byLabel.set(key, [])
+      byLabel.get(key).push(page)
+    }
+  }
+
+  const linkers = new Map()
+  const add = (linked, linker) => {
+    if (!linked || linked.path === linker.path) return
+    if (!linkers.has(linked.path)) linkers.set(linked.path, new Map())
+    linkers.get(linked.path).set(linker.path, linker)
+  }
+  for (const linker of pages) {
+    for (const link of linker.metadata.links ?? []) {
+      if (typeof link !== "string") continue
+      add(bySource.get(link), linker)
+      add(byURL.get(link), linker)
+      for (const linked of byLabel.get(link) ?? []) add(linked, linker)
+    }
+  }
+
+  return new Map([...linkers].map(([target, map]) => [target, [...map.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0)]))
+}
+
+/**
  * Every partial the site needs this pass, as stubs. One untracked
  * listing; the enumerator runs every pass by contract.
  * @param {any} api - the enumerator's api
  */
 function createPartialStubs(api) {
   const pages = listPages(api, { folder: "", recursive: true })
+  const linkable = api.targets({ folder: "", recursive: true }).filter(page => page.write !== false && page.extension === ".html")
+
+  const backlinks = [...backlinkIndex(pages, linkable)].map(([target, linkers]) => ({
+    path: backlinksPartialPath(target),
+    params: { pages: linkers.map(page => ({ url: page.metadata.prettyURL, title: page.metadata.title || page.metadata.prettyURL })) }
+  }))
 
   const lists = new Map()
   for (const page of pages) {
@@ -118,7 +179,7 @@ function createPartialStubs(api) {
     params: { levels: chain(folder).map(level => (lists.get(level) ?? []).map(item)) }
   }))
 
-  return [...navs, { path: ASIDE_PARTIAL, params: { items: asideTree(pages) } }]
+  return [...navs, { path: ASIDE_PARTIAL, params: { items: asideTree(pages) } }, ...backlinks]
 }
 
 /** @type {import("votive").ProcessorExpand} */
@@ -142,15 +203,25 @@ function renderAside({ items }) {
   return h("nav", h("ul", items.map(li)))
 }
 
+/** "Linked from", outside section#content: it is generated, and the editor must not see it. */
+function renderBacklinks({ pages }) {
+  return h("section#backlinks", [
+    h("h2", "Linked from"),
+    h("ul", pages.map(({ url, title }) => h("li", h("a", { href: url }, title))))
+  ])
+}
+
 /**
  * A partial's source is the JSON its stub was expanded to; the hast is
- * rendered here and stored, so a page never renders it again.
+ * rendered here and stored, so a page never renders it again. Which
+ * renderer is the path's business.
  * @type {import("votive").ProcessorRead}
  */
 function readPartial(source) {
   const data = JSON.parse(source.text || "{}")
-  const hast = source.path.endsWith("aside.partial") ? renderAside(data) : renderNav(data)
-  return { metadata: { hast }, write: false }
+  const kind = source.path.split(path.sep)[1]?.replace(/\.partial$/, "")
+  const render = kind === "aside" ? renderAside : kind === "backlinks" ? renderBacklinks : renderNav
+  return { metadata: { hast: render(data) }, write: false }
 }
 
 /**
@@ -180,4 +251,4 @@ const partialsProcessor = {
   writeFile: () => undefined
 }
 
-export { ASIDE_PARTIAL, navPartialPath, createPartialStubs, expandPartial, withCurrent, partialsProcessor, inHeaderNav, asideTree }
+export { ASIDE_PARTIAL, navPartialPath, backlinksPartialPath, createPartialStubs, expandPartial, withCurrent, partialsProcessor, inHeaderNav, asideTree, backlinkIndex }

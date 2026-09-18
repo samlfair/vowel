@@ -26,7 +26,7 @@ import { themeStylesheets, isVowelStylesheet } from "../styles/theme.js"
 import { displayPath } from "../../secretPaths.js"
 import { socialLinksNav } from "./socialLinks.js"
 import { writeWalk } from "./writeRules.js"
-import { ASIDE_PARTIAL, navPartialPath, createPartialStubs, expandPartial, withCurrent, partialsProcessor } from "./partials.js"
+import { ASIDE_PARTIAL, navPartialPath, backlinksPartialPath, createPartialStubs, expandPartial, withCurrent, partialsProcessor } from "./partials.js"
 
 /** @import * as Votive from "votive" */
 /** @import * as Vowel from "./../../index.js" */
@@ -546,31 +546,13 @@ function writeFile(target, { settings, api, config }) {
     treeHead.children.push(h('link', { rel: "stylesheet", href: "/syntax-highlighting.css" }))
   }
 
-  // Who links here. A listing filtered on `links`, so it stays correct
-  // by the ordinary rule: a page gaining or losing a link to this one
-  // restales this page. Matched by this page's source path (a `./` link)
-  // or its prettyURL (a `/` link) - two spellings of one page. Outside
-  // section#content, beside the breadcrumbs and the contents, because it
-  // is generated: the editor ingests #content and must not see it.
-  const backlinks = target.source
-    ? listPages(api, {
-        recursive: true,
-        query: { "|": [
-          { links: { "~": target.source } },
-          { links: { "~": metadata.prettyURL } },
-          // A wikilink is recorded by name; two notes sharing one both
-          // list the linking page, which is the ambiguity the author wrote.
-          ...(metadata.inferred_label ? [{ links: { "~": `[[${metadata.inferred_label}]]` } }] : [])
-        ] }
-      }).filter(page => page.path !== target.path)
-    : []
-
-  const treeBacklinks = backlinks.length
-    ? h('section#backlinks', [
-        h('h2', 'Linked from'),
-        h('ul', backlinks.map(page => h('li', h('a', { href: page.metadata.prettyURL }, page.metadata.title || page.metadata.prettyURL))))
-      ])
-    : null
+  // Who links here: a partial, declared only for a page something links
+  // to (see partials.js). Outside section#content, beside the breadcrumbs
+  // and the contents, because it is generated: the editor ingests
+  // #content and must not see it. A page with no linkers reads a miss,
+  // which votive tracks, so the first linker rebuilds it.
+  const backlinksPartial = target.source ? api.target(backlinksPartialPath(target.path)) : undefined
+  const treeBacklinks = backlinksPartial ? backlinksPartial.metadata.hast : null
 
   const treeMain = h('main',
     {
