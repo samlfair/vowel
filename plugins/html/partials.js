@@ -82,9 +82,16 @@ function asideTree(pages) {
   const undated = pages.filter(page => page.path?.endsWith(".html") && !page.metadata.date)
   const home = undated.find(page => page.path === "index.html" && page.dir === "")
 
-  const children = (parent) => undated
-    .filter(page => "/" + page.dir.split(path.sep).join("/") === parent.metadata.prettyURL && page.path !== "index.html")
-    .map(node)
+  // Indexed by folder url once: finding each node's children by filtering
+  // the whole list was O(N²), and the enumerator runs every pass.
+  const byFolder = new Map()
+  for (const page of undated) {
+    if (page.path === "index.html") continue
+    const url = "/" + page.dir.split(path.sep).join("/")
+    if (!byFolder.has(url)) byFolder.set(url, [])
+    byFolder.get(url).push(page)
+  }
+  const children = (parent) => (byFolder.get(parent.metadata.prettyURL) ?? []).map(node)
 
   function node(page) {
     const below = children(page)
