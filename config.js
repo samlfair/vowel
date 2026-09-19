@@ -9,6 +9,7 @@ import vowelWriteRobotsPlugin from "./plugins/robots/index.js"
 import vowelWriteXMLPlugin from "./plugins/xml/index.js"
 import vowelVectorPlugin from "./plugins/vectors/index.js"
 import vowelFontsPlugin from "./plugins/fonts/index.js"
+import vowelAssetsPlugin from "./plugins/assets/index.js"
 import vowelWriteHTMLPlugin from "./plugins/html/index.js"
 import vowelAtprotoPlugin from "./plugins/atproto/index.js"
 import vowelURLsPlugin from "./plugins/urls/index.js"
@@ -37,6 +38,7 @@ const defaultPlugins = [
   vowelWriteXMLPlugin,
   vowelVectorPlugin,
   vowelFontsPlugin,
+  vowelAssetsPlugin,
   vowelURLsPlugin,
   vowelAtprotoPlugin,
   vowelWriteHTMLPlugin
