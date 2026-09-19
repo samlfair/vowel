@@ -239,20 +239,18 @@ function createStubs({ api }) {
   // The homepage. `home.md` is the path vowel's router maps to
   // index.html, so an authored `home.md` shadows this stub outright.
   //
-  // `index.md` routes there too, though, and shadowing only matches on
-  // the source path - so the stub also has to stand down when some other
-  // source already owns index.html. Checking `source` rather than mere
-  // existence is what stops it oscillating: when the stub itself made the
-  // page, the page is still ours and we keep declaring it.
+  // An authored `index.md` lands on index.html too - not by any rule,
+  // just by its name - and shadowing only matches on the source path,
+  // so the stub also has to stand down when some other source already
+  // owns index.html. Checking `source` rather than mere existence is
+  // what stops it oscillating: when the stub itself made the page, the
+  // page is still ours and we keep declaring it.
   const homeTarget = api.target("index.html")
   const homeIsOurs = !homeTarget || homeTarget.source === "home.md"
 
-  return [
+  const named = [
     ...(homeIsOurs ? [{ path: "home.md" }] : []),
     { path: "404.md" },
-
-    // A section index per folder with a listed page (see folderIndexes).
-    ...folderIndexes(api),
 
     // The tags index exists only while some page is tagged. A site with
     // no hashtags has no Tags page, and deleting the last hashtag takes
@@ -262,14 +260,20 @@ function createStubs({ api }) {
     // One page per tag. `params` is what expand needs and nothing more.
     ...tags.map(tag => ({ path: path.join("tags", `${tag}.md`), params: { tag } }))
   ]
+  const taken = new Set(named.map(stub => stub.path))
+
+  // A section index per folder with a listed page (see folderIndexes) -
+  // except where a stub above already is that page: `tags.md` is the
+  // tags folder's index.
+  return [...named, ...folderIndexes(api).filter(stub => !taken.has(stub.path))]
 }
 
 /**
- * One `<folder>/index.md` per folder that has a listed page, at any
- * depth - the section index the folder pass used to create as an
- * alias page. It routes to `<folder>.html` like `<folder>/home.md`
- * does, so `/blog` is a page, and the breadcrumb and nav (which look
- * up `<folder>.html`) find it with no change.
+ * One `<folder>.md` per folder that has a listed page, at any depth -
+ * the section index, a stub named as the page an author would write
+ * for it. It routes to `<folder>.html` by the ordinary rule, so `/blog`
+ * is a page, and the breadcrumb and nav (which look up `<folder>.html`)
+ * find it with no change.
  *
  * Derived from the targets, since there is no api.folders(): a folder
  * counts when a page *listPages would show* lives in it or below it.
@@ -277,11 +281,13 @@ function createStubs({ api }) {
  * hidden) get no index, and a folder whose last page goes loses its
  * index on that pass - the stub is simply no longer declared.
  *
- * The stub stands down when `<folder>.html` already has another source:
- * an author's `<folder>/home.md`, or the `tags.md` stub. An author's
- * own `<folder>/index.md` shadows it by path, votive's ordinary rule.
- * Checking `source` rather than mere existence is what stops it
- * oscillating, as with home.md above.
+ * An author's own `blog.md` beside `blog/` shadows the stub by path,
+ * votive's ordinary rule; the stub stands down when `<folder>.html`
+ * already has another source - an author's `<folder>/home.md`, or the
+ * `tags.md` stub. Checking `source` rather than mere existence is what
+ * stops it oscillating, as with home.md above. `index.md` gets no
+ * special handling anywhere (Sam, Sept 19): `blog/index.md` is the
+ * page `blog/index.html`, a child of `blog.html` like any other.
  * @param {any} api - the enumerator's untracked api
  */
 function folderIndexes(api) {
@@ -297,7 +303,7 @@ function folderIndexes(api) {
   }
 
   return [...folders].sort().flatMap(folder => {
-    const stubPath = path.join(folder, "index.md")
+    const stubPath = `${folder}.md`
     const indexTarget = api.target(`${folder}.html`)
     const ours = !indexTarget || indexTarget.source === stubPath
     return ours ? [{ path: stubPath, params: { folder } }] : []
@@ -355,11 +361,10 @@ function router(args) {
   switch (name) {
     case "settings":
       return false
-    // `home.md` and `index.md` are two spellings of one thing: the
-    // section index. At the root both land on index.html; in a folder
-    // both land on `<folder>.html`.
+    // `home.md` is the section index: index.html at the root,
+    // `<folder>.html` in a folder. It is the one name with a rule;
+    // `index.md` is a page called index, like any other.
     case "home":
-    case "index":
       if (inRootDir) {
         return {
           dir,

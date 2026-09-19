@@ -7,10 +7,10 @@ import votive from "votive"
 import { createConfig } from "../config.js"
 
 /**
- * Every folder with a listed page gets an index page - `<folder>/index.md`,
- * a stub, routed to `<folder>.html` the way `<folder>/home.md` is, so
- * `/blog` is a page. An author's own index.md or home.md replaces it; a
- * folder with no listed page gets none. Spec: synthetic-sources.md,
+ * Every folder with a listed page gets an index page - a `<folder>.md`
+ * stub, routed to `<folder>.html` by the ordinary rule, so `/blog` is a
+ * page. An author's own `<folder>.md` or `<folder>/home.md` replaces it;
+ * a folder with no listed page gets none. Spec: synthetic-sources.md,
  * "a folder with no listed markdown page gets no index".
  */
 
@@ -70,18 +70,28 @@ test("a folder with a page gets an index at <folder>.html listing it; an empty f
   })
 })
 
-test("an authored <folder>/index.md or <folder>/home.md is the section index; the stub stands down", async () => {
+test("an authored <folder>.md or <folder>/home.md is the section index and the stub stands down; <folder>/index.md is an ordinary child page", async () => {
   await withSite({
     "home.md": "# Home\n",
-    "blog/index.md": "# My Blog\n\nHand-written.\n",
+    "blog.md": "# My Blog\n\nHand-written.\n",
     "blog/post.md": "# Post\n",
     "shop/home.md": "# The Shop\n",
-    "shop/hats.md": "# Hats\n"
-  }, async ({ html, pages }) => {
-    assert.deepEqual((await pages()).filter(p => !p.includes(path.sep)), ["404.html", "blog.html", "index.html", "shop.html"])
+    "shop/hats.md": "# Hats\n",
+    "notes/index.md": "# Just A Page\n\nCalled index.\n",
+    "notes/one.md": "# One\n"
+  }, async ({ html, pages, site }) => {
+    assert.deepEqual((await pages()).filter(p => !p.includes(path.sep)), ["404.html", "blog.html", "index.html", "notes.html", "shop.html"])
     assert.match(await html("blog.html"), /<h1>My Blog<\/h1>/)
     assert.match(await html("blog.html"), /Hand-written/)
+    assert.equal(site.database.target.get("blog.html").source, "blog.md")
     assert.match(await html("shop.html"), /<h1>The Shop<\/h1>/)
+    // No special handling for index.md (Sam, Sept 19): notes/index.md is
+    // notes/index.html at /notes/index, a child of the generated
+    // notes.html, which lists it.
+    assert.match(await html(path.join("notes", "index.html")), /Called index\./)
+    assert.equal(site.database.target.get(path.join("notes", "index.html")).metadata.prettyURL, "/notes/index")
+    assert.match(await html("notes.html"), /href=\/notes\/index/)
+    assert.equal(site.database.target.get("notes.html").source, "notes.md")
   })
 })
 
@@ -111,6 +121,6 @@ test("a second build with nothing changed writes no folder index again", async (
     await rebuild()
     const stale = site.database.raw.prepare("SELECT path FROM targets WHERE stale = 1").all()
     assert.deepEqual(stale, [])
-    assert.equal(site.database.target.get("blog.html").source, path.join("blog", "index.md"))
+    assert.equal(site.database.target.get("blog.html").source, "blog.md")
   })
 })

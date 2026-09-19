@@ -226,7 +226,8 @@ test("a listing names a secret folder relatively, by source path, and renders th
     const hashed = hashSegmentInput("studio/members##autumn-glaze")
 
     // Inside the folder, `./*` lists its siblings at their hashed urls.
-    const index = await readFile(path.join(targetFolder, "studio", `${hashed}.html`), "utf-8")
+    // (index.md is a page called index, at the folder's hashed path.)
+    const index = await readFile(path.join(targetFolder, "studio", hashed, "index.html"), "utf-8")
     assert.match(index, new RegExp(`href=/studio/${hashed}/one`))
     assert.match(index, new RegExp(`href=/studio/${hashed}/two`))
 

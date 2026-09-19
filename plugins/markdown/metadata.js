@@ -240,7 +240,9 @@ function getMetadata(tree, filePath, targetPath, report = () => {}) {
 
   if (targetPath) {
     const targetInfo = path.parse(targetPath)
-    const name = targetInfo.name === "index" ? "" : targetInfo.name
+    // Only the root's index.html is `/`; `blog/index.html` is a page
+    // called index, at `/blog/index`.
+    const name = targetInfo.name === "index" && !targetInfo.dir ? "" : targetInfo.name
     // FIXME the prettyURL should include the preceding slash
     metadata.prettyURL = (new URL(`${targetInfo.dir}/${name}`, "thismessage:/")).pathname
   }
