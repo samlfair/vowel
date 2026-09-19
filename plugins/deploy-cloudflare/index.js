@@ -26,25 +26,29 @@ import path from "node:path"
  * @param {{ config: import("votive").VotiveConfig & { cloudflareProjectName?: string }, notify: (message: object) => void }} context
  */
 async function deployToCloudflarePages(payload, { config, notify }) {
-  if (!config.cloudflareProjectName) throw new Error("config.cloudflareProjectName is required to deploy")
+  // The Pages project, from the command's payload (`vowel --command
+  // deploy --payload '{"projectName":"my-site"}'`, or a Publish button's
+  // body) or from the config an embedder built.
+  const projectName = payload?.projectName ?? config.cloudflareProjectName
+  if (!projectName) throw new Error("a Cloudflare Pages project name is required to deploy: pass {\"projectName\": \"…\"} as the payload, or set config.cloudflareProjectName")
 
   notify({ status: "progress", message: "Building..." })
 
-  const queue = await votive({ ...config, verbose: false })
-  const { runBuffers, runFetches } = await queue()
-
   // Unlike a dev server's own rebuilds, a deploy needs everything done -
-  // there's no "next edit" to stay responsive for, so these are awaited
-  // fully instead of fired via runDeferred().
-  if (runBuffers) await runBuffers()
-  if (runFetches) await runFetches()
+  // there's no "next edit" to stay responsive for - so the deferred
+  // work (image derivatives, link previews) is awaited, and the site is
+  // closed: the database is a cache on disk, and this process is done
+  // with it.
+  const site = await votive({ ...config, verbose: false })
+  await (await site.build()).deferred
+  await site.close()
 
   notify({ status: "progress", message: `Publishing ${config.targetFolder} to Cloudflare Pages...` })
 
   return new Promise((resolve, reject) => {
     const proc = spawn(
       "wrangler",
-      ["pages", "deploy", config.targetFolder, "--project-name", config.cloudflareProjectName],
+      ["pages", "deploy", config.targetFolder, "--project-name", projectName],
       { stdio: ["ignore", "pipe", "pipe"] }
     )
 
@@ -63,10 +67,10 @@ async function deployToCloudflarePages(payload, { config, notify }) {
 }
 
 /**
- * Not part of vowel's default plugin list (see config.js) - deploying to
- * Cloudflare Pages specifically is an opt-in choice a site adds for
- * itself, along with its own `cloudflareProjectName`, not something
- * every vowel site should get by default.
+ * In vowel's default plugin list (config.js), so `vowel --command
+ * deploy` reaches it from any project. Registering a command costs
+ * nothing until it is invoked, and invoking it needs a project name,
+ * so a site that deploys elsewhere never meets it.
  * @type {import("votive").VotivePlugin}
  */
 const vowelDeployCloudflarePlugin = {
