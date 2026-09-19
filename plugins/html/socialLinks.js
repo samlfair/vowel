@@ -6,9 +6,13 @@ import { h } from "hastscript"
  *   social_links:
  *     - label: GitHub
  *       url: https://github.com/samlfair
- *       icon: icons/github.svg
+ *       icon: /icons/github.svg
  *     - label: Bluesky
  *       url: https://bsky.app/profile/littlefair.ca
+ *
+ * `icon` is a URL path from the root (`/x.svg`; `x.svg` means the same);
+ * `./x.svg` is the settings file's own folder. Resolved at read, in
+ * plugins/markdown/frontmatter.js, like `logo` and `icon`.
  *
  * A leaf overrides: the nearest folder that declares the label supplies
  * the whole list, and nothing above it contributes. That is the one
@@ -49,7 +53,8 @@ function socialLinksNav(settings) {
   return h("nav.social-links", { "aria-label": "Social links" },
     h("ul", links.map(({ label, url, icon }) => {
       const text = label ?? url
-      const iconURL = icon ? "/" + String(icon).replace(/^\//, "").toLowerCase() : null
+      // A URL path from the root, resolved at read (frontmatter.js).
+      const iconURL = icon ? String(icon) : null
       return h("li", h("a", {
         href: url,
         rel: "me",

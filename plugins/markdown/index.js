@@ -58,7 +58,7 @@ function readFile(source, { api, config }) {
   normalizeHeadingLevels(mdast)
   const pathInfo = path.parse(filePath)
 
-  const metadata = getMetadata(mdast, filePath, targetPath)
+  const metadata = getMetadata(mdast, filePath, targetPath, message => config.log?.("error", message))
 
   if (!metadata.image) {
     const firstImageParagraph = mdast.children.find(child => child.children && child.children[0].type === "image")

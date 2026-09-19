@@ -111,8 +111,23 @@ function makeHeader(metadata, url, api, config) {
   return treeMainHead
 }
 
+/**
+ * The favicon's MIME type from its extension, for `<link rel=icon>`.
+ * @param {string} iconPath
+ */
+function iconType(iconPath) {
+  const ext = path.extname(iconPath).toLowerCase()
+  const types = { ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" }
+  return types[ext]
+}
+
 /** @param {Date} date */
 function makeTime(date) {
+  // Every date that reaches here was coerced to ISO at read
+  // (frontmatter.js) or produced by extractDate; an Invalid Date would
+  // throw in toISOString, so a null child (which hastscript drops) is
+  // the guard for a value that arrived some other way.
+  if (isNaN(Number(date))) return null
   return h("time",
     {
       datetime: date.toISOString(),
@@ -386,15 +401,16 @@ function writeFile(target, { settings, api, config }) {
     }))
   }
 
-  /* FIXME Properly handle this image */
-  // fm_icon directly: settings.md already contributes it, and the folder
-  // pass copied it to `icon` for no reason.
+  // `icon` is a path, everywhere (Sam, Sept 19) - a URL path from the
+  // root, resolved at read like `logo` (frontmatter.js). The type is
+  // taken from its extension; a browser ignores a wrong one, but a
+  // right one lets it pick between several.
   const icon = settings.lastNonNull("fm_icon")
   if (icon) {
     treeHead.children.push(h("link", {
-      href: "/" + icon,
+      href: icon,
       rel: "icon",
-      type: "image/png"
+      type: iconType(icon)
     }))
   }
 
@@ -468,6 +484,9 @@ function writeFile(target, { settings, api, config }) {
 
   const homeLink = []
 
+  // `logo`, `wordmark` and `icon` are URL paths from the root already:
+  // the markdown plugin resolves them at read (frontmatter.js, rule 3),
+  // so `./logo.svg` in blog/settings.md is "/blog/logo.svg" here.
   const logo = settings.lastNonNull("logo")
   if (logo) {
     headerElements.push(
@@ -475,9 +494,9 @@ function writeFile(target, { settings, api, config }) {
         href: "/",
         "aria-label": "logo",
         rel: "home",
-        "style": `--logo-url: url("/${logo}")`
+        "style": `--logo-url: url("${logo}")`
       }, h("img", {
-        src: "/" + logo,
+        src: logo,
         alt: ""
       }))
     )
@@ -489,7 +508,7 @@ function writeFile(target, { settings, api, config }) {
       href: "/",
       rel: "home"
     }, h("img", {
-      src: "/" + wordmark
+      src: wordmark
     })))
   }
 

@@ -1,9 +1,9 @@
 import { toString as mdastToString } from 'mdast-util-to-string'
 import extractDate, { dateSpan } from "./../../extractDate.js"
 import { testURL, toTitleCase } from "./../../utils.js"
-import yaml from 'yaml'
 import path from "node:path"
 import { displayPath } from "../../secretPaths.js"
+import { coerce, parseFrontmatter, toISODate } from "./frontmatter.js"
 
 
 /**
@@ -69,20 +69,6 @@ export function normalizeHeadingLevels(tree) {
     if (child === titleNode) continue
     if (child.depth === 1) child.depth = 2
   }
-}
-
-/**
- * Dates reach metadata in whatever shape they were written - a Date from
- * extractDate, "2026-03-04" or "January 5, 1000" from frontmatter. They are
- * stored as ISO so the column holds one format: it sorts lexically, which is
- * what orderBy relies on, and toISOString pads the year to four digits, so
- * 0999 still sorts before 1000. Anything that is not a date is left alone.
- * @param {unknown} value
- */
-function normalizeDate(value) {
-  const parsed = value instanceof Date ? value : extractDate(String(value))
-  if (!parsed || isNaN(parsed)) return value
-  return parsed.toISOString()
 }
 
 /**
@@ -158,39 +144,59 @@ function recognizeData(block, metadata) {
   const date = extractDate(text)
   if (!date) return false
 
-  metadata.inferred_date = normalizeDate(date)
+  // Stored as ISO, like a frontmatter date (frontmatter.js, toISODate):
+  // one format in the column, which sorts lexically.
+  metadata.inferred_date = toISODate(date)
   markAsTime(block, date)
   return true
 }
 
 /**
+ * The frontmatter block into metadata, under frontmatter.js's rules:
+ * unparseable YAML goes back into the content, and every key vowel
+ * reads is checked and coerced, with one error line per problem.
+ * @param {object} tree
  * @param {object} node
  * @param {object} metadata
+ * @param {string} filePath
+ * @param {string} folder - what `./` paths resolve against
+ * @param {(message: string) => void} report
  */
-function readFrontmatter(node, metadata) {
-  const frontmatter = yaml.parse(node.value)
+function readFrontmatter(tree, node, metadata, filePath, folder, report) {
+  const parsed = parseFrontmatter(tree, node, filePath, report)
+  if (!parsed) return
+
+  const frontmatter = coerce(parsed, filePath, folder, report)
 
   for (const key in frontmatter) {
     const name = reservedProperties.includes(key) ? key : "fm_" + key
-    metadata[name] = key === "date" ? normalizeDate(frontmatter[key]) : frontmatter[key]
+    metadata[name] = frontmatter[key]
   }
 
   // Recorded because presence alone cannot distinguish a property the
   // author wrote from one selectMetadata derived: breadcrumb defaults to
   // the title, and would otherwise render as though it had been declared.
-  metadata.frontmatter_keys = Object.keys(frontmatter)
+  // The keys as written, so a coerced-away key still counts as declared.
+  metadata.frontmatter_keys = Object.keys(parsed)
 }
 
 /**
  * @param {object} tree
- * @param {string} filePath
- * @param {string} targetPath
+ * @param {string} filePath - project-relative
+ * @param {string | null} targetPath - project-relative, or null for a
+ *   source that routes nowhere
+ * @param {(message: string) => void} [report] - where a problem with the
+ *   file's frontmatter is told (frontmatter.js); the caller's error log
  */
-function getMetadata(tree, filePath, targetPath) {
+function getMetadata(tree, filePath, targetPath, report = () => {}) {
   const metadata = {}
 
   const frontmatterNode = tree.children.find(child => child.type === "yaml")
-  if (frontmatterNode) readFrontmatter(frontmatterNode, metadata)
+  // Paths resolve against where the page is published - the target's
+  // folder, which for a secret folder is the hashed one - or, for a
+  // source with no target, where it would have been.
+  const folder = path.dirname(targetPath ?? filePath).replace(/^\.$/, "")
+  if (frontmatterNode) readFrontmatter(tree, frontmatterNode, metadata, filePath, folder, report)
 
   const titleNode = findTitleNode(tree)
   if (titleNode) {
