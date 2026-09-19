@@ -213,3 +213,28 @@ test("a relative link to a secret page resolves to its hashed url, and a link to
     assert.ok(hrefs.some(h => h.includes("nope.md")), `a link to nothing is left alone: ${hrefs}`)
   })
 })
+
+test("a listing names a secret folder relatively, by source path, and renders the hashed urls; an absolute one is dropped, never rendered", async () => {
+  await withSite({
+    "settings.md": "---\nname: T\n---\n",
+    "home.md": "# Home\n\nPublic.",
+    "studio/members##autumn-glaze/one.md": "# One\n\nFirst.",
+    "studio/members##autumn-glaze/two.md": "# Two\n\nSecond.",
+    "studio/members##autumn-glaze/index.md": "# Members\n\n./*",
+    "studio/guide.md": "# Guide\n\n./members##autumn-glaze/*\n\n/studio/members##autumn-glaze/*\n\n./members##autumn-glaze/one"
+  }, async ({ targetFolder }) => {
+    const hashed = hashSegmentInput("studio/members##autumn-glaze")
+
+    // Inside the folder, `./*` lists its siblings at their hashed urls.
+    const index = await readFile(path.join(targetFolder, "studio", `${hashed}.html`), "utf-8")
+    assert.match(index, new RegExp(`href=/studio/${hashed}/one`))
+    assert.match(index, new RegExp(`href=/studio/${hashed}/two`))
+
+    // From a sibling page: the relative listing and reference resolve
+    // through the source path; the absolute one leaves no trace.
+    const guide = await readFile(path.join(targetFolder, "studio", "guide.html"), "utf-8")
+    assert.equal((guide.match(new RegExp(`href=/studio/${hashed}/one`, "g")) ?? []).length, 2, "listing + reference")
+    assert.equal(guide.includes("##"), false, "the marker never reaches output")
+    assert.equal(guide.includes("autumn-glaze"), false, "nor the salt")
+  })
+})

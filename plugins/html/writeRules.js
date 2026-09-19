@@ -188,25 +188,55 @@ const image = {
 }
 
 /**
- * A paragraph that is just a site path: `/blog/post` is a reference
- * card, `/blog/*` and `/blog/**` are listings, with the query string
- * as the listing's parameters. Every parameter is carried in the class
- * list so the editor can collapse the expansion back to the directive
+ * A paragraph that is just a path: `/blog/post` is a reference card,
+ * `/blog/*` and `/blog/**` are listings, with the query string as the
+ * listing's parameters. Every parameter is carried in the class list so
+ * the editor can collapse the expansion back to the directive
  * (plugins/html/editor/directives.js).
+ *
+ * Two spellings, two address spaces (Sam, Sept 19). An absolute path
+ * (`/blog/*`) is a *published* path and names targets. A relative one
+ * (`./posts/*`, `../notes/x`) is a *source* path, resolved against the
+ * page's own file and then routed - which is the only way to list a
+ * secret folder, since the salt lives in the source name
+ * (`./members##autumn-glaze/*`) and the listing renders the hashed
+ * urls. A `##` in an absolute path can match nothing, and the paragraph
+ * is dropped rather than rendered: a salt never reaches output.
  * @type {import("../markdown/visitor.js").BlockRule}
  */
 const directive = {
   name: "directive",
-  test: (node) => /^\/\S*$/.test(soleText(node) ?? ""),
-  transform: (node, index, parent, { api, config, makeHeader, makeTable }) => {
+  test: (node) => /^(\/|\.\.?\/)\S*$/.test(soleText(node) ?? ""),
+  transform: (node, index, parent, { target, api, config, makeHeader, makeTable }) => {
     const value = node.children[0].value
-    const url = new URL(value, "thismessage://")
+    const relative = !value.startsWith("/")
+
+    if (!relative && value.includes("##")) {
+      config.log?.("error", `${target.source ?? target.path}: a listing by published path cannot name a secret folder (${value}); write it relative to this file, as \`./…\``)
+      return []
+    }
+
+    // A relative path is joined to this file's folder in source space
+    // and sent through the router cascade, so the folder or page it
+    // names is the published one, hashed if secret. `#` is not a url
+    // character (it starts a fragment), so the query string is split
+    // off before anything is parsed as a url.
+    const [pathPart, search = ""] = value.split("?")
+    const routed = relative
+      ? routeRelative(pathPart, target, config)
+      : pathPart
+    if (routed === undefined) {
+      config.log?.("warn", `${target.path}: ${value} cannot be resolved from a page with no source file`)
+      return SKIP
+    }
+    const url = new URL(routed, "thismessage://")
+    if (search) url.search = search
     const { dir, base } = path.parse(url.pathname)
     const recursive = base === "**"
     const many = base === "*" || base === "**"
 
     if (!many) {
-      const info = path.parse(value)
+      const info = path.parse(url.pathname)
       info.ext ||= ".html"
       delete info.base
       // Lowercased: every vowel target path is (config.js's router).
@@ -224,13 +254,13 @@ const directive = {
     const properties = (url.searchParams.get("properties") || "").split(",").map(name => name.trim()).filter(Boolean)
     const query = tag ? { tags: { "~": tag } } : {}
 
-    const targets = listPages(api, {
-      folder,
-      recursive,
-      query,
-      orderBy: { property: "date", direction: "desc" },
-      limit: count ? Number(count) : undefined
-    })
+    // A relative glob is in source space, where the author named the
+    // folder salt and all, so it sees the hidden (secret) pages there;
+    // a published-path glob never does.
+    const listing = { folder, recursive, query, orderBy: { property: "date", direction: "desc" }, limit: count ? Number(count) : undefined }
+    const targets = relative
+      ? api.targets(listing).filter(page => page.write !== false && page.extension === ".html")
+      : listPages(api, listing)
 
     const listClasses = globClasses({ folder, recursive, limit: count, tag, view, properties })
 
@@ -238,6 +268,23 @@ const directive = {
       ? makeTable(listClasses, properties.length ? properties : ["title"], targets, api)
       : h("ul", { class: listClasses }, targets.map(found => h("li", makeHeader(found.metadata, found.metadata.prettyURL, api, config))))
   }
+}
+
+/**
+ * A relative directive path as the absolute published path it names.
+ * The glob's last segment (`*`, `**`) rides along untouched: the
+ * cascade hashes and lowercases segments and leaves those alone.
+ * @param {string} value - `./members##salt/*`, `../notes/x`
+ * @param {{source?: string | null}} target - the page being written
+ * @param {{router?: (sourcePath: string) => string}} config
+ * @returns {string | undefined} `/studio/<hash>/*`, or undefined for a
+ *   page with no source to resolve against (a stub)
+ */
+function routeRelative(value, target, config) {
+  if (!target.source) return undefined
+  const sourcePath = path.normalize(path.join(path.dirname(target.source), value))
+  const routed = config.router ? config.router(sourcePath) : sourcePath
+  return "/" + routed.split(path.sep).join("/")
 }
 
 /**
