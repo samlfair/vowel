@@ -50,6 +50,8 @@ function resolveDomain(settings) {
   return String(domain).startsWith("http") ? String(domain) : "http://" + domain
 }
 
+const DEFAULT_FEED_LIMIT = 20
+
 /** @type {Votive.VotiveProcessor} */
 const processor = {
   router: ({ name, dir, ext }) => ({ name, dir, ext }),
@@ -120,6 +122,17 @@ const processor = {
 
     } else if (target.path === "feed.xml") {
 
+      // The most recent entries, not every dated page the site has
+      // ever published: a feed is what changed lately, and a reader
+      // fetches it hourly. It is also what keeps an edit cheap - every
+      // entry's content is its rendered body, parsed out of the page,
+      // and the feed used to re-render all of them (800 pages: 850 ms,
+      // on every edit to any of them). Cut after listPages' own filter,
+      // so a hidden or virtual page in the top twenty doesn't cost the
+      // feed an entry; the rows are cheap, only `data` is not, and only
+      // the entries kept read it. `feed_limit` in settings.md raises or
+      // lowers it.
+      const limit = Number(settings.lastNonNull("fm_feed_limit")) || DEFAULT_FEED_LIMIT
       const pages = listPages(api, {
         query: {
           "!": {
@@ -131,6 +144,7 @@ const processor = {
         orderBy: { property: "date", direction: "desc" }
       })
         .filter(a => a.metadata.date)
+        .slice(0, limit)
 
       // Same rule as the sitemap: every <id> and <link> is absolute, and
       // Atom requires <id> to be an absolute IRI. Without a domain this
