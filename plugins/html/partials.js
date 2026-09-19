@@ -38,6 +38,9 @@ import { isVowelStylesheet } from "../styles/theme.js"
 
 const ASIDE_PARTIAL = path.join("partials", "aside.partial")
 
+/** A page with more siblings than this is left out of the aside. */
+const MAX_SIBLINGS = 18
+
 /** @param {string} targetPath - the page's own target path */
 function backlinksPartialPath(targetPath) {
   return path.join("partials", "backlinks", `${targetPath}.partial`)
@@ -98,7 +101,14 @@ function asideTree(pages) {
     if (!byFolder.has(url)) byFolder.set(url, [])
     byFolder.get(url).push(page)
   }
-  const children = (parent) => (byFolder.get(parent.metadata.prettyURL) ?? []).map(node)
+  // A page with more than MAX_SIBLINGS siblings is left out, and so are
+  // its siblings: the folder's own entry stays, and its pages are a
+  // listing's job, not a menu's. Per Sam: "exclude pages with 19
+  // siblings or more".
+  const children = (parent) => {
+    const pages = byFolder.get(parent.metadata.prettyURL) ?? []
+    return pages.length - 1 > MAX_SIBLINGS ? [] : pages.map(node)
+  }
 
   function node(page) {
     const below = children(page)

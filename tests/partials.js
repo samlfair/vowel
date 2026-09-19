@@ -119,3 +119,16 @@ test("a second build with nothing changed re-expands no partial and rewrites not
     assert.equal(site.database.raw.prepare("SELECT COUNT(*) AS n FROM targets WHERE stale = 1 AND path NOT LIKE 'feed%'").get().n, 0)
   })
 })
+
+test("the aside lists a folder's pages up to 19 of them; a folder with 20 or more shows only its own entry", async () => {
+  const files = { "home.md": "# Home\n", "small/settings.md": "", "big/settings.md": "" }
+  for (let i = 1; i <= 19; i++) files[`small/page-${String(i).padStart(2, "0")}.md`] = `# Small ${i}\n`
+  for (let i = 1; i <= 20; i++) files[`big/page-${String(i).padStart(2, "0")}.md`] = `# Big ${i}\n`
+  await withSite(files, async ({ aside }) => {
+    const tree = await aside("index.html")
+    assert.ok(tree.includes(">Small<") || tree.includes(">Small</a>"), "the small folder is listed")
+    assert.equal((tree.match(/href=\/small\/page-/g) ?? []).length, 19, "nineteen pages, eighteen siblings each: all listed")
+    assert.ok(tree.includes(">Big<") || tree.includes(">Big</a>"), "the big folder's own entry stays")
+    assert.equal((tree.match(/href=\/big\/page-/g) ?? []).length, 0, "twenty siblings are not")
+  })
+})
