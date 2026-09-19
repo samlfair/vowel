@@ -116,10 +116,16 @@ export function createHashtagPage(tag) {
  * @param {object} query
  */
 export function listPages(api, query) {
-  const targets = api.targets(query)
-  return targets.filter(target => (
-    target.write !== false
+  return api.targets(query).filter(isListedPage)
+}
+
+/**
+ * listPages' rule on one target, for a caller that has a listing in
+ * hand already and wants the pages out of it without listing again.
+ * @param {any} target
+ */
+export function isListedPage(target) {
+  return target.write !== false
     && target.extension === ".html"
     && !target.metadata?.hidden
-  ))
 }

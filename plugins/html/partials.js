@@ -1,6 +1,6 @@
 import path from "node:path"
 import { h } from "hastscript"
-import { listPages } from "../../utils.js"
+import { isListedPage } from "../../utils.js"
 import { isVowelStylesheet } from "../styles/theme.js"
 
 /**
@@ -177,8 +177,12 @@ function backlinkIndex(pages, linkable = pages) {
  * @param {any} api - the enumerator's api
  */
 function createPartialStubs(api) {
-  const pages = listPages(api, { folder: "", recursive: true })
-  const linkable = api.targets({ folder: "", recursive: true }).filter(page => page.write !== false && page.extension === ".html")
+  // One listing, every pass: the pages, the linkable pages (hidden
+  // ones can still be linked to) and the stylesheets are three views of
+  // it, and a listing is the enumerator's whole cost.
+  const all = api.targets({ folder: "", recursive: true })
+  const pages = all.filter(isListedPage)
+  const linkable = all.filter(page => page.write !== false && page.extension === ".html")
 
   const backlinks = [...backlinkIndex(pages, linkable)].map(([target, linkers]) => ({
     path: backlinksPartialPath(target),
@@ -201,7 +205,7 @@ function createPartialStubs(api) {
   // The project's stylesheets by folder: a .css the author wrote (has a
   // source, is not one vowel generates), with the hash its read recorded.
   const sheets = new Map()
-  for (const sheet of api.targets({ folder: "", recursive: true })) {
+  for (const sheet of all) {
     if (!sheet.source || sheet.extension !== ".css" || isVowelStylesheet(sheet.path)) continue
     if (!sheets.has(sheet.dir)) sheets.set(sheet.dir, [])
     sheets.get(sheet.dir).push({ path: sheet.path, hash: sheet.metadata?.hash ?? "" })
