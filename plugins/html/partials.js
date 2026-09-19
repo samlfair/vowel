@@ -146,8 +146,11 @@ function backlinkIndex(pages, linkable = pages) {
   for (const page of linkable) {
     if (page.source) bySource.set(page.source, page)
     if (page.metadata.prettyURL) byURL.set(page.metadata.prettyURL, page)
-    if (page.metadata.inferred_label) {
-      const key = `[[${page.metadata.inferred_label}]]`
+    // Under every name a [[wikilink]] could reach it by: its filename
+    // key and its aliases (metadata.js), as readRules records them.
+    for (const name of [page.metadata.note_key, ...(page.metadata.note_aliases ?? [])]) {
+      if (!name) continue
+      const key = `[[${name}]]`
       if (!byLabel.has(key)) byLabel.set(key, [])
       byLabel.get(key).push(page)
     }

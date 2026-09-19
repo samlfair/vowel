@@ -57,7 +57,8 @@ test("wikilinks: resolved by name across folders, with section and label; unreso
     assert.match(html, /<a class=wikilink data-note="hello world"href=\/notes\/hello-world>the words<\/a>/)
     assert.match(html, /<a class=wikilink data-note=Nowhere>Nowhere<\/a>/)
 
-    assert.ok(site.database.target.get("post.html").metadata.links.includes("[[Hello World]]"))
+    // Recorded by the note's key: the filename, lowercased.
+    assert.ok(site.database.target.get("post.html").metadata.links.includes("[[hello world]]"))
     // And the linked page lists it as a backlink.
     const linked = await page(path.join("notes", "hello-world.html"))
     assert.match(linked, /<section id=backlinks>[\s\S]*Post[\s\S]*<\/section>/)
@@ -76,16 +77,39 @@ test("wikilinks: a note appearing later resolves the link on the next build", as
   })
 })
 
-test("wikilinks: two notes with one name - the linking page's own folder wins, then the shortest path", async () => {
+test("wikilinks: two notes with one name - the nearest wins: own folder, then the longest shared folder prefix, then the shortest path", async () => {
   await withSite({
     "home.md": "# Home\n",
     "a/Note.md": "# Note\n",
     "b/c/Note.md": "# Note\n",
     "b/c/post.md": "# Post\n\n[[Note]]\n",
+    "b/deep/deeper/post.md": "# Post\n\n[[Note]] and [[a/note]]\n",
     "other.md": "# Other\n\n[[Note]]\n"
   }, async ({ page }) => {
     assert.match(await page(path.join("b", "c", "post.html")), /href=\/b\/c\/note>/)
+    // From b/deep/deeper: b/c/note shares `b`, a/note shares nothing.
+    assert.match(await page(path.join("b", "deep", "deeper", "post.html")), /data-note=Note href=\/b\/c\/note>/)
+    // A path narrows it, Obsidian-style: [[a/note]] is the one under a/.
+    assert.match(await page(path.join("b", "deep", "deeper", "post.html")), /data-note=a\/note href=\/a\/note>/)
     assert.match(await page("other.html"), /href=\/a\/note>/)
+  })
+})
+
+test("wikilinks: case-insensitive on the filename, and an alias reaches a note too", async () => {
+  await withSite({
+    "home.md": "# Home\n",
+    "notes/iPhone Notes.md": "---\naliases: [phone, Mobile]\n---\n\n# iPhone Notes\n",
+    "post.md": "# Post\n\n[[iphone notes]] [[IPHONE NOTES]] [[Phone]] [[mobile]] [[hello-world]]\n",
+    "hello-world.md": "# Hello World\n"
+  }, async ({ page, site }) => {
+    const html = await page("post.html")
+    assert.equal((html.match(/href=\/notes\/iphone-notes>/g) ?? []).length, 4)
+    // Obsidian matches the filename, not the title: hello-world.md is
+    // reached as [[hello-world]], and would not be as [[Hello World]].
+    assert.match(html, /data-note=hello-world href=\/hello-world>/)
+    // Backlinks reach the note under its alias.
+    const linked = await page(path.join("notes", "iphone-notes.html"))
+    assert.match(linked, /<section id=backlinks>[\s\S]*Post[\s\S]*<\/section>/)
   })
 })
 

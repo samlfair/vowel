@@ -231,6 +231,13 @@ function getMetadata(tree, filePath, targetPath, report = () => {}) {
 
   metadata.inferred_label = toTitleCase(pathInfo.name)
 
+  // What a [[wikilink]] matches, the way Obsidian matches: the filename
+  // without its extension, case-insensitively, plus any `aliases:` the
+  // author declared. Lowercased here once so the lookup is one equality
+  // (writeRules.js, resolveNote).
+  metadata.note_key = pathInfo.name.toLowerCase()
+  if (Array.isArray(metadata.fm_aliases)) metadata.note_aliases = metadata.fm_aliases.map(alias => String(alias).toLowerCase())
+
   if (targetPath) {
     const targetInfo = path.parse(targetPath)
     const name = targetInfo.name === "index" ? "" : targetInfo.name

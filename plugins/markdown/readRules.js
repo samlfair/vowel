@@ -98,8 +98,12 @@ const wikilink = {
   pattern: WIKILINK,
   resolve: (match, context) => {
     const [, name, section, label] = match
-    const reference = `[[${toTitleCase(name.trim())}]]`
-    if (!context.links.includes(reference)) context.links.push(reference)
+    // Recorded by the note's key - the last path segment, lowercased -
+    // which is what resolves it at write (writeRules.js, resolveNote)
+    // and what the backlink index matches (partials.js).
+    const key = name.trim().replace(/^\/+/, "").split("/").at(-1)?.trim().toLowerCase()
+    const reference = `[[${key}]]`
+    if (key && !context.links.includes(reference)) context.links.push(reference)
     return {
       type: "wikilink",
       name: name.trim(),

@@ -7,6 +7,7 @@ import { createVisitor, SKIP } from "../markdown/visitor.js"
 import { toTitleCase, listPages } from "../../utils.js"
 import { globClasses } from "./editor/directives.js"
 import createDynamicImage from "./image.js"
+import { displayPath } from "../../secretPaths.js"
 
 /**
  * The write walk: one pass over a page's hast for everything that
@@ -59,27 +60,64 @@ const relativeLink = {
 }
 
 /**
- * A note by name, the way Obsidian finds it: whatever folder it is in.
- * A filtered listing on `inferred_label`, so a note that appears later
- * restales this page (a filtered listing tracks the labels it filters
- * on) and the write runs again. Tie-break: the linking page's own
- * folder, then the shortest path, then alphabetical.
+ * A note by name, the way Obsidian finds it - as best we can guess
+ * (Sam, Sept 19):
+ *
+ * - by **filename without extension, case-insensitively**, whatever
+ *   folder it is in (`[[Hello World]]` finds `hello world.md` and
+ *   `Hello World.md`, never `hello-world.md`), or by one of the note's
+ *   `aliases:`;
+ * - a **path** narrows it: `[[notes/twin]]` wants a `twin` whose folder
+ *   path ends in `notes`, from the vault root or any folder above it;
+ * - when several still match, **the nearest wins**: the linking page's
+ *   own folder, then the longest shared folder prefix, then the
+ *   shortest path, then alphabetical.
+ *
+ * A filtered listing on `note_key`/`note_aliases` (metadata.js), so a
+ * note that appears later restales this page and the write runs again.
  * @param {string} name
  * @param {{ api: any, target: any }} context
  */
 function resolveNote(name, { api, target }) {
+  const segments = name.trim().replace(/^\/+/, "").split("/").map(segment => segment.trim().toLowerCase()).filter(Boolean)
+  const key = segments.at(-1)
+  if (!key) return null
+  const folderHint = segments.slice(0, -1).join("/")
+
   const candidates = api.targets({
     folder: "",
     recursive: true,
-    query: { inferred_label: toTitleCase(name.trim()) }
-  }).filter(candidate => candidate.extension === ".html" && candidate.path !== target.path)
+    query: { "|": { note_key: key, note_aliases: { "~": key } } }
+  }).filter(candidate => (
+    candidate.extension === ".html"
+    && candidate.path !== target.path
+    && (!folderHint || sourceFolder(candidate).endsWith(folderHint))
+  ))
 
-  const rank = (candidate) => [candidate.dir === target.dir ? 0 : 1, candidate.path.length, candidate.path]
+  const here = target.dir.split(path.sep).join("/")
+  const rank = (candidate) => {
+    const there = candidate.dir.split(path.sep).join("/")
+    return [there === here ? 0 : 1, -sharedPrefix(here, there), candidate.path.length, candidate.path]
+  }
   return candidates.sort((a, b) => {
-    const [ad, al, ap] = rank(a)
-    const [bd, bl, bp] = rank(b)
-    return ad - bd || al - bl || (ap < bp ? -1 : ap > bp ? 1 : 0)
+    const [ad, as, al, ap] = rank(a)
+    const [bd, bs, bl, bp] = rank(b)
+    return ad - bd || as - bs || al - bl || (ap < bp ? -1 : ap > bp ? 1 : 0)
   })[0] ?? null
+}
+
+/** A candidate's source folder as the author sees it: salts stripped, lowercase, forward slashes. */
+function sourceFolder(candidate) {
+  const source = candidate.source ? displayPath(candidate.source) : candidate.path
+  return path.dirname(source).split(path.sep).join("/").toLowerCase().replace(/^\.$/, "")
+}
+
+/** How many leading folder segments two folder paths share. */
+function sharedPrefix(a, b) {
+  const as = a ? a.split("/") : []
+  const bs = b ? b.split("/") : []
+  const shared = as.findIndex((segment, index) => segment !== bs[index])
+  return shared === -1 ? as.length : shared
 }
 
 /**
