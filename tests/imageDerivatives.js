@@ -9,9 +9,9 @@ import { createConfig } from "../config.js"
 
 /**
  * An image's derivatives (four widths × avif, webp, its own format) are
- * stubs with rows, so a warm start keeps them, a changed image replaces
- * them, and a deleted image removes them. They used to be loose files
- * the startup sweep deleted on the second launch.
+ * the image's owned targets, so a warm start keeps them, a changed image
+ * replaces them, and a deleted image removes them. They used to be loose
+ * files the startup sweep deleted on the second launch.
  */
 
 async function build(sourceFolder, systemFolder) {
@@ -21,11 +21,9 @@ async function build(sourceFolder, systemFolder) {
     cacheDirectory: path.join(systemFolder, ".cache"),
     logging: "silent"
   }))
-  await (await site.build()).deferred
-  // Derivatives are declared from a read that is deferred, and read
-  // deferred themselves: two follow-ups. The dev server gets there on
-  // its own; a one-shot build asks for them.
-  await (await site.build()).deferred
+  // One build: the image's read is deferred, returns the derivatives as
+  // its owned targets, and \`deferred\` covers the follow-up that writes
+  // them.
   await (await site.build()).deferred
   return site
 }
@@ -49,8 +47,9 @@ test("derivatives survive a warm start, follow the image's content, and go with 
     const home = await readFile(path.join(targetFolder, "index.html"), "utf-8")
     assert.ok(home.includes(`/pic-${hash}-414.avif`), "the page's srcset names them")
     assert.ok(home.includes("width=800"), "and carries the measured size")
-    const rows = site.database.raw.prepare("SELECT COUNT(*) AS n FROM targets WHERE path LIKE 'pic-%'").get().n
-    assert.equal(rows, 12, "each derivative is a target")
+    const rows = site.database.raw.prepare("SELECT COUNT(*) AS n FROM targets WHERE path LIKE 'pic-%' AND source = 'pic.jpg'").get().n
+    assert.equal(rows, 12, "each derivative is a target owned by the image")
+    assert.equal(site.database.raw.prepare("SELECT COUNT(*) AS n FROM sources WHERE path LIKE 'pic%'").get().n, 1, "pic.jpg is a source; its derivatives are not")
     await site.close()
 
     // Warm: a second launch, nothing changed.
