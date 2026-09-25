@@ -18,12 +18,16 @@ import path from "node:path"
  *
  *   the project-relative source path, forward slashes (whatever the
  *   platform's separator), no leading slash,
- *   up to and including the segment being hashed, salt in place, and the
- *   extension included for a file.
+ *   up to and including the segment being hashed, salt in place, and a
+ *   file's extension left off.
  *
  * So `blog/hidden##purple-bear/post.md` hashes its folder from
  * `"blog/hidden##purple-bear"`, and `reports/dev##blue-parrot.md` hashes
- * from `"reports/dev##blue-parrot.md"`. Each segment hashes against the
+ * from `"reports/dev##blue-parrot"`. Without the extension, a page and
+ * the folder it indexes hash alike: `abc##xyz.md` is `<hash>.html` beside
+ * `abc##xyz/` at `<hash>/`, as `blog.md` sits beside `blog/`. Two files
+ * differing only by extension share a hash and keep their extensions,
+ * as `photo.md` and `photo.jpg` do. Each segment hashes against the
  * *original* path, not one already rewritten above it, so the value is
  * reproducible by hand. SHA-256, first 16 hex characters: 64 bits is far
  * beyond guessable for a share-link, and short enough to paste.
@@ -111,8 +115,9 @@ function secretRouter(sourcePath) {
     const { stem, ext } = splitExtension(segment, isFile)
     if (!parseSecret(stem, sourcePath)) return segment
 
-    // Hashed from the original path up to and including this segment.
-    const input = segments.slice(0, index + 1).join("/")
+    // Hashed from the original path up to and including this segment,
+    // without its extension.
+    const input = [...segments.slice(0, index), stem].join("/")
     return hashSegmentInput(input) + ext
   }).join(path.sep)
 }

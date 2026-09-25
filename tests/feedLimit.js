@@ -81,3 +81,18 @@ test("editing a post outside the feed's window leaves feed.xml alone", async () 
     assert.equal(edges.includes("date"), true)
   })
 })
+
+test("a post's author: is its entry's author; the site's author: is the feed's", async () => {
+  await withSite({
+    "settings.md": "---\ndomain: example.com\nname: T\nauthor: Site Author\n---\n",
+    "blog/by-guest.md": "---\nauthor: Guest Writer\n---\n# Guest\n\n2026-01-02\n\nBody.",
+    "blog/by-site.md": "# Site\n\n2026-01-01\n\nBody."
+  }, async ({ targetFolder }) => {
+    const feed = await readFile(path.join(targetFolder, "feed.xml"), "utf-8")
+    const entry = (title) => feed.slice(feed.indexOf(`<title>${title}</title>`)).split("</entry>")[0]
+    const feedHead = feed.slice(0, feed.indexOf("<entry>"))
+    assert.match(feedHead, /<author>\s*<name>Site Author<\/name>/)
+    assert.match(entry("Guest"), /<author>\s*<name>Guest Writer<\/name>/)
+    assert.doesNotMatch(entry("Site"), /<author>/, "an entry without its own author inherits the feed's")
+  })
+})

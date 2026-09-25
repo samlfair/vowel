@@ -96,15 +96,6 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
 
       frontmatter.push(`name: ${websiteName}`)
 
-      const tagline = await text({
-        message: "Website tagline (leave empty to skip)",
-        placeholder: "All the news that's fit to blog"
-      })
-
-      if (tagline) {
-        frontmatter.push(`tagline: ${tagline}`)
-      }
-
       box(`Vowel comes loaded with themes. You can override these themes by writing styles in a 'styles.css' file at the root of your project.`)
 
       const theme = await select({
@@ -165,6 +156,12 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
         message: "Generate homepage"
       })
 
+      // A tagline is a page's; the homepage's is the site's hero.
+      const tagline = await text({
+        message: "Homepage tagline (leave empty to skip)",
+        placeholder: "All the news that's fit to blog"
+      })
+
       const spin = spinner()
 
       spin.start('Setting up')
@@ -182,7 +179,8 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
       const homeExists = await exists("home.md")
 
       if (!homeExists) {
-        await fs.writeFile("home.md", `# Home\n\nWelcome home!`, "utf-8")
+        const homeFrontmatter = tagline ? `---\ntagline: ${tagline}\n---\n` : ""
+        await fs.writeFile("home.md", `${homeFrontmatter}# Home\n\nWelcome home!`, "utf-8")
       }
 
       spin.clear()

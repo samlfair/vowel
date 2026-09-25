@@ -67,7 +67,7 @@
 			font size; increase or decrease this number for larger or
 			smaller headings
 		*/
-		--font-size-delta: calc(2 * var(--font-size-root));
+		--font-size-delta: calc(1.5 * var(--font-size-root));
 
 		/*
 			the rate of decay from h1 to h6 font size, where h6 is
@@ -135,8 +135,6 @@
 	h4,
 	h5,
 	h6,
-	pre,
-	code,
 	ul,
 	ol,
 	li,
@@ -169,7 +167,6 @@
 	time,
 	kbd,
 	data,
-	code,
 	samp,
 	var,
 	button {
@@ -186,7 +183,7 @@
 		text-decoration: none;
 	}
 
-	a#title {
+	[rel=home] {
 		font-weight: bold;
 	}
 
@@ -243,7 +240,6 @@
 
 	/* main */
 	main {
-		gap: 1lh;
 
 		time {
 			display: block;
@@ -252,6 +248,9 @@
 
 	main,
 	section {
+
+		row-gap: 2lh;
+		align-items: stretch;
 
 		/* flex layout blocks */
 		&,
@@ -270,18 +269,32 @@
 		/* nav spacing */
 		nav[aria-label=Contents] {
 
-			&,
 			ol,
-			ol {
-				gap: 1lh;
-				padding: 1lh 3ch;
+			ol,
+			li {
+				display: flex;
+				flex-direction: column;
+				justify-content: flex-start;
+				line-height: 1.2;
+				gap: 0.8lh;
 			}
+		}
+	}
+
+	main {
+		row-gap: 1lh;
+
+		&>p {
+			margin-top: 1lh;
+		}
+
+		&>section {
+			margin-top: 1lh;
 		}
 	}
 
 	/* content */
 	section {
-		gap: 2lh;
 
 		/* image caption space */
 		figure {
@@ -305,12 +318,13 @@
 		blockquote,
 		article {
 			gap: 1lh;
-			padding: 1lh 3ch;
+			padding: clamp(1lh, 3vh, 1.5lh) clamp(2ch, 2vw, 3ch);
 		}
 
 		/* code spacing */
 		pre {
 			padding: 0.5lh 2ch;
+			overflow-x: auto;
 		}
 
 		/* table spacing */
@@ -321,6 +335,28 @@
 
 			&:first-child {
 				padding-left: 0;
+			}
+		}
+	}
+
+	body {
+		display: flex;
+		flex-direction: row;
+
+		&>* {
+			width: 100%;
+		}
+	}
+
+	/* sidebar */
+	aside {
+		nav {
+
+			ul,
+			li {
+				display: flex;
+				flex-direction: column;
+				gap: 1.1em;
 			}
 		}
 	}
@@ -342,7 +378,7 @@
 		main article &,
 		main aside &,
 		main blockquote & {
-			font-size: var(--font-size-h2);
+			font-size: var(--font-size-h3);
 		}
 	}
 
@@ -400,8 +436,7 @@
 		font-weight: var(--font-weight-h6);
 	}
 
-	a#title,
-	a#logo {
+	[rel=home] {
 		font-size: var(--font-size-h3);
 		font-weight: var(--font-weight-h1);
 		letter-spacing: var(--letter-spacing-h1);

@@ -188,7 +188,7 @@ function makeValue(value) {
  * @param {Votive.VotiveConfig} config
  */
 function makeFrontmatter(metadata, api, config) {
-  const handled = ["title", "date", "image", "description"]
+  const handled = ["title", "tagline", "date", "image", "description"]
 
   // hiddenProperties never render: the editor takes frontmatter from
   // the source file, so nothing is lost by leaving a key off the page.
@@ -320,19 +320,19 @@ function writeFile(target, { settings, api, config }) {
   })
 
   // The document title: the page's own title, then every `name:` from
-  // the page's folder up to the root, hyphen-delimited - "Hats - Shop -
-  // Site". The homepage is the site's front door and shows the site's
-  // name and tagline instead.
+  // the page's folder up to the root, then the page's own tagline,
+  // hyphen-delimited - "Hats - Shop - Site - Warm heads". The homepage is
+  // the site's front door and shows the site's name and its tagline.
   function createTitle() {
     if (isRoot) {
-      return [site || metadata?.title, settings.lastNonNull("fm_tagline")]
+      return [site || metadata?.title, metadata?.fm_tagline]
         .filter(a => a)
         .join(" - ")
     }
 
     const names = settings.flat("fm_name").reverse()
     const chain = names.length ? names : (site ? [site] : [])
-    const parts = [metadata.title, ...chain].filter(a => a)
+    const parts = [metadata.title, ...chain, metadata.fm_tagline].filter(a => a)
     return parts.length ? parts.join(" - ") : "Website"
   }
 
@@ -383,6 +383,16 @@ function writeFile(target, { settings, api, config }) {
         href
       })
     )
+  }
+
+  // The page's AT Protocol record, for readers that verify a document
+  // against its site (site.standard). Set by the atproto plugin's
+  // transform only when the page has a record to point at.
+  if (metadata.atUri) {
+    treeHead.children.push(h("link", {
+      rel: "site.standard.document",
+      href: metadata.atUri
+    }))
   }
 
   if (metadata.image) {
@@ -451,8 +461,8 @@ function writeFile(target, { settings, api, config }) {
       return { label: home?.metadata?.breadcrumb || "Home", href: "/" }
     }
 
-    // `<folder>/home.md` routes to `<folder>.html` - vowel's convention
-    // for a section index.
+    // A folder's index is `<folder>.html`, from an authored `<folder>.md`
+    // beside it or the generated stub.
     const indexTarget = api.target(`${folderPath}.html`)
     // index 0 is the root, so ancestor i is source segment i - 1.
     const sourceName = sourceFolderNames[index - 1]
@@ -480,52 +490,47 @@ function writeFile(target, { settings, api, config }) {
     )
   }
 
-  const headerElements = []
 
   const homeLink = []
 
-  // `logo`, `wordmark` and `icon` are URL paths from the root already:
-  // the markdown plugin resolves them at read (frontmatter.js, rule 3),
-  // so `./logo.svg` in blog/settings.md is "/blog/logo.svg" here.
+
   const logo = settings.lastNonNull("logo")
-  if (logo) {
-    headerElements.push(
-      h('a#logo', {
-        href: "/",
-        "aria-label": "logo",
-        rel: "home",
-        "style": `--logo-url: url("${logo}")`
-      }, h("img", {
-        src: logo,
-        alt: ""
-      }))
-    )
-  }
-
   const wordmark = settings.lastNonNull("fm_wordmark")
-  if (wordmark) {
-    headerElements.push(h("a#wordmark", {
-      href: "/",
-      rel: "home"
-    }, h("img", {
-      src: wordmark
-    })))
+
+  const identityElements = []
+
+  if(logo) {
+    identityElements.push(h("img#logo", {
+      src: logo,
+      "aria-label": "Logo",
+      style: `--logo-url: url("${logo}")`,
+      alt: ""
+    }))
   }
 
-  if (site) {
-    headerElements.push(h('a#title', { href: "/", rel: "home" }, site))
+  if(wordmark) {
+    identityElements.push(h("img#wordmark", {
+      src: wordmark,
+      "aria-label": "Wordmark",
+      alt: ""
+    }))
   }
 
-  const tagline = settings.lastNonNull("fm_tagline")
-  if (tagline) {
-    headerElements.push(h('p#tagline', tagline))
-  }
+  const identity = h("a", {
+    href: "/",
+    rel: "home"
+  }, [...identityElements, h(null, site)])
+
+
+  // if (site) {
+  //   headerElements.push(h('a#title', { href: "/", rel: "home" }, site))
+  // }
 
   // Same list in the header and the footer; a theme shows whichever it
   // wants. Built twice rather than shared: a hast node in two parents
   // would be visited twice by every rehype pass below.
   const treeHeader = h('header', [
-    ...headerElements,
+    identity,
     treeNav,
     socialLinksNav(settings)
   ])
@@ -582,6 +587,8 @@ function writeFile(target, { settings, api, config }) {
       // The title is main's first child: the one piece of data hoisted out
       // of the content regardless of where the author placed it.
       ...(metadata.title ? [h("h1", metadata.title)] : []),
+      // A tagline is the page's, not the site's: under its title.
+      ...(metadata.fm_tagline ? [h("p#tagline", metadata.fm_tagline)] : []),
       h('nav', {
         'aria-label': 'Breadcrumbs'
       }, treeBreadcrumbs),

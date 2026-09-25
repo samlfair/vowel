@@ -70,7 +70,7 @@ function readFile(source, { api, config }) {
 
   if (metadata.fm_published === false) return
 
-  // Secrecy is a property of the *path* now: a segment beginning with "-"
+  // Secrecy is a property of the *path* now: a segment containing "##"
   // is hashed by the config-level router cascade, so the page is only
   // ever published at an unguessable URL (see secretPaths.js). The read's
   // whole remaining job is to say so, because `targetPath` above is
@@ -93,7 +93,16 @@ function readFile(source, { api, config }) {
   // are not in the tree; collectLinks adds them from metadata.
   const walked = { filePath, tags: [], links: [] }
   readWalk(mdast, walked)
-  if (walked.tags.length) metadata.tags = walked.tags
+
+  // One tag list: `tags:` in the frontmatter and #hashtags in the text,
+  // frontmatter first, each once. A frontmatter tag is a hashtag in every
+  // way that matters - it gets a tag page and matches `?tag=`. A leading
+  // "#" there is the author's habit, not part of the name.
+  const declaredTags = (metadata.fm_tags ?? [])
+    .map(tag => String(tag).trim().replace(/^#/, ""))
+    .filter(Boolean)
+  const tags = [...new Set([...declaredTags, ...walked.tags])]
+  if (tags.length) metadata.tags = tags
 
 
   // sitemap.xml and feed.xml are stubs on the xml processor now. They
@@ -182,8 +191,9 @@ function withDeclaredTypes(metadata) {
  * label inferred from its own filename - and its first paragraph became
  * the description. The site's name is `name:` (read as `fm_name`); a
  * `title:` here is an old spelling and is warned about, since a page
- * has a title and a site has a name. `markdown` is the source, which the
- * settings panel edits.
+ * has a title and a site has a name. `tagline:` is warned about too: it
+ * is a page's, and the homepage's is the one a site shows on its front
+ * door. `markdown` is the source, which the settings panel edits.
  * @param {Record<string, any>} metadata
  * @param {string} filePath
  * @param {(level: string, message: string) => void} [log]
@@ -191,6 +201,9 @@ function withDeclaredTypes(metadata) {
 function settingsContribution(metadata, filePath, log) {
   if (metadata.fm_title !== undefined && metadata.fm_name === undefined) {
     log?.("warn", `${filePath}: \`title:\` in a settings file does nothing - the site's name is \`name:\``)
+  }
+  if (metadata.fm_tagline !== undefined) {
+    log?.("warn", `${filePath}: \`tagline:\` in a settings file does nothing - a tagline belongs to a page, e.g. home.md`)
   }
   const declared = Object.entries(metadata)
     .filter(([key]) => key.startsWith("fm_") || reservedProperties.includes(key))
@@ -283,11 +296,11 @@ function createStubs({ api }) {
  *
  * An author's own `blog.md` beside `blog/` shadows the stub by path,
  * votive's ordinary rule; the stub stands down when `<folder>.html`
- * already has another source - an author's `<folder>/home.md`, or the
- * `tags.md` stub. Checking `source` rather than mere existence is what
- * stops it oscillating, as with home.md above. `index.md` gets no
- * special handling anywhere (Sam, Sept 19): `blog/index.md` is the
- * page `blog/index.html`, a child of `blog.html` like any other.
+ * already has another source, such as the `tags.md` stub. Checking
+ * `source` rather than mere existence is what stops it oscillating, as
+ * with home.md above. Neither `index.md` nor `home.md` below the root
+ * gets special handling (Sam, Sept 19 and 25): `blog/index.md` and
+ * `blog/home.md` are ordinary children of `blog.html`.
  * @param {any} api - the enumerator's untracked api
  */
 function folderIndexes(api) {
@@ -361,9 +374,10 @@ function router(args) {
   switch (name) {
     case "settings":
       return false
-    // `home.md` is the section index: index.html at the root,
-    // `<folder>.html` in a folder. It is the one name with a rule;
-    // `index.md` is a page called index, like any other.
+    // The root's `home.md` is the homepage, index.html. It is the one
+    // name with a rule, and only at the root: `blog/home.md` is a page
+    // called home, like `blog/index.md`. A folder's index is `blog.md`
+    // beside `blog/`.
     case "home":
       if (inRootDir) {
         return {
@@ -372,11 +386,7 @@ function router(args) {
           ext: ".html"
         }
       }
-      return {
-        dir: dir.slice(0, -1).map(segment => segment.replaceAll(/[^\w\/]/g, "-").replaceAll(/--+/g, "-").toLowerCase()),
-        name: dir.at(-1).toLowerCase(),
-        ext: ".html"
-      }
+    // falls through
     default:
       return {
         dir: dir.map(segment => segment.replaceAll(/[^\w\/]/g, "-").replaceAll(/--+/g, "-").toLowerCase()),

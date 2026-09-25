@@ -183,10 +183,10 @@ const processor = {
       const feedAuthor = settings.lastNonNull("fm_author")
       if (feedAuthor)
         feed.push(
+          // Children are an array: the xml package renders an object
+          // value as an empty element, which is how this was <author/>.
           {
-            author: {
-              name: feedAuthor
-            }
+            author: [{ name: feedAuthor }]
           },
           { rights: `Copyright (c) ${new Date().getFullYear()} ${feedAuthor}` }
         );
@@ -220,9 +220,7 @@ const processor = {
 
           if (page.metadata.author) {
             entry.push({
-              author: {
-                name: page.metadata.author
-              }
+              author: [{ name: page.metadata.author }]
             });
           }
 

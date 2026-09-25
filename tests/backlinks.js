@@ -106,6 +106,6 @@ test("a secret page gets its backlink by source path, and the referrer's page ke
     "linker.md": "# Linker\n\nSee [my notes](./notes##salt.md)."
   }, async ({ backlinksOf, sourceFolder }) => {
     const { hashSegmentInput } = await import("../secretPaths.js")
-    assert.deepEqual(await backlinksOf(`${hashSegmentInput("notes##salt.md")}.html`), ["Linker"])
+    assert.deepEqual(await backlinksOf(`${hashSegmentInput("notes##salt")}.html`), ["Linker"])
   })
 })

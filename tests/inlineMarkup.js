@@ -102,6 +102,16 @@ test("hashtags: recorded from every paragraph, linked in place with the hashtag 
   assert.match(html, /<code>#six\n<\/code>/)
 })
 
+test("tags: frontmatter tags and hashtags are one list, frontmatter first, each once, a leading # dropped", () => {
+  const { metadata } = render("---\ntags: [design, '#events', ' ']\n---\n# T\n\nNotes. #events #travel\n")
+  assert.deepEqual(metadata.tags, ["design", "events", "travel"])
+})
+
+test("tags: a single frontmatter tag is a tag", () => {
+  const { metadata } = render("---\ntags: design\n---\n# T\n\nNo hashtags here.\n")
+  assert.deepEqual(metadata.tags, ["design"])
+})
+
 test("hashtags: a page with none records no tags", () => {
   const { metadata } = render("# T\n\nJust prose, and a url https://x.com/#top\n")
   assert.equal(metadata.tags, undefined)

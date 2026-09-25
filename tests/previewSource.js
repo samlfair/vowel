@@ -62,7 +62,7 @@ test("a secret page's source path reaches the preview only, and its frontmatter 
     "home.md": "# Home\n\n/**",
     "about##salt.md": "---\ndraft: true\n---\n\n# About\n\nShh."
   }, async ({ source, targetFolder }) => {
-    const hashed = hashSegmentInput("about##salt.md")
+    const hashed = hashSegmentInput("about##salt")
     const page = await source(`/${hashed}`)
     assert.equal(page.path, "about##salt.md", "the author's own browser may know the salt")
     assert.ok(page.markdown.includes("draft: true"), "the frontmatter the editor will keep")

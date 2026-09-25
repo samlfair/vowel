@@ -5,7 +5,7 @@ import { entryContent } from "../plugins/xml/entryContent.js"
 /** A rendered page, in the shape the html plugin actually produces. */
 const page = (content) => `<!doctypehtml><html lang=en><meta charset=UTF-8>`
   + `<title>Post - Site</title><link rel=stylesheet href=/styles.css?abc12345>`
-  + `<body class=post><header><a id=title href=/ rel=home>Site</a>`
+  + `<body class=post><header><a href=/ rel=home>Site</a>`
   + `<nav><ul><li><a href=/blog>Blog</a></ul></nav></header>`
   + `<main itemscope><h1>Post</h1>`
   + `<nav aria-label=Breadcrumbs><a href=/>Home</a></nav>`

@@ -2,37 +2,17 @@ import { getScheme } from "colorhorse"
 import { fallbackColors } from "./brandColors.js"
 
 /**
- * The stylesheets index shades 00-11 - DefaultStyles.css reads
- * `--<role>-00` through `--<role>-11` - so the scheme is generated at 12
- * shades rather than colorhorse's default 10. tests/colorScheme.js is
- * the statement of that contract.
+ * Ten shades per role, named `01` (darkest) to `10` (lightest) in
+ * colorhorse's own darkest-first order. DefaultStyles.css reads them
+ * that way round: `light-dark(var(--primary-10), var(--primary-01))`
+ * is the body background. tests/colorScheme.js pins the order.
  */
 const shadeCount = 10
-
-/**
- * colorhorse orders each role's ramp darkest-first, and vowel's
- * stylesheets read shade 00 as the *lightest* - DefaultStyles.css has
- * `--main-background: light-dark(var(--primary-00), var(--primary-11))`,
- * so 00 is the light-mode background. Reversed here, once, rather than
- * at each use.
- * @param {string[]} ramp
- */
-function lightestFirst(ramp) {
-  return [...ramp].reverse()
-}
 
 /** @param {number} index */
 function shadeName(index) {
   return String(index).padStart(2, "0")
 }
-
-/**
- * Vowel's own brand colors, used by any default-theme site that hasn't
- * chosen its own pair. colorhorse ships a built-in default too; naming
- * ours here means an un-themed blog looks like Vowel rather than like
- * the library, and means `--<role>-NN` is always defined - DefaultStyles.css
- * consumes those variables unconditionally.
- */
 
 /**
  * Builds the `:root` block for a theme's `colors` seed pair, falling

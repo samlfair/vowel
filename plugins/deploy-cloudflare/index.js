@@ -26,12 +26,6 @@ import path from "node:path"
  * @param {{ config: import("votive").VotiveConfig & { cloudflareProjectName?: string }, notify: (message: object) => void }} context
  */
 async function deployToCloudflarePages(payload, { config, notify }) {
-  // The Pages project, from the command's payload (`vowel --command
-  // deploy --payload '{"projectName":"my-site"}'`, or a Publish button's
-  // body) or from the config an embedder built.
-  const projectName = payload?.projectName ?? config.cloudflareProjectName
-  if (!projectName) throw new Error("a Cloudflare Pages project name is required to deploy: pass {\"projectName\": \"…\"} as the payload, or set config.cloudflareProjectName")
-
   notify({ status: "progress", message: "Building..." })
 
   // Unlike a dev server's own rebuilds, a deploy needs everything done -
@@ -41,7 +35,21 @@ async function deployToCloudflarePages(payload, { config, notify }) {
   // with it.
   const site = await votive({ ...config, verbose: false })
   await (await site.build()).deferred
+  const setting = site.database.setting.getByFolder("").lastNonNull("fm_cloudflare_project")
   await site.close()
+
+  // The Pages project, from the command's payload (`vowel --command
+  // deploy --payload '{"projectName":"my-site"}'`, or a Publish button's
+  // body), the root settings.md's `cloudflare_project:`, or the config an
+  // embedder built.
+  const projectName = payload?.projectName ?? setting ?? config.cloudflareProjectName
+  if (!projectName) throw new Error("a Cloudflare Pages project name is required to deploy: set cloudflare_project in the root settings.md, or pass {\"projectName\": \"…\"} as the payload")
+
+  // `{"dryRun": true}` builds and stops short of wrangler.
+  if (payload?.dryRun) {
+    notify({ status: "done", message: `Would deploy ${config.targetFolder} to Cloudflare Pages project ${projectName}` })
+    return { deployed: false, projectName, dryRun: true }
+  }
 
   notify({ status: "progress", message: `Publishing ${config.targetFolder} to Cloudflare Pages...` })
 
@@ -60,7 +68,7 @@ async function deployToCloudflarePages(payload, { config, notify }) {
 
     proc.on("error", reject) // e.g. wrangler isn't installed
     proc.on("exit", code => {
-      if (code === 0) resolve({ deployed: true })
+      if (code === 0) resolve({ deployed: true, projectName })
       else reject(new Error(`wrangler exited with code ${code}`))
     })
   })
@@ -81,3 +89,4 @@ const vowelDeployCloudflarePlugin = {
 }
 
 export default vowelDeployCloudflarePlugin
+export { deployToCloudflarePages }

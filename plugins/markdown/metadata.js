@@ -283,11 +283,17 @@ function selectMetadata(metadata) {
 
   const description =
     metadata.fm_description
-    || metadata.tagline
+    || metadata.fm_tagline
     || metadata.inferred_description
 
   if (description) {
     metadata.description = description
+  }
+
+  // The page's own author, for its feed entry. The site's `author` in
+  // settings.md is the feed's; Atom applies it to any entry without one.
+  if (metadata.fm_author) {
+    metadata.author = metadata.fm_author
   }
 
   const image =

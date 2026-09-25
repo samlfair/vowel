@@ -2,6 +2,9 @@
   "name": "vowel",
   "type": "module",
   "version": "0.6.4",
+  "engines": {
+    "node": ">=26"
+  },
   "bin": "bin.js",
   "main": "index.js",
   "scripts": {
@@ -30,7 +33,7 @@
     "@clack/prompts": "^1.4.0",
     "@jsdevtools/rehype-toc": "^3.0.2",
     "autoprefixer": "^10.4.27",
-    "colorhorse": "^0.3.0",
+    "colorhorse": "^0.3.1",
     "cssnano": "^7.1.4",
     "emojilib": "^4.0.3",
     "encoding-sniffer": "^1.0.2",

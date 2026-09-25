@@ -250,7 +250,6 @@ function renderAside({ items }) {
 /** "Linked from", outside section#content: it is generated, and the editor must not see it. */
 function renderBacklinks({ pages }) {
   return h("section#backlinks", [
-    h("h2", "Linked from"),
     h("ul", pages.map(({ url, title }) => h("li", h("a", { href: url }, title))))
   ])
 }

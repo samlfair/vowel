@@ -19773,12 +19773,6 @@ ${fallback_html}`;
 			},
 
 			{
-				key: 'tagline',
-				label: 'Tagline',
-				hint: 'Shown as the homepage hero'
-			},
-
-			{
 				key: 'breadcrumb',
 				label: 'Breadcrumb',
 				hint: 'Label for the site root in navigation'

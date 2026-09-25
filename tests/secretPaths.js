@@ -43,23 +43,30 @@ async function outputFiles(targetFolder) {
   }))
 }
 
-test("secretRouter: hashes the whole segment, keeps the extension, leaves everything else alone", () => {
+test("secretRouter: hashes the whole segment without its extension, keeps the extension, leaves everything else alone", () => {
   assert.equal(secretRouter("about.md"), "about.md")
   assert.equal(secretRouter("blog/hidden##purple-bear/post.md"), `blog/${hashSegmentInput("blog/hidden##purple-bear")}/post.md`)
-  assert.equal(secretRouter("hello-world##red-whale.md"), `${hashSegmentInput("hello-world##red-whale.md")}.md`)
-  assert.equal(secretRouter("reports/dev##blue-parrot.md"), `reports/${hashSegmentInput("reports/dev##blue-parrot.md")}.md`)
+  assert.equal(secretRouter("hello-world##red-whale.md"), `${hashSegmentInput("hello-world##red-whale")}.md`)
+  assert.equal(secretRouter("reports/dev##blue-parrot.md"), `reports/${hashSegmentInput("reports/dev##blue-parrot")}.md`)
 })
 
 test("secretRouter: the hash input is the original path up to the segment, salt in place - frozen", () => {
   // Pinned values. If this test ever fails, every secret URL on every
   // site has rotated, so the change had better be deliberate.
   assert.equal(secretRouter("blog/hidden##purple-bear/post.md"), "blog/ecc3ddccc8af2f3e/post.md")
-  assert.equal(secretRouter("hello-world##red-whale.md"), "70cc08f63f1d07ba.md")
+  assert.equal(secretRouter("hello-world##red-whale.md"), "275460fad91bd632.md")
+})
+
+test("secretRouter: a page and the folder it indexes hash alike, as blog.md sits beside blog/", () => {
+  const hashed = hashSegmentInput("abc##xyz")
+  assert.equal(secretRouter("abc##xyz.md"), `${hashed}.md`)
+  assert.equal(secretRouter("abc##xyz/post.md"), `${hashed}/post.md`)
+  assert.equal(secretRouter("abc##xyz/deep/note.md"), `${hashed}/deep/note.md`)
 })
 
 test("secretRouter: a nested secret hashes against the original path, not the rewritten parent", () => {
   const folder = hashSegmentInput("a##b")
-  const file = hashSegmentInput("a##b/c##d.png")
+  const file = hashSegmentInput("a##b/c##d")
   assert.equal(secretRouter("a##b/c##d.png"), `${folder}/${file}.png`)
 })
 
@@ -141,7 +148,7 @@ test("the de-salted name is what renders: title, and the breadcrumb of a secret 
     "blog/hidden##purple-bear/notes##red-whale.md": "Untitled body, so the title is inferred from the filename."
   }, async ({ targetFolder }) => {
     const folder = hashSegmentInput("blog/hidden##purple-bear")
-    const file = hashSegmentInput("blog/hidden##purple-bear/notes##red-whale.md")
+    const file = hashSegmentInput("blog/hidden##purple-bear/notes##red-whale")
     const html = await readFile(path.join(targetFolder, "blog", folder, `${file}.html`), "utf-8")
 
     assert.match(html, /<h1>Notes<\/h1>/, "the title is the de-salted filename")
@@ -203,7 +210,7 @@ test("a relative link to a secret page resolves to its hashed url, and a link to
     "blog/notes##red-whale.md": "# Notes\n\nShh."
   }, async ({ targetFolder }) => {
     const html = await readFile(path.join(targetFolder, "blog", "post.html"), "utf-8")
-    const hashed = hashSegmentInput("blog/notes##red-whale.md")
+    const hashed = hashSegmentInput("blog/notes##red-whale")
     const hrefs = [...html.matchAll(/href=([^\s>]+)/g)].map(m => m[1])
 
     assert.ok(hrefs.includes(`/blog/${hashed}`), `the link resolves to the hashed url: ${hrefs}`)
@@ -237,5 +244,20 @@ test("a listing names a secret folder relatively, by source path, and renders th
     assert.equal((guide.match(new RegExp(`href=/studio/${hashed}/one`, "g")) ?? []).length, 2, "listing + reference")
     assert.equal(guide.includes("##"), false, "the marker never reaches output")
     assert.equal(guide.includes("autumn-glaze"), false, "nor the salt")
+  })
+})
+
+test("a secret page beside its secret folder is the folder's index: <hash>.html and <hash>/", async () => {
+  await withSite({
+    "home.md": "# Home\n",
+    "abc##xyz.md": "# Section\n\n./abc##xyz/*",
+    "abc##xyz/post.md": "# Post\n"
+  }, async ({ targetFolder }) => {
+    const hashed = hashSegmentInput("abc##xyz")
+    const index = await readFile(path.join(targetFolder, `${hashed}.html`), "utf-8")
+    assert.match(index, new RegExp(`href=/${hashed}/post`), "the index lists the folder's page")
+    const post = await readFile(path.join(targetFolder, hashed, "post.html"), "utf-8")
+    const crumbs = post.match(/<nav aria-label=Breadcrumbs>(.*?)<\/nav>/)?.[1] ?? ""
+    assert.match(crumbs, new RegExp(`<a href=/${hashed}>Section</a>`), "the post's breadcrumb finds its section index")
   })
 })

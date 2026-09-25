@@ -33,7 +33,7 @@ import extractDate from "../../extractDate.js"
  */
 
 /**
- * @typedef {"string" | "date" | "path" | "boolean" | "number" | "strings" | "theme" | "links" | "object"} Shape
+ * @typedef {"string" | "date" | "path" | "boolean" | "number" | "strings" | "theme" | "links" | "publication" | "object"} Shape
  */
 
 /**
@@ -66,7 +66,11 @@ const EXPECTED = {
   theme: "theme",
   social_links: "links",
   robots: "object",
-  atproto: "object"
+  atproto_did: "string",
+  atproto_lexicon: "string",
+  atproto_publication: "publication",
+  cloudflare_project: "string",
+  atproto_pds: "string"
 }
 
 /** @param {unknown} value */
@@ -161,6 +165,20 @@ function coerceOne(shape, value, folder) {
       .map(link => typeof link.icon === "string" ? { ...link, icon: resolvePath(link.icon, folder) } : link)
     return kept.length === value.length ? { value: kept } : { value: kept, problem: "expected every link to have a url; dropped those without" }
   }
+  if (shape === "publication") {
+    if (!isPlainObject(value)) return { value: undefined, problem: `expected an object with description and icon, got ${JSON.stringify(value)}` }
+    const { description, icon, ...rest } = value
+    const kept = {
+      ...rest,
+      ...(typeof description === "string" ? { description } : {}),
+      ...(typeof icon === "string" && icon.trim() ? { icon: resolvePath(icon, folder) } : {})
+    }
+    const wrong = [
+      ...(description === undefined || typeof description === "string" ? [] : ["description is not text"]),
+      ...(icon === undefined || (typeof icon === "string" && icon.trim()) ? [] : ["icon is not a path"])
+    ]
+    return wrong.length ? { value: kept, problem: `${wrong.join(", ")}; dropped` } : { value: kept }
+  }
   if (shape === "object") {
     if (isPlainObject(value)) return { value }
     return { value: undefined, problem: `expected an object, got ${JSON.stringify(value)}` }
@@ -203,7 +221,11 @@ function coerce(frontmatter, filePath, folder, report) {
  */
 function parseFrontmatter(tree, node, filePath, report) {
   try {
-    const parsed = yaml.parse(node.value)
+    // logLevel "error": yaml otherwise prints its own warnings through
+    // process.emitWarning, naming no file - `date: {{ date }}` printed
+    // "Keys with collection values will be stringified". A value vowel
+    // reads is checked by coerce(), which reports it with the path.
+    const parsed = yaml.parse(node.value, { logLevel: "error" })
     if (parsed === null || parsed === undefined) return {}
     if (!isPlainObject(parsed)) {
       report(`${filePath}: frontmatter is ${Array.isArray(parsed) ? "a list" : "a single value"}, not a mapping; rendering it as content`)

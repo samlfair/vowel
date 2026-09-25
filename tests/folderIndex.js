@@ -9,7 +9,7 @@ import { createConfig } from "../config.js"
 /**
  * Every folder with a listed page gets an index page - a `<folder>.md`
  * stub, routed to `<folder>.html` by the ordinary rule, so `/blog` is a
- * page. An author's own `<folder>.md` or `<folder>/home.md` replaces it;
+ * page. An author's own `<folder>.md` replaces it;
  * a folder with no listed page gets none. Spec: synthetic-sources.md,
  * "a folder with no listed markdown page gets no index".
  */
@@ -70,7 +70,7 @@ test("a folder with a page gets an index at <folder>.html listing it; an empty f
   })
 })
 
-test("an authored <folder>.md or <folder>/home.md is the section index and the stub stands down; <folder>/index.md is an ordinary child page", async () => {
+test("an authored <folder>.md is the section index and the stub stands down; <folder>/index.md and <folder>/home.md are ordinary child pages", async () => {
   await withSite({
     "home.md": "# Home\n",
     "blog.md": "# My Blog\n\nHand-written.\n",
@@ -84,7 +84,12 @@ test("an authored <folder>.md or <folder>/home.md is the section index and the s
     assert.match(await html("blog.html"), /<h1>My Blog<\/h1>/)
     assert.match(await html("blog.html"), /Hand-written/)
     assert.equal(site.database.target.get("blog.html").source, "blog.md")
-    assert.match(await html("shop.html"), /<h1>The Shop<\/h1>/)
+    // Only the root's home.md has a rule (Sam, Sept 25): shop/home.md is
+    // shop/home.html at /shop/home, listed by the generated shop.html.
+    assert.match(await html(path.join("shop", "home.html")), /<h1>The Shop<\/h1>/)
+    assert.equal(site.database.target.get(path.join("shop", "home.html")).metadata.prettyURL, "/shop/home")
+    assert.equal(site.database.target.get("shop.html").source, "shop.md")
+    assert.match(await html("shop.html"), /href=\/shop\/home/)
     // No special handling for index.md (Sam, Sept 19): notes/index.md is
     // notes/index.html at /notes/index, a child of the generated
     // notes.html, which lists it.
@@ -122,5 +127,17 @@ test("a second build with nothing changed writes no folder index again", async (
     const stale = site.database.raw.prepare("SELECT path FROM targets WHERE stale = 1").all()
     assert.deepEqual(stale, [])
     assert.equal(site.database.target.get("blog.html").source, "blog.md")
+  })
+})
+
+test("a frontmatter tag gets a tag page and lists its page, like a hashtag", async () => {
+  await withSite({
+    "home.md": "# Home\n",
+    "blog/post.md": "---\ntags: [design]\n---\n# Post\n\nNo hashtags here.\n"
+  }, async ({ html }) => {
+    const page = await html("tags/design.html")
+    assert.ok(page, "tags/design.html exists")
+    assert.match(page, /href="?\/blog\/post\b/, "the tag page links the page")
+    assert.match(await html("tags.html"), /design/i)
   })
 })

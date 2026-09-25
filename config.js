@@ -13,6 +13,7 @@ import vowelAssetsPlugin from "./plugins/assets/index.js"
 import vowelDeployCloudflarePlugin from "./plugins/deploy-cloudflare/index.js"
 import vowelWriteHTMLPlugin from "./plugins/html/index.js"
 import vowelAtprotoPlugin from "./plugins/atproto/index.js"
+import vowelPublishPlugin from "./plugins/publish/index.js"
 import vowelURLsPlugin from "./plugins/urls/index.js"
 
 /** @import {VotiveConfig} from "votive" */
@@ -43,6 +44,7 @@ const defaultPlugins = [
   vowelDeployCloudflarePlugin,
   vowelURLsPlugin,
   vowelAtprotoPlugin,
+  vowelPublishPlugin,
   vowelWriteHTMLPlugin
 ]
 
