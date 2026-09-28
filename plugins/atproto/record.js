@@ -1,18 +1,19 @@
-import { toText } from "hast-util-to-text"
 import { MARKER } from "../../secretPaths.js"
 import createRkey from "./rkey.js"
 
 /**
- * Which pages become records, and what each record holds. No network:
- * everything here is a function of the page and its settings, so it runs
- * in the build, and the publish command only compares and sends.
+ * Which pages become records, and where each record lives. No network,
+ * and no lexicon: the build decides a page's lexicon and its AT-URI; the
+ * record itself is made at publish (publish.js), once the lexicon has
+ * been fetched (lexicons.js) and the page fitted to it (mapper.js).
+ *
+ * `site.standard.publication` is the one lexicon named here: standard.site
+ * defines a document's `site` as its publication's AT-URI, and vowel
+ * interprets that standard as written - the site is a publication when
+ * any of its pages publish to `site.standard.*`.
  */
 
-const DOCUMENT = "site.standard.document"
 const PUBLICATION = "site.standard.publication"
-
-/** The lexicons vowel can build a record for. */
-const SUPPORTED = [DOCUMENT]
 
 /**
  * The page's lexicon and, for a secret page, whether it may use it.
@@ -75,70 +76,15 @@ function publicationURI(did, origin) {
 }
 
 /**
- * A `site.standard.document` record for the page, or the list of what it
- * is missing. `title`, `publishedAt` and `site` are required by the
- * lexicon; a page without a date cannot be a document. `site` is the
- * publication's AT-URI; `origin` is what the page's key is made from.
- * @param {{ metadata: Record<string, any> }} target
- * @param {string | undefined} origin
- * @param {string} [site] - the publication's AT-URI
- * @returns {{ record: Record<string, unknown> } | { missing: string[] }}
+ * The page's AT-URI: the account, the lexicon, and a key derived from
+ * the page's canonical URL - origin and path - and frozen (rkey.js).
+ * @param {string} did
+ * @param {string} lexicon
+ * @param {string} origin
+ * @param {string} prettyURL
  */
-function documentRecord(target, origin, site = origin) {
-  const { title, date, prettyURL, description, tags, hastAbstract } = target.metadata
-  const published = date ? new Date(date) : undefined
-  const validDate = published && !Number.isNaN(published.getTime())
-
-  const missing = [
-    ...(origin ? [] : ["domain"]),
-    ...(title ? [] : ["title"]),
-    ...(validDate ? [] : ["date"])
-  ]
-  if (missing.length) return { missing }
-
-  const textContent = hastAbstract ? toText(hastAbstract).trim() : ""
-
-  const record = {
-    $type: DOCUMENT,
-    site,
-    path: prettyURL,
-    title,
-    publishedAt: published.toISOString(),
-    ...(description ? { description } : {}),
-    ...(Array.isArray(tags) && tags.length ? { tags } : {}),
-    ...(textContent ? { textContent } : {})
-  }
-  return { record }
+function recordURI(did, lexicon, origin, prettyURL) {
+  return `at://${did}/${lexicon}/${createRkey(new URL(prettyURL, origin).href)}`
 }
 
-/**
- * The page's AT-URI and record, or why it has none. `skip` is silent (the
- * page is not meant to be published). `incomplete` is a page under a
- * lexicon that lacks a property the lexicon requires; it is not a record,
- * by design, and is only mentioned under `verbose`. `warning` is a
- * misconfiguration: a lexicon vowel cannot build.
- * @param {{ path: string, source?: string, metadata: Record<string, any> }} target
- * @param {{ did: string, domain: unknown, settings: any }} context
- * @returns {{ atUri: string, record: Record<string, unknown> } | { skip: true } | { incomplete: string } | { warning: string }}
- */
-function pageRecord(target, { did, domain, settings }) {
-  const lexicon = lexiconFor(target, settings)
-  if (!lexicon) return { skip: true }
-  if (!SUPPORTED.includes(lexicon)) {
-    return { warning: `lexicon "${lexicon}" is not one vowel can build a record for (supported: ${SUPPORTED.join(", ")})` }
-  }
-
-  const origin = siteOrigin(domain)
-  const site = origin ? publicationURI(did, origin) : undefined
-  const built = documentRecord(target, origin, site)
-  if ("missing" in built) {
-    return { incomplete: `not published to AT Protocol: a ${lexicon} record needs ${built.missing.join(", ")}` }
-  }
-
-  // The key is the page's canonical URL - origin and path - and frozen
-  // (rkey.js), whatever `site` holds.
-  const rkey = createRkey(new URL(String(built.record.path), origin).href)
-  return { atUri: `at://${did}/${lexicon}/${rkey}`, record: built.record }
-}
-
-export { DOCUMENT, PUBLICATION, SUPPORTED, lexiconFor, siteOrigin, publicationURI, documentRecord, pageRecord }
+export { PUBLICATION, lexiconFor, siteOrigin, publicationURI, recordURI }

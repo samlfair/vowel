@@ -68,7 +68,23 @@ function readFile(source, { api, config }) {
   }
 
 
-  if (metadata.fm_published === false) return
+  // `status` (frontmatter.js). A draft - or `published: false`, its older
+  // spelling - is not a page at all.
+  const status = metadata.fm_status ?? "published"
+  if (metadata.fm_published === false || status === "draft") return
+
+  // A deleted page is not written, and carries nothing a listing, a tag
+  // page, a backlink or a wikilink could find it by. It exists only so
+  // `atproto-publish` can delete the record it used to have: its
+  // lexicon, and the url its record key is derived from (rkey.js).
+  if (status === "deleted") {
+    const kept = {
+      fm_status: status,
+      prettyURL: metadata.prettyURL,
+      ...("fm_atproto_lexicon" in metadata ? { fm_atproto_lexicon: metadata.fm_atproto_lexicon } : {})
+    }
+    return { data: "", write: false, metadata: kept }
+  }
 
   // Secrecy is a property of the *path* now: a segment containing "##"
   // is hashed by the config-level router cascade, so the page is only
@@ -79,7 +95,9 @@ function readFile(source, { api, config }) {
   // This replaces `secret_key` frontmatter, which hashed one page at a
   // time, could not cover a folder, left a virtual target at the public
   // path, and had to be hidden from its own rendering.
-  if (isSecretPath(filePath)) {
+  // `status: hidden` is the same promise made on purpose: written, never
+  // listed.
+  if (isSecretPath(filePath) || status === "hidden") {
     metadata.hidden = true
     metadata.local_menu_item ??= false
     metadata.global_menu_item ??= false

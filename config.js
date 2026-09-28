@@ -15,6 +15,7 @@ import vowelWriteHTMLPlugin from "./plugins/html/index.js"
 import vowelAtprotoPlugin from "./plugins/atproto/index.js"
 import vowelPublishPlugin from "./plugins/publish/index.js"
 import vowelURLsPlugin from "./plugins/urls/index.js"
+import vowelSecretPagesPlugin from "./plugins/secret-pages/index.js"
 
 /** @import {VotiveConfig} from "votive" */
 
@@ -45,6 +46,7 @@ const defaultPlugins = [
   vowelURLsPlugin,
   vowelAtprotoPlugin,
   vowelPublishPlugin,
+  vowelSecretPagesPlugin,
   vowelWriteHTMLPlugin
 ]
 

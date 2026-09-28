@@ -33,8 +33,17 @@ import extractDate from "../../extractDate.js"
  */
 
 /**
- * @typedef {"string" | "date" | "path" | "boolean" | "number" | "strings" | "theme" | "links" | "publication" | "object"} Shape
+ * @typedef {"string" | "date" | "path" | "boolean" | "number" | "strings" | "theme" | "links" | "publication" | "object" | "status"} Shape
  */
+
+/**
+ * A page's visibility. `published` is the default. `hidden` writes the
+ * page but lists it nowhere - no menu, listing, sitemap, feed or record.
+ * `draft` skips the page entirely, as `published: false` does.
+ * `deleted` skips it too, and tells `atproto-publish` to delete its
+ * record.
+ */
+const STATUSES = ["published", "draft", "hidden", "deleted"]
 
 /**
  * The keys vowel reads and the shape each one has. Everything else in a
@@ -57,6 +66,7 @@ const EXPECTED = {
   tags: "strings",
   aliases: "strings",
   published: "boolean",
+  status: "status",
   html_file: "boolean",
   rss_item: "boolean",
   sitemap_item: "boolean",
@@ -68,6 +78,7 @@ const EXPECTED = {
   robots: "object",
   atproto_did: "string",
   atproto_lexicon: "string",
+  atproto_content: "string",
   atproto_publication: "publication",
   cloudflare_project: "string",
   atproto_pds: "string"
@@ -178,6 +189,11 @@ function coerceOne(shape, value, folder) {
       ...(icon === undefined || (typeof icon === "string" && icon.trim()) ? [] : ["icon is not a path"])
     ]
     return wrong.length ? { value: kept, problem: `${wrong.join(", ")}; dropped` } : { value: kept }
+  }
+  if (shape === "status") {
+    const word = typeof value === "string" ? value.trim().toLowerCase() : undefined
+    if (STATUSES.includes(word)) return { value: word }
+    return { value: undefined, problem: `expected one of ${STATUSES.join(", ")}, got ${JSON.stringify(value)}` }
   }
   if (shape === "object") {
     if (isPlainObject(value)) return { value }

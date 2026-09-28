@@ -9,6 +9,7 @@ import { createConfig } from "../config.js"
 import vowelAtprotoPlugin, { validDID } from "../plugins/atproto/index.js"
 import createRkey from "../plugins/atproto/rkey.js"
 import { planWrites, planPublication, blobCID, passwordFile } from "../plugins/atproto/publish.js"
+import { fixtureResolver } from "./fixtures/lexicons.js"
 import { stat } from "node:fs/promises"
 import { publicationURI } from "../plugins/atproto/record.js"
 import { coerce } from "../plugins/markdown/frontmatter.js"
@@ -88,8 +89,9 @@ function rootSettings({ pds, lexicon = "site.standard.document" } = {}) {
 
 /**
  * A project on disk, built once. `records()` maps each source path to
- * the AT-URI and record its page carries; `warnings` collects what the
- * build warned about.
+ * the AT-URI its page carries; `warnings` collects what the build - and
+ * a publish run on the returned config - warned about. The config
+ * resolves lexicons from the test fixtures.
  */
 async function withProject(files, run) {
   const sourceFolder = await mkdtemp(path.join(tmpdir(), "vowel-atproto-"))
@@ -101,7 +103,8 @@ async function withProject(files, run) {
     cacheDirectory: path.join(systemFolder, ".cache"),
     logging: "silent",
     urlHostInterval: 0,
-    log: (level, message) => { if (level === "warn" || level === "info") warnings.push(`${level}: ${message}`) }
+    log: (level, message) => { if (level === "warn" || level === "info") warnings.push(`${level}: ${message}`) },
+    atprotoLexicons: fixtureResolver().resolver
   })
   try {
     for (const [relative, body] of Object.entries(files)) {
@@ -114,7 +117,7 @@ async function withProject(files, run) {
       const records = () => {
         const targets = site.database.target.getAll()
         const pages = targets.filter(target => "atUri" in target.metadata)
-        return new Map(pages.map(target => [target.source, { atUri: target.metadata.atUri, record: target.metadata.atprotoRecord, path: target.path }]))
+        return new Map(pages.map(target => [target.source, { atUri: target.metadata.atUri, path: target.path }]))
       }
       await run({ sourceFolder, targetFolder: config.targetFolder, config, records, warnings })
     } finally {
@@ -137,51 +140,44 @@ test("createRkey: a TID-shaped key from the canonical URL; another page or anoth
   assert.equal(key, "bdisnlclezt7b")
 })
 
-test("a dated page under a lexicon gets an AT-URI, a site.standard.document record and a link", async () => {
+test("a page under a lexicon gets its AT-URI at build; a site.standard.document page links it, any other lexicon's doesn't", async () => {
   await withProject({
     "settings.md": rootSettings(),
-    "blog/post.md": "---\ndate: 2026-03-04\ndescription: A short post.\n---\n# Post\n\nBody text #design.\n"
+    "blog/post.md": "---\ndate: 2026-03-04\ndescription: A short post.\n---\n# Post\n\nBody text #design.\n",
+    "notes/settings.md": "---\natproto_lexicon: com.example.note\n---\n",
+    "notes/note.md": "# Note\n\nShort.\n"
   }, async ({ targetFolder, records }) => {
     const page = records().get(path.join("blog", "post.md"))
-    assert.ok(page, "the page has a record")
     assert.equal(page.atUri, `at://${DID}/site.standard.document/${createRkey("https://example.com/blog/post")}`)
-    assert.deepEqual(
-      { ...page.record, textContent: undefined },
-      {
-        $type: "site.standard.document",
-        site: publicationURI(DID, "https://example.com"),
-        path: "/blog/post",
-        title: "Post",
-        publishedAt: "2026-03-04T00:00:00.000Z",
-        description: "A short post.",
-        tags: ["design"],
-        textContent: undefined
-      }
-    )
-    assert.match(page.record.textContent, /Body text/)
-
     const html = await readFile(path.join(targetFolder, page.path), "utf-8")
     // Minified output drops attribute quotes, so the href is captured, not matched.
     const link = html.match(/<link[^>]*rel="?site\.standard\.document"?[^>]*href="?([^"\s>]+)/)
     assert.equal(link?.[1], page.atUri, "the page links its record")
+
+    const note = records().get(path.join("notes", "note.md"))
+    assert.equal(note.atUri, `at://${DID}/com.example.note/${createRkey("https://example.com/notes/note")}`, "any lexicon; whether the page fits it is publish's question")
+    const noteHTML = await readFile(path.join(targetFolder, note.path), "utf-8")
+    assert.ok(!noteHTML.includes("site.standard.document"), "standard.site's link is for standard.site")
   })
 })
 
-test("no lexicon, no record; an undated page under a lexicon is skipped quietly, an unsupported lexicon warns", async () => {
+test("no lexicon, no domain or a hidden page: no AT-URI; a lexicon name that isn't an NSID warns", async () => {
   await withProject({
     "settings.md": rootSettings({ lexicon: null }),
     "blog/post.md": "---\ndate: 2026-03-04\n---\n# Post\n",
     "journal/settings.md": "---\natproto_lexicon: site.standard.document\n---\n",
-    "journal/entry.md": "# Undated\n",
-    "notes/settings.md": "---\natproto_lexicon: com.example.note\n---\n",
-    "notes/note.md": "---\ndate: 2026-03-04\n---\n# Note\n"
-  }, async ({ targetFolder, records, warnings }) => {
+    "journal/quiet.md": "---\nstatus: hidden\n---\n# Quiet\n",
+    "notes/settings.md": "---\natproto_lexicon: notes\n---\n",
+    "notes/note.md": "# Note\n"
+  }, async ({ records, warnings }) => {
     assert.equal(records().size, 0)
-    assert.ok(warnings.some(line => line.startsWith("info: journal/entry.html") && line.includes("needs date")), warnings.join("\n"))
-    assert.ok(!warnings.some(line => line.startsWith("warn: journal/")), "a page missing a property is not a warning")
-    assert.ok(warnings.some(line => line.startsWith("warn: notes/note.html") && line.includes("com.example.note")), warnings.join("\n"))
-    const html = await readFile(path.join(targetFolder, "blog", "post.html"), "utf-8")
-    assert.ok(!html.includes("site.standard.document"))
+    assert.ok(warnings.some(line => line.startsWith("warn: notes/note.html") && line.includes('"notes" is not a lexicon name')), warnings.join("\n"))
+  })
+  await withProject({
+    "settings.md": `---\natproto_did: ${DID}\natproto_lexicon: site.standard.document\n---\n`,
+    "post.md": "---\ndate: 2026-03-04\n---\n# Post\n"
+  }, async ({ records }) => {
+    assert.equal(records().size, 0, "a record's key is made from the page's URL, which needs the domain")
   })
 })
 
@@ -198,32 +194,38 @@ test("a secret page is published only when its lexicon is set inside its secret 
     assert.ok(!published.has(path.join("members##salt", "post.md")), "a lexicon from above the secret folder does not reach it")
     assert.ok(published.has(path.join("club##salt", "post.md")), "a lexicon in the secret folder's own settings.md does")
     assert.ok(published.has(path.join("hidden##salt", "page.md")), "so does the page's own frontmatter")
-    for (const { atUri, record } of published.values()) {
-      assert.ok(!atUri.includes("salt") && !JSON.stringify(record).includes("salt"), "no salt reaches a record")
+    for (const { atUri } of published.values()) {
+      assert.ok(!atUri.includes("salt"), "no salt reaches a record's address")
     }
   })
 })
 
-test("planWrites: create, update, unchanged, delete this site's orphans, and leave other sites alone", () => {
-  const site = "https://example.com"
-  const uri = (rkey) => `at://${DID}/site.standard.document/${rkey}`
-  const record = (title, other = site) => ({ $type: "site.standard.document", site: other, title })
+test("planWrites: create, update, unchanged, and delete only what a deleted page names and the PDS holds", () => {
+  const record = (title) => ({ $type: "com.example.note", title })
   const local = [
-    { uri: uri("aaaaaaaaaaaaa"), value: record("New") },
-    { uri: uri("bbbbbbbbbbbbb"), value: record("Changed") },
-    { uri: uri("ccccccccccccc"), value: record("Same") },
-    { uri: uri("ddddddddddddd"), value: record("Collides") }
+    { collection: "com.example.note", rkey: "aaaaaaaaaaaaa", value: record("New") },
+    { collection: "com.example.note", rkey: "bbbbbbbbbbbbb", value: record("Changed") },
+    { collection: "com.example.note", rkey: "ccccccccccccc", value: record("Same") },
+    { collection: "site.standard.document", rkey: "aaaaaaaaaaaaa", value: record("Other collection") }
   ]
-  const remote = [
-    { uri: uri("bbbbbbbbbbbbb"), value: record("Old") },
-    { uri: uri("ccccccccccccc"), value: { title: "Same", site, $type: "site.standard.document" } },
-    { uri: uri("ddddddddddddd"), value: record("Theirs", "https://elsewhere.test") },
-    { uri: uri("eeeeeeeeeeeee"), value: record("Gone") },
-    { uri: uri("fffffffffffff"), value: record("Another site's", "https://elsewhere.test") }
+  const deleted = [
+    { collection: "com.example.note", rkey: "ddddddddddddd" },
+    { collection: "com.example.note", rkey: "eeeeeeeeeeeee" }
   ]
-  const plan = planWrites(local, remote, new Set([site]))
-  const byKey = Object.fromEntries(plan.map(write => [write.rkey[0], write.action]))
-  assert.deepEqual(byKey, { a: "create", b: "update", c: "unchanged", d: "collision", e: "delete" })
+  const remote = new Map([
+    ["com.example.note/bbbbbbbbbbbbb", record("Old")],
+    ["com.example.note/ccccccccccccc", { title: "Same", $type: "com.example.note" }],
+    ["com.example.note/ddddddddddddd", record("Deleted page")],
+    ["com.example.note/fffffffffffff", record("Not ours, or a page that's gone")]
+  ])
+  const plan = planWrites(local, deleted, remote)
+  assert.deepEqual(plan.map(write => `${write.collection}/${write.rkey[0]} ${write.action}`), [
+    "com.example.note/a create",
+    "com.example.note/b update",
+    "com.example.note/c unchanged",
+    "site.standard.document/a create",
+    "com.example.note/d delete"
+  ])
 })
 
 /**
@@ -289,7 +291,7 @@ async function withPDS(run) {
   }
 }
 
-test("atproto-publish: dry run, create, nothing to send, update, delete - and another site's record is never touched", async () => {
+test("atproto-publish: dry run, create, nothing to send, update; a removed page's record stays, status: deleted deletes it; nothing else is touched", async () => {
   const publish = vowelAtprotoPlugin.commands["atproto-publish"]
   const notify = () => {}
   const previous = process.env.ATPROTO_APP_PASSWORD
@@ -300,17 +302,25 @@ test("atproto-publish: dry run, create, nothing to send, update, delete - and an
 
       await withProject({
         "settings.md": rootSettings({ pds }),
-        "blog/one.md": "---\ndate: 2026-03-04\n---\n# One\n",
+        "blog/one.md": "---\ndate: 2026-03-04\n---\n# One\n\nThe **first** post, [linked](/blog/two).\n",
         "blog/two.md": "---\ndate: 2026-03-05\n---\n# Two\n",
-        "blog/three.md": "---\ndate: 2026-03-06\n---\n# Three\n"
-      }, async ({ sourceFolder, config }) => {
+        "blog/three.md": "---\ndate: 2026-03-06\n---\n# Three\n",
+        "blog/undated.md": "# Undated\n"
+      }, async ({ sourceFolder, config, warnings }) => {
+        const three = createRkey("https://example.com/blog/three")
         const dry = await publish({ dryRun: true }, { config, notify })
-        assert.equal(dry.created, 3)
+        assert.deepEqual([dry.created, dry.ignored], [3, 1])
+        assert.ok(warnings.some(line => line.startsWith("warn: blog/undated.html: not published to AT Protocol: a site.standard.document record needs publishedAt")), warnings.join("\n"))
         assert.ok(!calls.includes("com.atproto.server.createSession") && !calls.includes("com.atproto.repo.applyWrites"), "a dry run sends nothing")
 
         const first = await publish({}, { config, notify })
         assert.deepEqual([first.created, first.updated, first.deleted, first.publication], [3, 0, 0, "create"])
-        assert.equal(records.size, 5, "three documents, the publication, and another site's document")
+        assert.equal(records.size, 5, "three documents, the publication, and another app's document")
+        const one = records.get(`site.standard.document/${createRkey("https://example.com/blog/one")}`)
+        assert.equal(one.title, "One")
+        assert.equal(one.path, "/blog/one")
+        assert.deepEqual(one.content, { $type: "at.markpub.markdown", text: { markdown: "The **first** post, [linked](https://example.com/blog/two)." } })
+        assert.equal(one.textContent, undefined, "textContent is left to the author")
 
         calls.length = 0
         const again = await publish({}, { config, notify })
@@ -320,10 +330,52 @@ test("atproto-publish: dry run, create, nothing to send, update, delete - and an
         await writeFile(path.join(sourceFolder, "blog", "two.md"), "---\ndate: 2026-03-05\n---\n# Two, edited\n")
         await rm(path.join(sourceFolder, "blog", "three.md"))
         const edited = await publish({}, { config, notify })
-        assert.deepEqual([edited.created, edited.updated, edited.deleted], [0, 1, 1])
-        assert.equal(records.size, 4)
-        assert.ok(records.has("site.standard.document/zzzzzzzzzzzzz"), "another site's record is left alone")
+        assert.deepEqual([edited.created, edited.updated, edited.deleted], [0, 1, 0])
+        assert.ok(records.has(`site.standard.document/${three}`), "no automatic deletion: a removed page's record stays")
         assert.ok([...records.values()].some(value => value.title === "Two, edited"))
+
+        await writeFile(path.join(sourceFolder, "blog", "three.md"), "---\ndate: 2026-03-06\nstatus: deleted\n---\n# Three\n")
+        const deleted = await publish({}, { config, notify })
+        assert.deepEqual([deleted.created, deleted.updated, deleted.deleted], [0, 0, 1])
+        assert.ok(!records.has(`site.standard.document/${three}`), "status: deleted deletes the record")
+        assert.ok(records.has("site.standard.document/zzzzzzzzzzzzz"), "another app's record is left alone")
+
+        const nothing = await publish({}, { config, notify })
+        assert.equal(nothing.deleted, 0, "a deleted page whose record is gone asks for nothing")
+      })
+    })
+  } finally {
+    if (previous === undefined) delete process.env.ATPROTO_APP_PASSWORD
+    else process.env.ATPROTO_APP_PASSWORD = previous
+  }
+})
+
+test("atproto-publish: any published lexicon, rich text for text with facets; no publication without standard.site; an unpublished lexicon is ignored", async () => {
+  const publish = vowelAtprotoPlugin.commands["atproto-publish"]
+  const notify = () => {}
+  const previous = process.env.ATPROTO_APP_PASSWORD
+  process.env.ATPROTO_APP_PASSWORD = "app-password"
+  try {
+    await withPDS(async ({ pds, records }) => {
+      await withProject({
+        "settings.md": rootSettings({ pds, lexicon: "com.example.note" }),
+        "note.md": "---\ndate: 2026-03-04T09:15:00Z\ntags: [extra]\n---\n# Note\n\nCafé **bold** on [Queen St](https://maps.test/q) #coffee.\n",
+        "elsewhere/settings.md": "---\natproto_lexicon: com.example.nothing\n---\n",
+        "elsewhere/page.md": "# Page\n"
+      }, async ({ config, warnings }) => {
+        const result = await publish({}, { config, notify })
+        assert.deepEqual([result.created, result.ignored, result.publication], [1, 1, "none"])
+        assert.ok(![...records.keys()].some(key => key.startsWith("site.standard.publication/")), "no standard.site page, no publication")
+        assert.ok(warnings.some(line => line.startsWith("warn: elsewhere/page.html: not published to AT Protocol: com.example.nothing is not published")), warnings.join("\n"))
+
+        const note = records.get(`com.example.note/${createRkey("https://example.com/note")}`)
+        assert.equal(note.text, "Café bold on Queen St #coffee.")
+        assert.equal(note.createdAt, "2026-03-04T09:15:00.000Z")
+        assert.deepEqual(note.tags, ["extra", "coffee"])
+        const byType = Object.fromEntries(note.facets.map(facet => [facet.features[0].$type, facet]))
+        assert.deepEqual(byType["com.example.facet#link"], { index: { byteStart: 14, byteEnd: 22 }, features: [{ $type: "com.example.facet#link", uri: "https://maps.test/q" }] }, "byte offsets: é is two bytes")
+        assert.deepEqual(byType["com.example.facet#tag"].features[0], { $type: "com.example.facet#tag", tag: "coffee" })
+        assert.ok(byType["com.example.facet#bold"])
       })
     })
   } finally {
@@ -358,7 +410,7 @@ test("atproto-publish refuses without a domain, and names a wrong app password",
   })
 })
 
-test("the publication: its AT-URI at /.well-known/site.standard.publication, named by every document", async () => {
+test("the publication: its AT-URI at /.well-known/site.standard.publication", async () => {
   await withProject({
     "settings.md": rootSettings(),
     "post.md": "---\ndate: 2026-03-04\n---\n# Post\n"
@@ -367,7 +419,6 @@ test("the publication: its AT-URI at /.well-known/site.standard.publication, nam
     assert.match(uri, new RegExp(`^at://${DID}/site\\.standard\\.publication/`))
     assert.match(uri.split("/").at(-1), TID)
     assert.equal(await readFile(path.join(targetFolder, ".well-known", "site.standard.publication"), "utf-8"), uri)
-    assert.equal(records().get("post.md").record.site, uri)
     assert.equal(records().get("post.md").atUri, `at://${DID}/site.standard.document/${createRkey("https://example.com/post")}`, "a document's key is still its URL")
   })
   await withProject({

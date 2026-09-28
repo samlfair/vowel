@@ -78,7 +78,8 @@ const processor = {
             }
           },
         })
-        .filter(a => a.extension === ".html" && a.path)
+        // A virtual page - `html_file: false`, `status: deleted` - has no url.
+        .filter(a => a.extension === ".html" && a.path && a.write !== false)
 
       // No {delete: true} any more: this target exists only because the
       // enumerator declared it, and it does that only when a domain is

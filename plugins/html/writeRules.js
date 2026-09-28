@@ -89,7 +89,8 @@ function resolveNote(name, { api, target }) {
     recursive: true,
     query: { "|": { note_key: key, note_aliases: { "~": key } } }
   }).filter(candidate => (
-    candidate.extension === ".html"
+    candidate.write !== false
+    && candidate.extension === ".html"
     && candidate.path !== target.path
     && (!folderHint || sourceFolder(candidate).endsWith(folderHint))
   ))
@@ -294,10 +295,11 @@ const directive = {
 
     // A relative glob is in source space, where the author named the
     // folder salt and all, so it sees the hidden (secret) pages there;
-    // a published-path glob never does.
+    // a published-path glob never does. A page hidden on purpose
+    // (`status: hidden`) is hidden from both.
     const listing = { folder, recursive, query, orderBy: { property: "date", direction: "desc" }, limit: count ? Number(count) : undefined }
     const targets = relative
-      ? api.targets(listing).filter(page => page.write !== false && page.extension === ".html")
+      ? api.targets(listing).filter(page => page.write !== false && page.extension === ".html" && page.metadata.fm_status !== "hidden")
       : listPages(api, listing)
 
     const listClasses = globClasses({ folder, recursive, limit: count, tag, view, properties })

@@ -70,17 +70,7 @@ function isContentSection(node) {
  * @returns {string} the body as HTML, or "" when there is no content
  */
 export function entryContent(html, domain) {
-  if (!html) return ""
-
-  const tree = fromHtml(html, { fragment: false })
-
-  /** @type {import("hast").Element | undefined} */
-  let content
-  visit(tree, isContentSection, (node) => {
-    content = node
-    return false
-  })
-
+  const content = contentSection(html)
   if (!content) return ""
 
   visit(content, "element", (node) => {
@@ -98,6 +88,27 @@ export function entryContent(html, domain) {
   // The children, not the <section> itself - the wrapper is vowel's page
   // structure, not part of the post.
   return toHtml({ type: "root", children: content.children })
+}
+
+/**
+ * The rendered page's `<section id=content>` - the post body - as a hast
+ * element, untouched, or undefined when the page has none. Shared by the
+ * feed and by atproto-publish, which both want the post and not the
+ * page around it.
+ * @param {string | null | undefined} html - the page's rendered output
+ * @returns {import("hast").Element | undefined}
+ */
+export function contentSection(html) {
+  if (!html) return undefined
+  const tree = fromHtml(html, { fragment: false })
+
+  /** @type {import("hast").Element | undefined} */
+  let content
+  visit(tree, isContentSection, (node) => {
+    content = node
+    return false
+  })
+  return content
 }
 
 export default entryContent

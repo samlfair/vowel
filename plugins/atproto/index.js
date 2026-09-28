@@ -1,5 +1,6 @@
 import path from "node:path"
-import { pageRecord, publicationURI, siteOrigin } from "./record.js"
+import { lexiconFor, publicationURI, recordURI, siteOrigin } from "./record.js"
+import { validNSID } from "./lexicons.js"
 import { publishToAtproto } from "./publish.js"
 import { saveAppPassword } from "./password.js"
 
@@ -20,11 +21,13 @@ import { saveAppPassword } from "./password.js"
  * pastes the DID from their account settings. Resolving it from a handle
  * is a later phase, through readURL like any other fetch.
  *
- * Phase two: a page under an `atproto_lexicon:` gets an AT-URI and a record,
- * computed by `transformFile` with no network (record.js), and a
- * `<link rel="site.standard.document">` from the html plugin. Publishing
- * is a command, `atproto-publish` (publish.js), which makes the account's
- * records match the site. See tasks/2-in-progress/atproto-integration.md.
+ * Phase two: a page under an `atproto_lexicon:` gets an AT-URI, computed
+ * by `transformFile` with no network (record.js). Any published lexicon
+ * will do: vowel bundles none. Publishing is a command,
+ * `atproto-publish` (publish.js), which fetches each lexicon, fits the
+ * page to it (mapper.js) and sends what changed. A
+ * `site.standard.document` page also gets a
+ * `<link rel="site.standard.document">` from the html plugin.
  *
  * The publication: with a `domain` too, the site is a
  * `site.standard.publication`, every document's `site` names it, and
@@ -52,29 +55,32 @@ function atprotoDID(settings) {
 }
 
 /**
- * The page's AT-URI and record, stored as metadata for the html plugin's
- * link and the publish command. Runs once per read of the page; nothing
- * here reaches the network. A page missing a property its lexicon
- * requires is not a record (mentioned under `verbose`); an unsupported
- * lexicon is warned about.
+ * The page's AT-URI, stored as metadata for the html plugin's link and
+ * the publish command. Runs once per read of the page and reaches no
+ * network, so it can't know whether the page fits its lexicon - the
+ * publish command finds that out. A lexicon name that isn't an NSID is
+ * warned about here.
+ *
+ * Not for a page with `status: hidden`, which is listed nowhere, nor for
+ * one that isn't written (`html_file: false`) - except `status: deleted`,
+ * which is kept unwritten precisely so publish can delete its record.
  */
 function transformFile(target, { settings, config }) {
-  if (target.write === false) return undefined
+  const status = target.metadata.fm_status
+  if (status === "hidden") return undefined
+  if (target.write === false && status !== "deleted") return undefined
   const did = atprotoDID(settings)
   if (!validDID(did)) return undefined
+  const origin = siteOrigin(settings.lastNonNull("fm_domain"))
+  if (!origin) return undefined
 
-  const domain = settings.lastNonNull("fm_domain")
-  const result = pageRecord(target, { did, domain, settings })
-  if ("skip" in result) return undefined
-  if ("incomplete" in result) {
-    config.log("info", `${target.path}: ${result.incomplete}`)
+  const lexicon = lexiconFor(target, settings)
+  if (!lexicon) return undefined
+  if (!validNSID(lexicon)) {
+    config.log("warn", `${target.path}: atproto_lexicon "${lexicon}" is not a lexicon name (an NSID, like app.bsky.feed.post)`)
     return undefined
   }
-  if ("warning" in result) {
-    config.log("warn", `${target.path}: ${result.warning}`)
-    return undefined
-  }
-  return { metadata: { atUri: result.atUri, atprotoRecord: result.record } }
+  return { metadata: { atUri: recordURI(did, lexicon, origin, target.metadata.prettyURL) } }
 }
 
 /** @type {Votive.ProcessorStubs} */

@@ -4,6 +4,7 @@
 		margin: 0;
 		/* font-size: 62.5%; */
 		font-size: 16px;
+		overflow-y: scroll;
 	}
 
 	body {
@@ -15,7 +16,7 @@
 
 	body {
 		min-height: 100vh;
-		overflow-x: hidden;
+		overflow-x: clip;
 	}
 
 	*,

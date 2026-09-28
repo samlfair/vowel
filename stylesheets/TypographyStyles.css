@@ -189,6 +189,8 @@
 
 	table {
 		border-collapse: collapse;
+		display: block;
+		overflow: auto;
 	}
 
 	time {
@@ -263,6 +265,16 @@
 		ol {
 			display: flex;
 			flex-direction: column;
+		}
+
+		li {
+
+			&>p,
+			&>ul {
+				:last-child {
+					margin-bottom: 1lh;
+				}
+			}
 		}
 
 

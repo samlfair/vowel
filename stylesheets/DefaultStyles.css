@@ -41,7 +41,7 @@
 		--color-surface-border-menu: light-dark(var(--tertiary-09), var(--tertiary-01));
 		--color-border-menu: light-dark(var(--primary-07), var(--primary-03));
 		--color-link-menu: light-dark(var(--tertiary-04), var(--tertiary-09));
-		--color-disabled-menu: light-dark(var(--secondary-04), var(--secondary-07));
+		--color-link-disabled-menu: light-dark(var(--secondary-04), var(--secondary-07));
 		--color-link-hover-menu: light-dark(var(--tertiary-06), var(--tertiary-10));
 
 		/* panel colors */
@@ -97,15 +97,21 @@
 
 	header {
 		color: var(--color-heading-body);
-		background: var(--color-background-menu);
+		/* background: var(--color-background-menu); */
 
 		[rel=home] {
 			color: var(--color-heading-body);
 		}
 
 		nav {
-			[aria-current="page"] {
-				color: var(--color-disabled-menu);
+			a[aria-current="page"] {
+				color: var(--color-link-disabled-menu);
+			}
+
+			a,
+			a:visited,
+			a:hover {
+				color: var(--color-link-body);
 			}
 
 			ul+ul {
@@ -131,19 +137,19 @@
 	}
 
 	nav[aria-label=Contents]>ol {
-		background: var(--color-surface-menu);
-		border-color: var(--color-surface-border-menu);
+		/* background: var(--color-surface-menu); */
+		/* border-color: var(--color-surface-border-menu); */
 
 		a {
 
 			&,
 			&:visited {
 
-				color: var(--color-link-menu);
+				color: var(--color-link-body);
 			}
 
 			&:hover {
-				color: var(--color-link-hover-menu);
+				color: var(--color-link-hover-body);
 			}
 		}
 	}
@@ -152,14 +158,19 @@
 		LAYOUT
 	*/
 
-	@media (max-width: 800px) {
+	@media (max-width: 140rch) {
 
 		body {
 			display: flex;
 			flex-direction: column;
 
 			&>* {
+				margin-inline: auto;
 				padding: 1lh 1ch;
+			}
+
+			&>aside {
+				max-width: max-content;
 			}
 
 			&>header {
@@ -174,7 +185,7 @@
 		}
 	}
 
-	@media (min-width: 800px) {
+	@media (min-width: 140rch) {
 		body {
 			display: grid;
 			grid-template-columns: 1fr 20rch 60rch 20rch 1fr;
@@ -264,8 +275,12 @@
 				display: none;
 			}
 
-			grid-column-start: 4;
-			grid-column-end: 5;
+
+			@media (min-width: 140rch) {
+				grid-column-start: 3;
+				grid-column-end: 5;
+				justify-items: end;
+			}
 
 			ul {
 				list-style: none;
@@ -294,14 +309,15 @@
 	/* table of contents */
 
 	nav[aria-label=Contents]>ol {
-		border-width: 1px;
-		border-style: solid;
-		border-radius: var(--border-radius-tight);
+		/* border-width: 1px; */
+		/* border-style: solid; */
+		/* border-radius: var(--border-radius-tight); */
 		height: max-content;
 		max-height: 80vh;
 
 		list-style: none;
-		padding: 1lh 2ch;
+		/* padding: 1lh 2ch; */
+		padding: 0;
 
 		/* sub-items */
 		ol {
@@ -372,6 +388,17 @@
 		max-width: min(80rch, 100%);
 		margin-bottom: var(--large-gap);
 		overflow-x: clip;
+		/* position: relative; */
+
+		table {
+			position: relative;
+			max-height: 80vh;
+
+			thead {
+				position: sticky;
+				top: 0;
+			}
+		}
 
 		/* content */
 
@@ -429,6 +456,7 @@
 			hr {
 				border-top: 1px solid var(--color-border-body);
 			}
+
 
 			/* page list */
 
@@ -575,8 +603,14 @@ footer {
 }
 
 /* homepage */
+@media (min-width: 140rch) {
+	body.home {
+		grid-template-columns: 1fr 15rch 70rch 15rch 1fr;
+	}
+}
 
 body.home {
+
 
 	/*
 		The homepage's tagline is the hero

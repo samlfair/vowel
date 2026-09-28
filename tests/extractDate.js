@@ -27,6 +27,10 @@ test("named months work at any year", () => {
 test("an explicit offset is honoured rather than overridden", () => {
   assert.equal(iso(extractDate("2026-03-04T12:00Z")), "2026-03-04T12:00:00.000Z")
   assert.equal(iso(extractDate("2026-03-04T12:00+02:00")), "2026-03-04T10:00:00.000Z")
+  // West of UTC too: a negative offset was once read as UTC.
+  assert.equal(iso(extractDate("2026-03-04T09:15:00-04:00")), "2026-03-04T13:15:00.000Z")
+  assert.equal(iso(extractDate("2026-03-04T23:30-05:00")), "2026-03-05T04:30:00.000Z", "across midnight")
+  assert.equal(iso(extractDate("September 28, 2026 15:27-03:00")), "2026-09-28T18:27:00.000Z")
 })
 
 test("things that merely look date-shaped do not become valid dates", () => {

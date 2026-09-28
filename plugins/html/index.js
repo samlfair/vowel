@@ -231,6 +231,9 @@ function writeFile(target, { settings, api, config }) {
   // the moment it does not. No self-deleting targets.
 
   const { metadata, ...rest } = target
+  // A deleted page (`status: deleted`) is kept only for atproto-publish;
+  // there is nothing to render.
+  if (metadata.fm_status === "deleted") return undefined
   const abstract = metadata.hastAbstract
 
   /** @param {string} filePath */
@@ -386,9 +389,12 @@ function writeFile(target, { settings, api, config }) {
   }
 
   // The page's AT Protocol record, for readers that verify a document
-  // against its site (site.standard). Set by the atproto plugin's
-  // transform only when the page has a record to point at.
-  if (metadata.atUri) {
+  // against its site: standard.site's convention, so only for a
+  // site.standard.document, and only for a page that can be one - it
+  // needs a title and a date (its `publishedAt`). Set by the atproto
+  // plugin's transform for a page under a lexicon.
+  const standardDocument = typeof metadata.atUri === "string" && metadata.atUri.split("/")[3] === "site.standard.document"
+  if (standardDocument && metadata.title && metadata.date) {
     treeHead.children.push(h("link", {
       rel: "site.standard.document",
       href: metadata.atUri

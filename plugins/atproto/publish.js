@@ -5,41 +5,51 @@ import path from "node:path"
 import sharp from "sharp"
 import votive from "votive"
 import { systemDirectoryFor } from "../../systemPaths.js"
-import { DOCUMENT, PUBLICATION, siteOrigin, publicationURI } from "./record.js"
+import { EXPECTED } from "../markdown/frontmatter.js"
+import { contentSection } from "../xml/entryContent.js"
+import { PUBLICATION, siteOrigin, publicationURI } from "./record.js"
+import { createLexiconResolver, resolvePDS } from "./lexicons.js"
+import { mapRecord } from "./mapper.js"
+import { markdownBody, richTextBody } from "./body.js"
 
 /**
  * `vowel --command atproto-publish`: make the account's records match the
- * site.
+ * site's pages.
  *
- * The PDS is the ledger. The command builds the site, collects the record
- * each page's transform stored (`metadata.atprotoRecord`), lists what the
- * PDS holds, and sends the difference through `applyWrites`: a record the
- * site has and the PDS does not is created, one that differs is updated,
- * and one the PDS has for this site and the site no longer produces is
- * deleted. Nothing is remembered between runs, so clearing a cache
- * cannot cause a resend, a revert publishes, and a coworker sees the
- * same state.
+ * The command builds the site, fetches every lexicon a page names
+ * (lexicons.js; cached in memory), fits each page to its lexicon
+ * (mapper.js), lists what the PDS holds in each collection, and sends the
+ * difference through `applyWrites`: a record the PDS doesn't have is
+ * created, one that differs is updated. Nothing is remembered between
+ * runs, so clearing a cache cannot cause a resend, a revert publishes,
+ * and a coworker sees the same state.
  *
- * **Only this site's records are ever deleted.** `listRecords` returns
- * every record in the collection, including ones another site or app
- * published to the same account. A record is this site's when its `site`
- * is this site's origin. A record at one of our keys with another `site`
- * is a collision; it is reported and left alone.
+ * **Vowel owns only the records it creates** - the ones at keys it
+ * derives from the site's page URLs (rkey.js). It never deletes one on
+ * its own: a record whose page is gone can't be told from anyone else's,
+ * because its key can no longer be derived. A page with
+ * `status: deleted` is how a record is deleted - the page stays in the
+ * project, unwritten, so its key can still be derived.
+ *
+ * A page that doesn't fit its lexicon - a required property with no
+ * value, a lexicon that isn't published - is left out with a warning.
  *
  * The build uses a throwaway database, so every page is read and every
  * transform runs against current settings. A transform only re-runs when
  * its source is re-read (tasks/1-proposed/transform-reruns-on-stale.md),
  * so a warm database could hold records built from old settings.
  *
- * **The publication goes first.** One `site.standard.publication` per
- * site, at the key record.js derives from the origin: `url` from
- * `domain:`, `name` from the root `name:` (else the homepage's title),
- * and `description` and `icon` from the root's `atproto_publication:`.
- * The icon defaults to `logo:`. It is rendered to a 512px square PNG and
- * its blob reference - CID, type, size - computed here, so an unchanged
- * icon compares equal and is never uploaded again; a changed one is
- * uploaded just before the write that names it. The publication is
- * created and updated, never deleted.
+ * **The publication goes first**, when any page publishes to
+ * `site.standard.*`: standard.site defines a document's `site` as its
+ * publication. One `site.standard.publication` per site, at the key
+ * record.js derives from the origin: `url` from `domain:`, `name` from
+ * the root `name:` (else the homepage's title), and `description` and
+ * `icon` from the root's `atproto_publication:`. The icon defaults to
+ * `logo:`. It is rendered to a 512px square PNG and its blob reference -
+ * CID, type, size - computed here, so an unchanged icon compares equal
+ * and is never uploaded again; a changed one is uploaded just before the
+ * write that names it. The publication is created and updated, never
+ * deleted.
  *
  * The app password comes from `ATPROTO_APP_PASSWORD`, or from a file
  * named `atproto-app-password` in the project's system directory, never
@@ -47,6 +57,9 @@ import { DOCUMENT, PUBLICATION, siteOrigin, publicationURI } from "./record.js"
  * and sends nothing, and does not need the password. `{"optional": true}`
  * makes a site with no `atproto_did` a skip rather than an error, for
  * the `publish` command, which runs this after every deploy.
+ *
+ * `config.atprotoLexicons` replaces the lexicon resolver - for tests,
+ * which can't publish a DNS record.
  */
 
 const PASSWORD_FILE = "atproto-app-password"
@@ -144,27 +157,6 @@ async function xrpc(pds, nsid, { query, body, bytes, mimeType, token } = {}) {
 }
 
 /**
- * The PDS that hosts `did`, from its DID document. `did:plc` is resolved
- * through the PLC directory, `did:web` through its own host.
- * @param {string} did
- */
-async function resolvePDS(did) {
-  const documentURL = did.startsWith("did:plc:")
-    ? `https://plc.directory/${did}`
-    : did.startsWith("did:web:")
-      ? `https://${decodeURIComponent(did.slice("did:web:".length))}/.well-known/did.json`
-      : undefined
-  if (!documentURL) throw new Error(`atproto: can't resolve ${did}; set atproto_pds in settings.md`)
-
-  const response = await fetch(documentURL, { signal: AbortSignal.timeout(TIMEOUT) })
-  if (!response.ok) throw new Error(`atproto: resolving ${did} failed: ${response.status}`)
-  const document = await response.json()
-  const service = (document.service ?? []).find(entry => entry.id === "#atproto_pds" || entry.id === `${did}#atproto_pds`)
-  if (!service) throw new Error(`atproto: ${did} names no PDS`)
-  return service.serviceEndpoint
-}
-
-/**
  * Where the app password is kept: the project's system directory, never
  * the project, so it is neither committed nor deployed.
  * @param {string} sourceFolder
@@ -203,14 +195,53 @@ async function listAll(pds, did, collection, cursor) {
 const rkeyOf = (uri) => uri.slice(uri.lastIndexOf("/") + 1)
 
 /**
- * What the site should hold: every stored record, by rkey, the site's
- * own settings, and the publication's name, description and icon. The
- * icon is read from the build's output - it is a URL path from the root
- * (frontmatter.js resolves it), which is where the output has it. Built
- * into a scratch folder that is removed afterwards.
+ * The default `$type` for a body that goes into an open union - a
+ * `content` any lexicon may fill, like standard.site's. MarkPub's
+ * markdown lexicon, fetched and interpreted like any other; a folder's
+ * `atproto_content:` names another.
+ */
+const CONTENT_LEXICON = "at.markpub.markdown"
+
+/**
+ * The page as mapper.js reads it: its title, description, date, image
+ * and tags, the frontmatter keys that are the author's own (every key
+ * vowel reads for itself is left out), and its body - both forms, made
+ * only when asked for, from the rendered page. Every value is read now:
+ * a target's properties are lazy database reads, and the build's
+ * database is closed before anything is mapped.
+ * @param {any} target
+ * @param {string} pageURL
+ */
+function pageFor(target, pageURL) {
+  const { metadata } = target
+  const declared = Array.isArray(metadata.frontmatter_keys) ? metadata.frontmatter_keys : []
+  const frontmatter = Object.fromEntries(declared
+    .filter(key => !(key in EXPECTED) && `fm_${key}` in metadata)
+    .map(key => [key, metadata[`fm_${key}`]]))
+  const html = target.data
+  const section = () => contentSection(html)
+  return {
+    title: metadata.title,
+    description: metadata.description,
+    date: metadata.date,
+    image: metadata.image,
+    tags: metadata.tags,
+    frontmatter,
+    markdown: () => markdownBody(section(), pageURL),
+    richText: (features) => richTextBody(section(), pageURL, features)
+  }
+}
+
+/**
+ * What the site should hold: every page under a lexicon - its AT-URI,
+ * its status, and what mapper.js reads - the site's own settings, and
+ * the publication's name, description and icon. The icon is read from
+ * the build's output - it is a URL path from the root (frontmatter.js
+ * resolves it), which is where the output has it. Built into a scratch
+ * folder that is removed afterwards.
  * @param {import("votive").VotiveConfig} config
  */
-async function collectRecords(config) {
+async function collectPages(config) {
   const scratch = await mkdtemp(path.join(tmpdir(), "vowel-atproto-"))
   try {
     const site = await votive({
@@ -225,9 +256,26 @@ async function collectRecords(config) {
       const did = root.lastNonNull("fm_atproto_did")
       const pds = root.lastNonNull("fm_atproto_pds")
       const domain = root.lastNonNull("fm_domain")
+      const origin = siteOrigin(domain)
+      // Only the author's own pages: a generated one - a tag page, a
+      // folder index, the default home or 404 - is a stub, and inherits a
+      // folder's lexicon without being anything to publish.
+      const stubs = new Set(site.database.source.getStubs().map(row => row.path))
       const targets = site.database.target.getAll()
-      const pages = targets.filter(target => "atUri" in target.metadata && "atprotoRecord" in target.metadata)
-      const records = pages.map(target => ({ uri: target.metadata.atUri, value: target.metadata.atprotoRecord }))
+      const pages = targets.filter(target => typeof target.metadata.atUri === "string" && !stubs.has(target.source)).map(target => {
+        const [, , account, collection, rkey] = target.metadata.atUri.split("/")
+        const pageURL = new URL(target.metadata.prettyURL, origin).href
+        const contentLexicon = site.database.setting.getByFolder(target.dir).lastNonNull("fm_atproto_content")
+        return {
+          path: target.path,
+          account,
+          collection,
+          rkey,
+          deleted: target.metadata.fm_status === "deleted",
+          context: { origin, pageURL, path: target.metadata.prettyURL, contentLexicon: typeof contentLexicon === "string" && contentLexicon ? contentLexicon : CONTENT_LEXICON },
+          page: target.metadata.fm_status === "deleted" ? undefined : pageFor(target, pageURL)
+        }
+      })
 
       const settings = root.lastNonNull("fm_atproto_publication") ?? {}
       const home = site.database.target.get("index.html")
@@ -235,7 +283,7 @@ async function collectRecords(config) {
       const iconPath = settings.icon ?? root.lastNonNull("logo")
       const icon = iconPath ? await readIcon(path.join(scratch, "output"), iconPath) : undefined
       const publication = { name, description: settings.description, iconPath, icon }
-      return { did, pds, domain, records, publication }
+      return { did, pds, domain, pages, publication }
     } finally {
       await site.close()
     }
@@ -275,46 +323,49 @@ function planPublication(remote, rkey, value) {
 }
 
 /**
- * The writes that make `remote` match `local`, plus the collisions.
- * @param {{ uri: string, value: any }[]} local
- * @param {{ uri: string, value: any }[]} remote
- * @param {Set<string>} sites - the `site` values that are this site's
+ * The writes that make the account match the site. `local` is the
+ * records the pages make, `deleted` the keys of pages whose status is
+ * `deleted`; `remote` is what the PDS holds in those collections, keyed
+ * `<collection>/<rkey>`. A record the PDS doesn't hold is created, one
+ * that differs is updated, and a deleted page's record is deleted if it
+ * is there. Nothing else in a collection is touched.
+ * @param {{ collection: string, rkey: string, value: unknown }[]} local
+ * @param {{ collection: string, rkey: string }[]} deleted
+ * @param {Map<string, unknown>} remote
  */
-function planWrites(local, remote, sites) {
-  const remoteByKey = new Map(remote.map(record => [rkeyOf(record.uri), record]))
-  const localKeys = new Set(local.map(record => rkeyOf(record.uri)))
-
-  const compared = local.map(record => {
-    const rkey = rkeyOf(record.uri)
-    const existing = remoteByKey.get(rkey)
-    if (!existing) return { action: "create", rkey, value: record.value }
-    if (!sites.has(existing.value?.site)) return { action: "collision", rkey, site: existing.value?.site }
-    if (sameRecord(existing.value, record.value)) return { action: "unchanged", rkey }
-    return { action: "update", rkey, value: record.value }
+function planWrites(local, deleted, remote) {
+  const compared = local.map(({ collection, rkey, value }) => {
+    const existing = remote.get(`${collection}/${rkey}`)
+    if (existing === undefined) return { action: "create", collection, rkey, value }
+    if (sameRecord(existing, value)) return { action: "unchanged", collection, rkey }
+    return { action: "update", collection, rkey, value }
   })
-
-  const deletions = remote
-    .filter(record => sites.has(record.value?.site) && !localKeys.has(rkeyOf(record.uri)))
-    .map(record => ({ action: "delete", rkey: rkeyOf(record.uri) }))
-
+  const deletions = deleted
+    .filter(({ collection, rkey }) => remote.has(`${collection}/${rkey}`))
+    .map(({ collection, rkey }) => ({ action: "delete", collection, rkey }))
   return [...compared, ...deletions]
 }
 
-/** @param {{ action: string, rkey: string, value?: unknown, collection?: string }} write */
-function applyWrite({ action, rkey, value, collection = DOCUMENT }) {
+/** @param {{ action: string, collection: string, rkey: string, value?: unknown }} write */
+function applyWrite({ action, collection, rkey, value }) {
   const base = { $type: `com.atproto.repo.applyWrites#${action}`, collection, rkey }
   return action === "delete" ? base : { ...base, value }
 }
 
+const defaultResolver = createLexiconResolver()
+
 /**
  * @param {{ dryRun?: boolean, optional?: boolean } | undefined} payload
- * @param {{ config: import("votive").VotiveConfig, notify: (message: object) => void }} context
+ * @param {{ config: import("votive").VotiveConfig & { atprotoLexicons?: ReturnType<typeof createLexiconResolver> }, notify: (message: object) => void }} context
  */
 async function publishToAtproto(payload, { config, notify }) {
   const dryRun = Boolean(payload?.dryRun)
+  // A command's config comes straight from the caller and may carry no
+  // logger; votive() adds one only to the config its hooks receive.
+  const log = config.log ?? ((level, message) => console.error(message))
 
   notify({ status: "progress", message: "Building..." })
-  const { did, pds: configuredPDS, domain, records, publication } = await collectRecords(config)
+  const { did, pds: configuredPDS, domain, pages, publication } = await collectPages(config)
 
   if ((typeof did !== "string" || !did) && payload?.optional) {
     notify({ status: "done", message: "No atproto_did in settings.md; nothing to publish to AT Protocol" })
@@ -324,34 +375,54 @@ async function publishToAtproto(payload, { config, notify }) {
   const origin = siteOrigin(domain)
   if (!origin) throw new Error("atproto: set domain in the root settings.md; every record carries the site's url")
 
-  const accounts = new Set(records.map(record => record.uri.split("/")[2]))
-  const others = [...accounts].filter(account => account !== did)
+  const others = [...new Set(pages.map(page => page.account))].filter(account => account !== did)
   if (others.length) throw new Error(`atproto: pages name ${others.join(", ")}; one site publishes to one account (${did})`)
 
-  if (typeof publication.name !== "string" || !publication.name) {
+  // The publication, only for a site that publishes to standard.site.
+  const live = pages.filter(page => !page.deleted)
+  const standardSite = live.some(page => page.collection.startsWith("site.standard."))
+  if (standardSite && (typeof publication.name !== "string" || !publication.name)) {
     throw new Error("atproto: set name in the root settings.md; the publication needs one")
   }
+  const publicationURL = standardSite ? publicationURI(did, origin) : undefined
 
-  const icon = publication.icon ? await iconBlob(publication.icon, publication.iconPath) : undefined
-  const publicationRecord = {
+  notify({ status: "progress", message: "Fetching lexicons..." })
+  const resolver = config.atprotoLexicons ?? defaultResolver
+  const roots = [...new Set(live.flatMap(page => [page.collection, page.context.contentLexicon]))]
+  const { lexicons, errors } = await resolver.load(roots)
+
+  const mapped = live.map(page => {
+    const context = { ...page.context, publication: publicationURL }
+    const unresolved = errors.get(page.collection)
+    const result = unresolved ? { ignored: unresolved, warnings: [] } : mapRecord(page.collection, page.page, { lexicons, context })
+    result.warnings.forEach(warning => log("warn", `${page.path}: ${warning}`))
+    if ("ignored" in result) log("warn", `${page.path}: not published to AT Protocol: ${result.ignored}`)
+    return { page, result }
+  })
+  const local = mapped
+    .filter(({ result }) => "record" in result)
+    .map(({ page, result }) => ({ collection: page.collection, rkey: page.rkey, value: result.record }))
+  const deleted = pages.filter(page => page.deleted).map(({ collection, rkey }) => ({ collection, rkey }))
+
+  const icon = standardSite && publication.icon ? await iconBlob(publication.icon, publication.iconPath) : undefined
+  const publicationRecord = standardSite ? {
     $type: PUBLICATION,
     url: origin,
     name: publication.name,
     ...(typeof publication.description === "string" && publication.description ? { description: publication.description } : {}),
     ...(icon ? { icon: icon.ref } : {})
-  }
-  const publicationURL = publicationURI(did, origin)
+  } : undefined
 
-  // A document is this site's when its `site` is the publication, or the
-  // origin a loose document carried before there was one.
-  const sites = new Set([origin, publicationURL, ...records.map(record => record.value.site)])
   const pds = typeof configuredPDS === "string" && configuredPDS ? configuredPDS : await resolvePDS(did)
 
-  notify({ status: "progress", message: `Comparing ${records.length} records with ${pds}...` })
-  const remote = await listAll(pds, did, DOCUMENT)
-  const remotePublications = await listAll(pds, did, PUBLICATION)
-  const publicationWrite = planPublication(remotePublications, rkeyOf(publicationURL), publicationRecord)
-  const plan = planWrites(records, remote, sites)
+  const collections = [...new Set([...local, ...deleted].map(record => record.collection))]
+  notify({ status: "progress", message: `Comparing ${local.length} records with ${pds}...` })
+  const listed = await Promise.all(collections.map(collection => listAll(pds, did, collection)))
+  const remote = new Map(listed.flatMap((records, index) => records.map(record => [`${collections[index]}/${rkeyOf(record.uri)}`, record.value])))
+  const plan = planWrites(local, deleted, remote)
+  const publicationWrite = publicationRecord
+    ? planPublication(await listAll(pds, did, PUBLICATION), rkeyOf(publicationURL), publicationRecord)
+    : { action: "none" }
 
   const count = (action) => plan.filter(write => write.action === action).length
   const summary = {
@@ -359,20 +430,14 @@ async function publishToAtproto(payload, { config, notify }) {
     updated: count("update"),
     deleted: count("delete"),
     unchanged: count("unchanged"),
-    collisions: plan.filter(write => write.action === "collision").map(({ rkey, site }) => ({ rkey, site })),
+    ignored: mapped.filter(({ result }) => "ignored" in result).length,
     publication: publicationWrite.action,
     dryRun
   }
-  // A command's config comes straight from the caller and may carry no
-  // logger; votive() adds one only to the config its hooks receive.
-  const log = config.log ?? ((level, message) => console.error(message))
-  for (const { rkey, site } of summary.collisions) {
-    log("error", `atproto: ${DOCUMENT}/${rkey} belongs to ${site}, not ${origin}; left alone`)
-  }
 
-  const publicationWrites = publicationWrite.action === "unchanged" ? [] : [{ ...publicationWrite, collection: PUBLICATION }]
-  const documentWrites = plan.filter(write => ["create", "update", "delete"].includes(write.action))
-  const writes = [...publicationWrites, ...documentWrites].map(applyWrite)
+  const publicationWrites = ["create", "update"].includes(publicationWrite.action) ? [{ ...publicationWrite, collection: PUBLICATION }] : []
+  const recordWrites = plan.filter(write => ["create", "update", "delete"].includes(write.action))
+  const writes = [...publicationWrites, ...recordWrites].map(applyWrite)
   if (dryRun || !writes.length) {
     notify({ status: "done", message: `${dryRun ? "Would send" : "Nothing to send"}: ${JSON.stringify(summary)}` })
     return summary
