@@ -126,3 +126,15 @@ export function globDirective({ folder, recursive, limit, tag, view = null, prop
   if (properties.length) url.searchParams.set("properties", properties.join(","))
   return decodeURIComponent(url.pathname + url.search)
 }
+
+/**
+ * An alert's heading when the author gave it no title: its type in
+ * sentence case, `[!NOTE]` → "Note", `[!my-card]` → "My card". Here so
+ * the html plugin (which writes it) and the editor (which leaves it out
+ * on save) agree.
+ * @param {string} type - lowercase
+ */
+export function alertLabel(type) {
+  const spaced = type.replace(/[-_]+/g, " ")
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}

@@ -143,5 +143,5 @@ function extractDate(text) {
 }
 
 export default extractDate
-export { extractDate, dateSpan }
+export { extractDate, dateSpan, monthIndex }
 

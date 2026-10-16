@@ -33,13 +33,13 @@ import extractDate from "../../extractDate.js"
  */
 
 /**
- * @typedef {"string" | "date" | "path" | "boolean" | "number" | "strings" | "theme" | "links" | "publication" | "object" | "status"} Shape
+ * @typedef {"string" | "date" | "path" | "paths" | "boolean" | "number" | "strings" | "theme" | "links" | "publication" | "object" | "status"} Shape
  */
 
 /**
  * A page's visibility. `published` is the default. `hidden` writes the
  * page but lists it nowhere - no menu, listing, sitemap, feed or record.
- * `draft` skips the page entirely, as `published: false` does.
+ * `draft` skips the page entirely.
  * `deleted` skips it too, and tells `atproto-publish` to delete its
  * record.
  */
@@ -54,7 +54,7 @@ const EXPECTED = {
   title: "string",
   breadcrumb: "string",
   description: "string",
-  tagline: "string",
+  slogan: "string",
   name: "string",
   author: "string",
   domain: "string",
@@ -63,15 +63,16 @@ const EXPECTED = {
   logo: "path",
   wordmark: "path",
   icon: "path",
+  fallback_image: "path",
+  styles: "paths",
   tags: "strings",
   aliases: "strings",
-  published: "boolean",
   status: "status",
   html_file: "boolean",
   rss_item: "boolean",
   sitemap_item: "boolean",
-  global_menu_item: "boolean",
-  local_menu_item: "boolean",
+  global_nav_item: "boolean",
+  local_nav_item: "boolean",
   feed_limit: "number",
   theme: "theme",
   social_links: "links",
@@ -143,6 +144,12 @@ function coerceOne(shape, value, folder) {
     if (inner) return { value: resolvePath(inner, folder), problem: `expected a path, got ${Array.isArray(value) ? "a list" : "an object"}; using "${inner}"` }
     return { value: undefined, problem: `expected a path, got ${JSON.stringify(value)}` }
   }
+  if (shape === "paths") {
+    const values = Array.isArray(value) ? value : [value]
+    const kept = values.filter(item => typeof item === "string" && item.trim()).map(item => resolvePath(item, folder))
+    if (!kept.length) return { value: undefined, problem: `expected a path or a list of paths, got ${JSON.stringify(value)}` }
+    return kept.length === values.length ? { value: kept } : { value: kept, problem: "expected a list of paths; dropped what was not" }
+  }
   if (shape === "boolean") {
     if (typeof value === "boolean") return { value }
     const word = String(value).trim().toLowerCase()
@@ -191,9 +198,12 @@ function coerceOne(shape, value, folder) {
     return wrong.length ? { value: kept, problem: `${wrong.join(", ")}; dropped` } : { value: kept }
   }
   if (shape === "status") {
+    // One of vowel's four controls the page. Anything else is the
+    // author's own `status` - a digital garden's "evergreen" or
+    // "growing" - kept as written, the page published as usual.
     const word = typeof value === "string" ? value.trim().toLowerCase() : undefined
     if (STATUSES.includes(word)) return { value: word }
-    return { value: undefined, problem: `expected one of ${STATUSES.join(", ")}, got ${JSON.stringify(value)}` }
+    return { value }
   }
   if (shape === "object") {
     if (isPlainObject(value)) return { value }
@@ -266,4 +276,4 @@ function asContent(tree, node) {
   return undefined
 }
 
-export { EXPECTED, coerce, parseFrontmatter, resolvePath, toISODate }
+export { EXPECTED, STATUSES, coerce, parseFrontmatter, resolvePath, toISODate }

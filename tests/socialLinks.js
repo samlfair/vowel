@@ -73,9 +73,10 @@ test("social links render in the header and the footer, with the icon's alt text
     assert.match(home, /<header>.*<nav class=social-links.*<\/header>/s)
     assert.match(home, /<footer>.*<nav class=social-links.*<\/footer>/s)
 
-    // With an icon: an image whose alt is the label, and the url as --icon-url
-    // for a stylesheet mask. Lowercased, like every vowel path.
-    assert.match(home, /<a href=https:\/\/github.com\/sam rel=me style='--icon-url: url\(&#34\/icons\/github.svg&#34\)'><img src=\/icons\/github.svg alt=GitHub><\/a>/)
+    // With an icon: an image whose alt is the label, carrying its own url
+    // as --url-icon (like img#logo and --url-logo) for a stylesheet mask.
+    // Lowercased, like every vowel path.
+    assert.match(home, /<a href=https:\/\/github.com\/sam rel=me><img src=\/icons\/github.svg alt=GitHub style='--url-icon: url\(&#34\/icons\/github.svg&#34\)'><\/a>/)
     // Without: the label is the text.
     assert.match(home, /<a href=https:\/\/bsky.app\/profile\/sam rel=me>Bluesky<\/a>/)
 

@@ -1,10 +1,13 @@
-// <main>'s children -> the page's frontmatter.
+// <main>'s children -> the page's frontmatter, and its natural metadata.
 //
-// The inverse of makeFrontmatter in plugins/html/index.js. Each property
-// is its own single-item <dl>, except the ones vowel handles specially,
-// which get their own element identified by itemprop. The title is main's
-// first <h1> - the one piece of data hoisted out of the content - and is
-// written back as a "#" heading rather than a frontmatter key.
+// The inverse of makeFrontmatter in plugins/html/index.js. A property
+// from the frontmatter carries its key as a class (`fm_date`,
+// `dl.fm_client`). The same properties written in the text - a date
+// line, an image, a description ended with a rule - are direct children
+// of <main> too, with their itemprop and no `fm_` class: those are
+// rebuilt as markdown, to go back at the top of the body. The title is
+// main's first <h1>: from the frontmatter when it has `fm_title`, else
+// from a "#" heading, and written back the same way.
 
 /** @param {Element} element */
 function scalarFrom(element) {
@@ -66,16 +69,42 @@ function objectFrom(list) {
 }
 
 /**
+ * One piece of natural metadata, back as the markdown that made it: the
+ * date line as the author wrote it, the image, the description and the
+ * rule that ended it. A description's inline marks are flattened to its
+ * text, the editor's usual lossy rule.
+ * @param {Element} element
+ * @returns {string|null}
+ */
+function naturalLine(element) {
+  const property = element.getAttribute("itemprop")
+  if (property === "date") return element.textContent.trim()
+  if (property === "description") return `${element.textContent.trim()}\n\n---`
+  if (property !== "image") return null
+
+  // A <picture>, or a plain <img> until the image has been read.
+  const img = element.tagName === "IMG" ? element : element.querySelector("img")
+  const source = element.getAttribute("data-original") ?? img?.getAttribute("src")
+  return source ? `![${img?.getAttribute("alt") ?? ""}](${source})` : null
+}
+
+/**
  * @param {Element} main
- * @returns {{title: string|null, properties: object}}
+ * @returns {{title: string|null, titleDeclared: boolean, properties: object, natural: string}}
  */
 export default function readFrontmatter(main) {
   const children = [...main.children]
+  const declared = (key) => (child) => child.classList.contains(`fm_${key}`)
 
   const heading = children.find(child => child.tagName === "H1")
-  const date = children.find(child => child.matches('time[itemprop="date"]'))
-  const image = children.find(child => child.matches('picture[itemprop="image"]'))
-  const description = children.find(child => child.matches('p[itemprop="description"]'))
+  const date = children.find(declared("date"))
+  const image = children.find(declared("image"))
+  const description = children.find(declared("description"))
+
+  const natural = children
+    .filter(child => child.hasAttribute("itemprop") && ![...child.classList].some(name => name.startsWith("fm_")))
+    .map(naturalLine)
+    .filter(Boolean)
 
   const known = {
     ...(date ? { date: dateFrom(date) } : {}),
@@ -92,6 +121,8 @@ export default function readFrontmatter(main) {
 
   return {
     title: heading ? heading.textContent.trim() : null,
-    properties: { ...known, ...generic }
+    titleDeclared: Boolean(heading?.classList.contains("fm_title")),
+    properties: { ...known, ...generic },
+    natural: natural.length ? `${natural.join("\n\n")}\n\n` : ""
   }
 }

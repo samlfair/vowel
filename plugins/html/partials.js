@@ -3,6 +3,9 @@ import { h } from "hastscript"
 import { isListedPage } from "../../utils.js"
 import { isVowelStylesheet } from "../styles/theme.js"
 
+/** The one stylesheet name linked without being asked for. */
+const PROJECT_SHEET = "styles.css"
+
 /**
  * Partials: rendered fragments shared by many pages, built once per
  * pass instead of once per page.
@@ -20,8 +23,8 @@ import { isVowelStylesheet } from "../styles/theme.js"
  * Paths: `partials/nav.partial` is the header nav for pages at the
  * root, `partials/nav/<folder>.partial` for pages in a folder - the
  * lists for every level from the root down to that folder, and the
- * project's own stylesheets along that chain (a `.css` the author wrote
- * in any of those folders, with its content hash for the cache-buster).
+ * project's own stylesheets along that chain (a `styles.css` in any of
+ * those folders, with its content hash for the cache-buster).
  * Both are "what this page's folder chain contributes", so they share a
  * stub; the stylesheet half used to be one listing per ancestor per
  * page, whose folder-membership edge restaled every page whenever any
@@ -60,10 +63,9 @@ function inHeaderNav(page) {
     && page.extension === ".html"
     && !page.metadata.date
     && page.path !== "index.html"
-    && page.path !== "404.html"
     && page.path !== "tags.html"
     && page.dir !== "tags"
-    && isOn(page.metadata.local_menu_item)
+    && isOn(page.metadata.local_nav_item)
     && isOn(page.metadata.html_file)
 }
 
@@ -118,8 +120,8 @@ function asideTree(pages) {
   }
 
   const top = undated
-    .filter(page => page.dir === "" && page.path !== "index.html" && page.path !== "404.html" && page.path !== "tags.html"
-      && isOn(page.metadata.global_menu_item) && isOn(page.metadata.html_file))
+    .filter(page => page.dir === "" && page.path !== "index.html" && page.path !== "tags.html"
+      && isOn(page.metadata.global_nav_item) && isOn(page.metadata.html_file))
     .map(node)
 
   return [...(home ? [{ url: home.path, label: home.metadata.breadcrumb }] : []), ...top]
@@ -205,11 +207,15 @@ function createPartialStubs(api) {
   const folders = new Set([""])
   for (const page of pages) for (const folder of chain(page.dir)) folders.add(folder)
 
-  // The project's stylesheets by folder: a .css the author wrote (has a
-  // source, is not one vowel generates), with the hash its read recorded.
+  // The project's stylesheets by folder: a `styles.css` the author wrote
+  // (has a source, is not one vowel generates), with the hash its read
+  // recorded. Only that name: any other .css is published but linked only
+  // where a `styles:` names it (the html plugin) - a sheet dropped into a
+  // folder used to restyle every page below it.
   const sheets = new Map()
   for (const sheet of all) {
     if (!sheet.source || sheet.extension !== ".css" || isVowelStylesheet(sheet.path)) continue
+    if (path.basename(sheet.path) !== PROJECT_SHEET) continue
     if (!sheets.has(sheet.dir)) sheets.set(sheet.dir, [])
     sheets.get(sheet.dir).push({ path: sheet.path, hash: sheet.metadata?.hash ?? "" })
   }

@@ -69,7 +69,7 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
   // Intrinsic size, measured at read (plugins/images): the browser
   // reserves the right box before the bytes arrive, and the reset's
   // `img { height: auto }` keeps the ratio when the width is capped.
-  const { width, height, dominant } = image.metadata
+  const { width, height, dominant, placeholder } = image.metadata
 
   const sources = formats.map((format, index) => {
     const isImg = index === formats.length - 1
@@ -91,13 +91,19 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
   // The derivative paths in srcset are hash-based, so the original asset
   // path cannot be recovered from them. Carried here rather than as a
   // <source>, which is a loading candidate a browser could select.
-  // --dominant is the image's dominant colour, for a stylesheet to use
-  // as the placeholder behind a lazy image (`picture { background:
-  // var(--dominant) }`); nothing here decides that it should.
+  // Two values for a stylesheet to show behind the image while it loads:
+  // its dominant colour, and a tiny blurry copy (plugins/images; none
+  // for an image with transparency). Nothing here decides that it should.
+  const style = [
+    dominant && `--color-image-dominant: ${dominant}`,
+    // Unquoted: base64 has no character url() needs quoted, and the
+    // minifier would spell each quote as `&#34`.
+    placeholder && `--url-image-placeholder: url(${placeholder})`
+  ].filter(Boolean).join("; ")
   return h("picture", {
     itemprop: itemprop && "image",
     "data-original": imagePath,
-    style: dominant && `--dominant: ${dominant}`
+    style: style || undefined
   }, sources)
 }
 

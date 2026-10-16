@@ -1,11 +1,22 @@
 import { MARKER } from "../../secretPaths.js"
 import createRkey from "./rkey.js"
+import { validNSID } from "./lexicons.js"
 
 /**
  * Which pages become records, and where each record lives. No network,
- * and no lexicon: the build decides a page's lexicon and its AT-URI; the
- * record itself is made at publish (publish.js), once the lexicon has
- * been fetched (lexicons.js) and the page fitted to it (mapper.js).
+ * and no lexicon: a page's lexicon and AT-URI are a function of the page
+ * and its settings (`pageRecordURI`), worked out wherever they're needed -
+ * the html plugin's write, for standard.site's `<link>`, and
+ * atproto-publish. The record itself is made at publish (publish.js),
+ * once the lexicon has been fetched (lexicons.js) and the page fitted to
+ * it (mapper.js).
+ *
+ * At write, not in a transform: a transform runs only when its page is
+ * read, so adding `atproto_did` or a lexicon to a settings.md changed
+ * nothing for pages already built - not even after a restart, since the
+ * database persists (tasks/1-proposed/transform-reruns-on-stale.md).
+ * Settings read at write are tracked, so a change re-renders the pages
+ * it reaches.
  *
  * `site.standard.publication` is the one lexicon named here: standard.site
  * defines a document's `site` as its publication's AT-URI, and vowel
@@ -75,6 +86,38 @@ function publicationURI(did, origin) {
   return `at://${did}/${PUBLICATION}/${createRkey(origin)}`
 }
 
+/** A DID is `did:<method>:<id>`; that is all this checks. @param {unknown} value */
+function validDID(value) {
+  return typeof value === "string" && /^did:[a-z]+:[A-Za-z0-9._:%-]+$/.test(value)
+}
+
+/**
+ * The page's AT-URI, from the page and its settings - the page-as-folder
+ * view a write gets (`blog/post.html` reads `""`, `blog`, `blog/post`).
+ * None for a page with `status: hidden`, which is listed nowhere, nor for
+ * one that isn't written (`html_file: false`) - except `status: deleted`,
+ * which is kept unwritten precisely so publish can delete its record.
+ * None without an account, a `domain` (the key is made from the page's
+ * url) or a lexicon. A lexicon name that isn't an NSID comes back as a
+ * warning; whether the page fits its lexicon is publish's question.
+ * @param {{ source?: string, write?: boolean, metadata: Record<string, any> }} target
+ * @param {any} settings
+ * @returns {{ uri?: string, warning?: string }}
+ */
+function pageRecordURI(target, settings) {
+  const status = target.metadata.fm_status
+  if (status === "hidden") return {}
+  if (target.write === false && status !== "deleted") return {}
+  const did = settings.lastNonNull("fm_atproto_did")
+  if (!validDID(did)) return {}
+  const origin = siteOrigin(settings.lastNonNull("fm_domain"))
+  if (!origin) return {}
+  const lexicon = lexiconFor(target, settings)
+  if (!lexicon) return {}
+  if (!validNSID(lexicon)) return { warning: `atproto_lexicon "${lexicon}" is not a lexicon name (an NSID, like app.bsky.feed.post)` }
+  return { uri: recordURI(did, lexicon, origin, target.metadata.prettyURL) }
+}
+
 /**
  * The page's AT-URI: the account, the lexicon, and a key derived from
  * the page's canonical URL - origin and path - and frozen (rkey.js).
@@ -87,4 +130,4 @@ function recordURI(did, lexicon, origin, prettyURL) {
   return `at://${did}/${lexicon}/${createRkey(new URL(prettyURL, origin).href)}`
 }
 
-export { PUBLICATION, lexiconFor, siteOrigin, publicationURI, recordURI }
+export { PUBLICATION, validDID, lexiconFor, siteOrigin, publicationURI, recordURI, pageRecordURI }

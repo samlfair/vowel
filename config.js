@@ -1,4 +1,5 @@
 import path from "node:path"
+import { readFileSync } from "node:fs"
 import { resolveProjectFolder } from "votive"
 import { systemDirectoryFor } from "./systemPaths.js"
 import { secretRouter } from "./secretPaths.js"
@@ -16,6 +17,7 @@ import vowelAtprotoPlugin from "./plugins/atproto/index.js"
 import vowelPublishPlugin from "./plugins/publish/index.js"
 import vowelURLsPlugin from "./plugins/urls/index.js"
 import vowelSecretPagesPlugin from "./plugins/secret-pages/index.js"
+import vowelExportPlugin from "./plugins/export/index.js"
 
 /** @import {VotiveConfig} from "votive" */
 
@@ -29,6 +31,14 @@ import vowelSecretPagesPlugin from "./plugins/secret-pages/index.js"
  * the values), and a hex digest is lowercase already.
  * @param {string} sourcePath
  */
+/**
+ * Vowel's part of the cache key (votive's cacheKey.js): a warm start
+ * reuses the build cache only if this same version of vowel made it, so
+ * an upgrade that changes a bundled stylesheet or how pages render is
+ * seen without a `--clear`.
+ */
+const VOWEL_VERSION = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")).version
+
 function vowelRouter(sourcePath) {
   return secretRouter(sourcePath).toLowerCase()
 }
@@ -43,6 +53,7 @@ const defaultPlugins = [
   vowelFontsPlugin,
   vowelAssetsPlugin,
   vowelDeployCloudflarePlugin,
+  vowelExportPlugin,
   vowelURLsPlugin,
   vowelAtprotoPlugin,
   vowelPublishPlugin,
@@ -103,6 +114,7 @@ function createConfig(sourceFolder = ".", overrides = {}) {
     databasePath: path.join(systemDirectory, ".votive.db"),
     cacheDirectory: path.join(systemDirectory, ".cache"),
     plugins: [...defaultPlugins, ...(extraPlugins ?? [])],
+    cacheKey: `vowel@${VOWEL_VERSION}`,
     ...rest
   }
 }

@@ -1,6 +1,5 @@
 import path from "node:path"
-import { lexiconFor, publicationURI, recordURI, siteOrigin } from "./record.js"
-import { validNSID } from "./lexicons.js"
+import { publicationURI, siteOrigin, validDID } from "./record.js"
 import { publishToAtproto } from "./publish.js"
 import { saveAppPassword } from "./password.js"
 
@@ -21,8 +20,9 @@ import { saveAppPassword } from "./password.js"
  * pastes the DID from their account settings. Resolving it from a handle
  * is a later phase, through readURL like any other fetch.
  *
- * Phase two: a page under an `atproto_lexicon:` gets an AT-URI, computed
- * by `transformFile` with no network (record.js). Any published lexicon
+ * Phase two: a page under an `atproto_lexicon:` has an AT-URI, a function
+ * of the page and its settings with no network (record.js's
+ * `pageRecordURI`, worked out at write and at publish). Any published lexicon
  * will do: vowel bundles none. Publishing is a command,
  * `atproto-publish` (publish.js), which fetches each lexicon, fits the
  * page to it (mapper.js) and sends what changed. A
@@ -38,11 +38,6 @@ import { saveAppPassword } from "./password.js"
 const WELL_KNOWN = path.join(".well-known", "atproto-did")
 const WELL_KNOWN_PUBLICATION = path.join(".well-known", "site.standard.publication")
 
-/** A DID is `did:<method>:<id>`; that is all this checks. */
-function validDID(value) {
-  return typeof value === "string" && /^did:[a-z]+:[A-Za-z0-9._:%-]+$/.test(value)
-}
-
 /**
  * The account, from the nearest settings.md that names one. The atproto
  * settings are flat, `atproto_did` / `atproto_lexicon` / `atproto_pds`,
@@ -52,35 +47,6 @@ function validDID(value) {
  */
 function atprotoDID(settings) {
   return settings.lastNonNull("fm_atproto_did")
-}
-
-/**
- * The page's AT-URI, stored as metadata for the html plugin's link and
- * the publish command. Runs once per read of the page and reaches no
- * network, so it can't know whether the page fits its lexicon - the
- * publish command finds that out. A lexicon name that isn't an NSID is
- * warned about here.
- *
- * Not for a page with `status: hidden`, which is listed nowhere, nor for
- * one that isn't written (`html_file: false`) - except `status: deleted`,
- * which is kept unwritten precisely so publish can delete its record.
- */
-function transformFile(target, { settings, config }) {
-  const status = target.metadata.fm_status
-  if (status === "hidden") return undefined
-  if (target.write === false && status !== "deleted") return undefined
-  const did = atprotoDID(settings)
-  if (!validDID(did)) return undefined
-  const origin = siteOrigin(settings.lastNonNull("fm_domain"))
-  if (!origin) return undefined
-
-  const lexicon = lexiconFor(target, settings)
-  if (!lexicon) return undefined
-  if (!validNSID(lexicon)) {
-    config.log("warn", `${target.path}: atproto_lexicon "${lexicon}" is not a lexicon name (an NSID, like app.bsky.feed.post)`)
-    return undefined
-  }
-  return { metadata: { atUri: recordURI(did, lexicon, origin, target.metadata.prettyURL) } }
 }
 
 /** @type {Votive.ProcessorStubs} */
@@ -118,16 +84,10 @@ const wellKnownProcessor = {
   writeFile: (target) => ({ data: target.data })
 }
 
-const recordProcessor = {
-  extensions: [".html"],
-  format: "text",
-  transformFile
-}
-
 /** @type {Votive.VotivePlugin} */
 const vowelAtprotoPlugin = {
   name: "vowel-atproto",
-  processors: [wellKnownProcessor, recordProcessor],
+  processors: [wellKnownProcessor],
   commands: {
     "atproto-publish": publishToAtproto,
     "atproto-password": saveAppPassword

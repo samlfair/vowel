@@ -1,8 +1,9 @@
 import { toString as mdastToString } from 'mdast-util-to-string'
 import extractDate, { dateSpan } from "./../../extractDate.js"
-import { testURL, toTitleCase } from "./../../utils.js"
+import { testURL, labelFromName } from "./../../utils.js"
 import path from "node:path"
 import { displayPath } from "../../secretPaths.js"
+import pathDate from "../../pathDate.js"
 import { coerce, parseFrontmatter, toISODate } from "./frontmatter.js"
 
 
@@ -35,12 +36,11 @@ export const reservedProperties = [
   "rss_item",
   "sitemap_item",
   "html_file",
-  "global_menu_item",
-  "local_menu_item",
+  "global_nav_item",
+  "local_nav_item",
   "theme",
   "logo",
-  "wordmark",
-  "breadcrumb"
+  "wordmark"
 ]
 
 /**
@@ -72,10 +72,10 @@ export function normalizeHeadingLevels(tree) {
 }
 
 /**
- * Marks a recognized date in place so it renders as <time> without moving
- * out of the content. The editor reads the element's text back, so the
- * author's own wording survives the round trip and the markup is simply
- * re-inferred on the next build.
+ * Marks a recognized date so it renders as <time>, keeping the author's
+ * wording. The editor reads the element's text back, so that wording
+ * survives the round trip and the markup is simply re-inferred on the
+ * next build.
  * @param {object} paragraph
  * @param {Date} date
  */
@@ -88,10 +88,16 @@ function markAsTime(paragraph, date) {
 }
 
 /**
- * Recognizable data that may precede the content. Each block is recorded
- * where the author placed it and never relocated - only the title is
- * hoisted (see findTitleNode). Adding another inferred property later (an
- * ISBN, say) means adding a branch here, not new plumbing.
+ * Recognizable data that may precede the content. A block is data only
+ * when the property it would fill is still empty: a date line on a page
+ * whose frontmatter has a `date:`, or a second date line, is content,
+ * and the scan stops there (per Sam). Returns what the block is: "date"
+ * or "image" for natural metadata, which the html plugin lifts out of
+ * the content and renders with the page's metadata (the source is never
+ * changed); "skip" for a line that is neither metadata nor content (a
+ * listing, a bare url); false for content. Adding another inferred
+ * property later (an ISBN, say) means adding a branch here, not new
+ * plumbing.
  *
  * @param {object} block
  * @param {object} metadata
@@ -103,10 +109,13 @@ function recognizeData(block, metadata) {
 
   const [child] = block.children
 
+  const imageFilled = Boolean(metadata.fm_image || metadata.inferred_image)
+
   if (child.type === "image") {
+    if (imageFilled) return false
     metadata.inferred_image = child.url
     metadata.inferred_alt_text = child.alt
-    return true
+    return "image"
   }
 
   const text = mdastToString(block)
@@ -116,16 +125,17 @@ function recognizeData(block, metadata) {
   // must not become the page's description, which is what a section
   // index's own listing line was doing. Same test as writeRules'
   // directive rule.
-  if (child.type === "text" && /^(\/|\.\.?\/)\S*$/.test(text.trim())) return true
+  if (child.type === "text" && /^(\/|\.\.?\/)\S*$/.test(text.trim())) return "skip"
 
   if (testURL(text)) {
     const url = new URL(text)
     if (text.match(/\.(jpeg|jpg|png)$/)) {
+      if (imageFilled) return false
       metadata.inferred_image = url
     } else {
       metadata.inferred_link = url
     }
-    return true
+    return "skip"
   }
 
   // A date is a property of the page only when the author wrote it as
@@ -144,12 +154,28 @@ function recognizeData(block, metadata) {
 
   const date = extractDate(text)
   if (!date) return false
+  if (metadata.fm_date || metadata.inferred_date) return false
 
   // Stored as ISO, like a frontmatter date (frontmatter.js, toISODate):
   // one format in the column, which sorts lexically.
   metadata.inferred_date = toISODate(date)
   markAsTime(block, date)
-  return true
+  return "date"
+}
+
+/**
+ * Marks a block as natural metadata - written in the text, not the
+ * frontmatter - for the html plugin to lift out of the content
+ * (`data-metadata`, which it removes): "date", "image", "description",
+ * or "end" for the rule that closed the description, which renders as
+ * nothing. A description is marked as one where it is rendered.
+ * @param {object} block
+ * @param {"date" | "image" | "description" | "end"} kind
+ */
+function markAsNatural(block, kind) {
+  const itemprop = kind === "description" ? { itemprop: "description" } : {}
+  const hProperties = { ...block.data?.hProperties, ...itemprop, dataMetadata: kind }
+  block.data = { ...block.data, hProperties }
 }
 
 /**
@@ -201,7 +227,7 @@ function getMetadata(tree, filePath, targetPath, report = () => {}) {
 
   const titleNode = findTitleNode(tree)
   if (titleNode) {
-    metadata.inferred_title = mdastToString(titleNode) || toTitleCase(path.parse(filePath).name)
+    metadata.inferred_title = mdastToString(titleNode) || labelFromName(path.parse(filePath).name)
   }
 
   // Everything up to the first block that is not recognizable data is
@@ -209,9 +235,27 @@ function getMetadata(tree, filePath, targetPath, report = () => {}) {
   // supplies the description.
   const blocks = tree.children.filter(child => child.type !== "yaml" && child !== titleNode)
 
-  for (const block of blocks) {
+  for (const [index, block] of blocks.entries()) {
     const recognized = recognizeData(block, metadata)
-    if (recognized) continue
+    if (recognized === "skip") continue
+    if (recognized) {
+      markAsNatural(block, recognized)
+      continue
+    }
+
+    // One paragraph and then a rule: the author ended their metadata
+    // with the rule, so the paragraph *is* the description - stated,
+    // not guessed, so it outranks a slogan. With a `description:` in the
+    // frontmatter it is an ordinary paragraph, and the rule an ordinary
+    // rule. (`text` then `---` on the next line is a heading in
+    // markdown, not a paragraph and a rule; it takes a blank line.)
+    const next = blocks[index + 1]
+    if (!metadata.fm_description && block.type === "paragraph" && next?.type === "thematicBreak") {
+      metadata.declared_description = mdastToString(block)
+      markAsNatural(block, "description")
+      markAsNatural(next, "end")
+      break
+    }
 
     if (!metadata.fm_description) metadata.inferred_description = mdastToString(block)
     break
@@ -229,7 +273,14 @@ function getMetadata(tree, filePath, targetPath, report = () => {}) {
   // sees, so it is the one place the salt has to be stripped.
   const pathInfo = path.parse(displayPath(filePath))
 
-  metadata.inferred_label = toTitleCase(pathInfo.name)
+  // A date the author wrote wins; failing that, the one the path spells
+  // (`journal/2024/april/1.md`).
+  if (!metadata.fm_date && !metadata.inferred_date) {
+    const date = pathDate(displayPath(filePath))
+    if (date) metadata.inferred_date = toISODate(date)
+  }
+
+  metadata.inferred_label = labelFromName(pathInfo.name)
 
   // What a [[wikilink]] matches, the way Obsidian matches: the filename
   // without its extension, case-insensitively, plus any `aliases:` the
@@ -283,7 +334,8 @@ function selectMetadata(metadata) {
 
   const description =
     metadata.fm_description
-    || metadata.fm_tagline
+    || metadata.declared_description
+    || metadata.fm_slogan
     || metadata.inferred_description
 
   if (description) {

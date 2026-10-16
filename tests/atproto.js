@@ -8,9 +8,9 @@ import votive from "votive"
 import { createConfig } from "../config.js"
 import vowelAtprotoPlugin, { validDID } from "../plugins/atproto/index.js"
 import createRkey from "../plugins/atproto/rkey.js"
-import { planWrites, planPublication, blobCID, passwordFile } from "../plugins/atproto/publish.js"
+import { planWrites, planPublication, blobCID, passwordFile, recordPages } from "../plugins/atproto/publish.js"
 import { fixtureResolver } from "./fixtures/lexicons.js"
-import { stat } from "node:fs/promises"
+import { stat, utimes } from "node:fs/promises"
 import { publicationURI } from "../plugins/atproto/record.js"
 import { coerce } from "../plugins/markdown/frontmatter.js"
 import sharp from "sharp"
@@ -114,11 +114,7 @@ async function withProject(files, run) {
     const site = await votive(config)
     try {
       await (await site.build()).deferred
-      const records = () => {
-        const targets = site.database.target.getAll()
-        const pages = targets.filter(target => "atUri" in target.metadata)
-        return new Map(pages.map(target => [target.source, { atUri: target.metadata.atUri, path: target.path }]))
-      }
+      const records = () => new Map(recordPages(site.database).map(({ target, uri }) => [target.source, { atUri: uri, path: target.path }]))
       await run({ sourceFolder, targetFolder: config.targetFolder, config, records, warnings })
     } finally {
       await site.close()
@@ -159,6 +155,54 @@ test("a page under a lexicon gets its AT-URI at build; a site.standard.document 
     const noteHTML = await readFile(path.join(targetFolder, note.path), "utf-8")
     assert.ok(!noteHTML.includes("site.standard.document"), "standard.site's link is for standard.site")
   })
+})
+
+test("the link follows the settings: added after the pages were built - in the same session, or after a restart - it appears", async () => {
+  const sourceFolder = await mkdtemp(path.join(tmpdir(), "vowel-atproto-"))
+  const systemFolder = await mkdtemp(path.join(tmpdir(), "vowel-atproto-sys-"))
+  const config = createConfig(sourceFolder, {
+    targetFolder: path.join(systemFolder, "output"),
+    databasePath: path.join(systemFolder, ".votive.db"),
+    cacheDirectory: path.join(systemFolder, ".cache"),
+    logging: "silent"
+  })
+  const linked = async () => /rel="?site\.standard\.document/.test(await readFile(path.join(config.targetFolder, "post.html"), "utf-8"))
+  // An edit within the same mtime tick is not an edit; each one moves the clock on.
+  const settings = async (body, seconds) => {
+    const file = path.join(sourceFolder, "settings.md")
+    await writeFile(file, body)
+    const when = new Date(Date.now() + seconds * 1000)
+    await utimes(file, when, when)
+  }
+  try {
+    await settings("---\nname: T\n---\n", 0)
+    await writeFile(path.join(sourceFolder, "post.md"), "---\ndate: 2026-03-04\n---\n# Post\n")
+    const first = await votive(config)
+    try {
+      await (await first.build({ defer: false })).deferred
+      assert.equal(await linked(), false)
+      await settings(rootSettings(), 10)
+      await (await first.build({ defer: false })).deferred
+      assert.equal(await linked(), true, "the settings change re-renders the page")
+      await settings("---\nname: T\n---\n", 20)
+      await (await first.build({ defer: false })).deferred
+      assert.equal(await linked(), false, "and taking them away takes the link away")
+    } finally {
+      await first.close()
+    }
+
+    await settings(rootSettings(), 30)
+    const second = await votive(config)
+    try {
+      await (await second.build({ defer: false })).deferred
+      assert.equal(await linked(), true, "after a restart with the database kept, too")
+    } finally {
+      await second.close()
+    }
+  } finally {
+    await rm(sourceFolder, { recursive: true, force: true })
+    await rm(systemFolder, { recursive: true, force: true })
+  }
 })
 
 test("no lexicon, no domain or a hidden page: no AT-URI; a lexicon name that isn't an NSID warns", async () => {

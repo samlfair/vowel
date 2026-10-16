@@ -22,9 +22,9 @@ import { h } from "hastscript"
  *
  * No built-in icons, by decision: an author who wants one drops the SVG
  * in the project and names it. With an icon the label is the image's
- * alt text; without one it is the link text. The anchor carries the
- * icon as `--icon-url` too, the same arrangement as `a#logo`, so a
- * monochrome SVG can be masked in `currentColor` by the stylesheet.
+ * alt text; without one it is the link text. The icon's <img> carries
+ * its own url as `--url-icon`, the way `img#logo` carries `--url-logo`,
+ * so the stylesheet can mask it in `currentColor`.
  * `rel="me"` is the identity-link convention (IndieAuth, Mastodon
  * verification) and costs nothing.
  */
@@ -55,11 +55,8 @@ function socialLinksNav(settings) {
       const text = label ?? url
       // A URL path from the root, resolved at read (frontmatter.js).
       const iconURL = icon ? String(icon) : null
-      return h("li", h("a", {
-        href: url,
-        rel: "me",
-        style: iconURL && `--icon-url: url("${iconURL}")`
-      }, iconURL ? h("img", { src: iconURL, alt: text }) : text))
+      const image = iconURL && h("img", { src: iconURL, alt: text, style: `--url-icon: url("${iconURL}")` })
+      return h("li", h("a", { href: url, rel: "me" }, image || text))
     }))
   )
 }

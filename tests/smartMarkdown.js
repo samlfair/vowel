@@ -120,7 +120,7 @@ test("shortcodes: an emoji becomes the character, an icon becomes an image from 
     "post.md": "# Post\n\nHello :tada: and :fa/surfer: but :womp-womp: and :fa/missing: stay, `:tada:` too.\n"
   }, async ({ page }) => {
     const html = await page("post.html")
-    assert.match(html, /Hello 🎉 and <img class=icon data-icon=fa\/surfer alt=surfer src=\/fa\/surfer.svg style='--icon-url: url\(&#34\/fa\/surfer.svg&#34\)'> but :womp-womp: and :fa\/missing: stay, <code>:tada:<\/code> too\./)
+    assert.match(html, /Hello 🎉 and <img class=icon data-icon=fa\/surfer alt=surfer src=\/fa\/surfer.svg style='--url-icon: url\(&#34\/fa\/surfer.svg&#34\)'> but :womp-womp: and :fa\/missing: stay, <code>:tada:<\/code> too\./)
   })
 })
 

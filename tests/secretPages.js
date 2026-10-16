@@ -58,14 +58,16 @@ const secretLines = (lines) => lines.filter(line => line.startsWith("secret:"))
 
 test("the dev server prints each secret page, file and url, once", async () => {
   await withSite(FILES, { announceSecretPages: true }, async ({ lines, build }) => {
-    assert.deepEqual(secretLines(lines), [
+    // As a set: a folder's index is made in a later round of the same build than its pages.
+    assert.deepEqual(secretLines(lines).sort(), [
       `secret: draft##pepper.md → ${urlOf("draft##pepper.md")}`,
+      `secret: members##salt.md → ${urlOf("members##salt.md")}`,
       `secret: ${path.join("members##salt", "welcome.md")} → ${urlOf("members##salt/welcome.md")}`
-    ])
+    ].sort(), "the secret folder's own index too: the url to share for the whole folder")
     assert.ok(!lines.some(line => line.includes("quiet") || line.includes("public")), "a page that is only hidden, or public, isn't a secret")
 
     await build()
-    assert.equal(secretLines(lines).length, 2, "not again on the next pass")
+    assert.equal(secretLines(lines).length, 3, "not again on the next pass")
   })
 })
 

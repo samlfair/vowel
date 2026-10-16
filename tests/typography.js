@@ -28,17 +28,17 @@ test("typography: only the keys the author set are emitted, in the typography la
   const { css } = typographyCSS({ name: "default", "heading-size": 2.5, "h1-weight": 700 })
   assert.match(css, /^\/\* Generated/)
   assert.ok(css.includes("@layer typography {"))
-  assert.ok(css.includes("--font-size-delta: calc(2.5 * var(--font-size-root));"))
-  assert.ok(css.includes("--font-weight-h1: 700;"))
-  assert.ok(!css.includes("--font-weight-h6"), "an unset key is the sheet's business")
+  assert.ok(css.includes("--fontsize-delta: calc(2.5 * var(--fontsize-root));"))
+  assert.ok(css.includes("--fontweight-h1: 700;"))
+  assert.ok(!css.includes("--fontweight-h6"), "an unset key is the sheet's business")
   assert.ok(!css.includes("dynamic-typography"))
 })
 
 test("typography: values are clamped to their range and trailing zeroes dropped", () => {
   const pairs = Object.fromEntries(typographyVariables({ "h1-weight": 1000, "h6-letter-spacing": -1, "heading-size-decay": 2.50 }))
-  assert.equal(pairs["--font-weight-h1"], "900")
-  assert.equal(pairs["--letter-spacing-h6"], "-0.1ch")
-  assert.equal(pairs["--font-size-decay"], "2.5")
+  assert.equal(pairs["--fontweight-h1"], "900")
+  assert.equal(pairs["--letterspacing-h6"], "-0.1ch")
+  assert.equal(pairs["--fontsize-decay"], "2.5")
 })
 
 test("typography: a font is CSS, not a setting", () => {

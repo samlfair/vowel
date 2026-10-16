@@ -66,7 +66,10 @@ async function deployToCloudflarePages(payload, { config, notify }) {
     proc.stdout.on("data", chunk => notify({ status: "progress", message: chunk.toString() }))
     proc.stderr.on("data", chunk => notify({ status: "progress", message: chunk.toString() }))
 
-    proc.on("error", reject) // e.g. wrangler isn't installed
+    proc.on("error", error => {
+      if (error.code !== "ENOENT") return reject(error)
+      reject(new Error("wrangler isn't installed, and deploying to Cloudflare Pages needs it. Install it with `npm install -g wrangler`, then deploy again."))
+    })
     proc.on("exit", code => {
       if (code === 0) resolve({ deployed: true, projectName })
       else reject(new Error(`wrangler exited with code ${code}`))

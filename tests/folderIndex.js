@@ -5,6 +5,10 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import votive from "votive"
 import { createConfig } from "../config.js"
+import { secretRouter } from "../secretPaths.js"
+
+/** Where vowel's router puts a source path, as an output file. */
+const routed = (source) => secretRouter(source).toLowerCase().replace(/\.md$/, ".html")
 
 /**
  * Every folder with a listed page gets an index page - a `<folder>.md`
@@ -63,10 +67,13 @@ test("a folder with a page gets an index at <folder>.html listing it; an empty f
     assert.ok(!content.includes("href=/blog/2026/note"), "not recursive: the nested note is the nested index's to list")
     assert.ok(!content.includes("/blog/2026/*"), "a section's directive is not its description")
 
-    // The breadcrumb on a post links to the section now, and the nav lists it.
+    // The breadcrumb on a post links to the section now, and the nav lists
+    // it - on the post, whose nav also lists the blog's own pages. The
+    // homepage's would hold Blog alone, and a one-entry nav isn't rendered.
     const post = await html(path.join("blog", "post.html"))
     assert.match(post, /<nav aria-label=Breadcrumbs><a href=\/>Home<\/a><a href=\/blog>Blog<\/a>/)
-    assert.match(await html("index.html"), /<header>.*href=\/blog>Blog<.*<\/header>/s)
+    assert.match(post, /<header>.*href=\/blog>Blog<.*<\/header>/s)
+    assert.doesNotMatch(await html("index.html"), /<header>.*<nav>.*<\/header>/s)
   })
 })
 
@@ -100,16 +107,14 @@ test("an authored <folder>.md is the section index and the stub stands down; <fo
   })
 })
 
-test("the tags folder keeps its own index; a secret folder gets none; the index goes when the folder's last page does", async () => {
+test("the tags folder keeps its own index; the index goes when the folder's last page does", async () => {
   await withSite({
     "home.md": "# Home\n",
-    "blog/post.md": "# Post\n\n#one\n",
-    "hidden##salt/secret.md": "# Secret\n"
+    "blog/post.md": "# Post\n\n#one\n"
   }, async ({ html, pages, sourceFolder, rebuild }) => {
     assert.match(await html("tags.html"), /<h1>Tags<\/h1>/)
     const all = await pages()
     assert.ok(all.includes("blog.html"))
-    assert.ok(!all.some(p => /^[0-9a-f]{16}\.html$/.test(p)), `no index for the secret folder: ${all}`)
 
     await rm(path.join(sourceFolder, "blog", "post.md"))
     await rebuild({ deleted: [path.join("blog", "post.md")] })
@@ -139,5 +144,42 @@ test("a frontmatter tag gets a tag page and lists its page, like a hashtag", asy
     assert.ok(page, "tags/design.html exists")
     assert.match(page, /href="?\/blog\/post\b/, "the tag page links the page")
     assert.match(await html("tags.html"), /design/i)
+  })
+})
+
+test("a secret folder gets its index at its hashed url: titled without the salt, listing its pages, listed nowhere, and its pages' breadcrumbs link to it", async () => {
+  await withSite({
+    "home.md": "# Home\n",
+    "members##salt/welcome.md": "# Welcome\n",
+    "members##salt/notes/first.md": "# First\n"
+  }, async ({ html, pages }) => {
+    const index = routed("members##salt.md")
+    const nested = routed("members##salt/notes.md")
+    assert.match(index, /^[0-9a-f]{16}\.html$/)
+    const all = await pages()
+    assert.ok(all.includes(index) && all.includes(nested), `both secret folders have an index: ${all}`)
+
+    const page = await html(index)
+    assert.match(page, /<h1>Members<\/h1>/, "titled by the folder's name, not its salt")
+    assert.match(page, /href="?\/[0-9a-f]{16}\/welcome"?/, "it lists the folder's pages")
+    for (const file of all) assert.ok(!(await html(file)).includes("salt"), `no salt in ${file}`)
+    assert.ok(!(await html("index.html")).includes(index.replace(".html", "")), "the homepage doesn't list it")
+
+    const welcome = await html(routed("members##salt/welcome.md"))
+    assert.match(welcome, new RegExp(`<a href="?/${index.replace(".html", "")}"?>Members</a>`), "the breadcrumb links the index")
+    const first = await html(routed("members##salt/notes/first.md"))
+    assert.match(first, new RegExp(`<a href="?/${nested.replace(".html", "")}"?>Notes</a>`))
+  })
+})
+
+test("a breadcrumb with nowhere to go is still an <a>, without an href", async () => {
+  await withSite({
+    "home.md": "# Home\n",
+    "drafts/quiet.md": "---\nstatus: hidden\n---\n# Quiet\n"
+  }, async ({ html, pages }) => {
+    assert.ok(!(await pages()).includes("drafts.html"), "a folder with only a hidden page has no index")
+    const quiet = await html("drafts/quiet.html")
+    assert.match(quiet, /<a>Drafts<\/a>/)
+    assert.ok(!/<span>Drafts<\/span>/.test(quiet))
   })
 })

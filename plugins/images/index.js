@@ -1,4 +1,5 @@
 import { hash as digest } from "node:crypto"
+import { readFileSync } from "node:fs"
 import path from "node:path"
 import sharp from 'sharp'
 import { createImagePath, imageSizes, imageExts } from "./../../utils.js"
@@ -38,6 +39,18 @@ function hex(channel) {
 }
 
 /**
+ * A blurry stand-in for the image while it loads, inlined in the page:
+ * 16 px on its long side, low-quality WebP, a data URI of roughly
+ * 150-300 bytes. The browser smooths it as it scales up. Done here
+ * rather than with lqip-modern, which wraps these same sharp calls.
+ * @param {import("sharp").Sharp} image
+ */
+async function placeholderURI(image) {
+  const bytes = await image.clone().resize(16, 16, { fit: "inside" }).webp({ quality: 20 }).toBuffer()
+  return `data:image/webp;base64,${bytes.toString("base64")}`
+}
+
+/**
  * Runs deferred, with the bytes (buffer format), so this is where an
  * image is looked at. Dimensions go on <img width height> so the browser
  * reserves the box before the bytes arrive; the dominant colour becomes
@@ -51,8 +64,11 @@ function hex(channel) {
 async function readImagePath(source) {
   const buffer = source.buffer()
   const image = sharp(buffer)
-  const [{ width, height }, { dominant }] = await Promise.all([image.metadata(), image.stats()])
+  const [{ width, height, hasAlpha }, { dominant }] = await Promise.all([image.metadata(), image.stats()])
   const dominantColor = dominant ? `#${hex(dominant.r)}${hex(dominant.g)}${hex(dominant.b)}` : undefined
+  // Not behind an image with transparency: the page has no script to take
+  // it away once the image loads, so it would show through.
+  const placeholder = hasAlpha ? undefined : await placeholderURI(image)
   const hash = digest("sha1", buffer).slice(0, 8)
 
   const ext = path.extname(source.target)
@@ -61,7 +77,7 @@ async function readImagePath(source) {
     metadata: { derivative: { size, format: format.replace(/^\./, "") } }
   })))
 
-  return { metadata: { hash, width, height, dominant: dominantColor }, targets }
+  return { metadata: { hash, width, height, dominant: dominantColor, placeholder }, targets }
 }
 
 /**
@@ -71,6 +87,9 @@ async function readImagePath(source) {
  * @type {Votive.ProcessorWrite}
  */
 async function writeImage(target) {
+  // The placeholder favicon has no file to read; its bytes are its data.
+  if (target.metadata?.favicon) return { data: Buffer.from(target.data, "base64") }
+
   const bytes = target.buffer()
   const recipe = target.metadata?.derivative
   if (!recipe) return { data: bytes }
@@ -89,10 +108,29 @@ const imagesProcessor = {
   writeFile: writeImage
 }
 
+/**
+ * Every site has Vowel's mark as a placeholder favicon,
+ * `favicon-placeholder.png`, published always and linked only when the
+ * site has no `icon` and no `favicon.png` of its own (the html plugin).
+ * A stub of its own source type (`.favicon`, which nothing else uses)
+ * read as base64 text, so it is read with the pages rather than with
+ * the images in the background. A write is matched on the target's
+ * extension, so writeImage writes it, from that text.
+ * @type {Votive.VotiveProcessor}
+ */
+const faviconProcessor = {
+  extensions: [".favicon"],
+  format: "text",
+  router: ({ name, dir }) => ({ name, dir, ext: ".png" }),
+  createStubs: () => [{ path: "favicon-placeholder.favicon" }],
+  expandStubs: () => ({ text: readFileSync(path.join(import.meta.dirname, "favicon.png")).toString("base64") }),
+  readFile: (source) => ({ data: source.text, metadata: { favicon: true } })
+}
+
 /** @type {Votive.VotivePlugin} */
 const vowelImagesPlugin = {
   name: "vowel-images",
-  processors: [imagesProcessor]
+  processors: [imagesProcessor, faviconProcessor]
 }
 
 export default vowelImagesPlugin

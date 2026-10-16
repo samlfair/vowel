@@ -8,7 +8,7 @@
 // guess round-trips to markdown that silently replaces the author's
 // content on save.
 
-import { globParams, globDirective } from "./directives.js"
+import { globParams, globDirective, alertLabel } from "./directives.js"
 
 const TEXT_NODE = 3
 const ELEMENT_NODE = 1
@@ -51,7 +51,12 @@ function expansionDirective(element) {
   const classes = classList(element)
 
   // A glob list is a <ul>, or a <table> in its ?view=table form; the
-  // parameters are in the classes either way.
+  // parameters are in the classes either way. The table comes in a
+  // <figure>, which is only its frame.
+  if (element.tagName === "FIGURE" && element.children.length === 1 && element.firstElementChild.tagName === "TABLE") {
+    return expansionDirective(element.firstElementChild)
+  }
+
   if ((element.tagName === "UL" || element.tagName === "TABLE") && classes.some(name => name.startsWith("_"))) {
     const params = globParams(classes)
     return params && globDirective(params)
@@ -215,19 +220,25 @@ function blockFrom(element, context) {
   }
 
   if (tag === "ASIDE" && classList(element).includes("alert")) {
-    // > [!NOTE] became <aside class="alert note">, with the marker line
-    // replaced by an injected <h2>. The variant is the class; the injected
-    // heading is dropped and regenerated on the way out.
-    const variant = classList(element).find(name => name !== "alert")
+    // > [!NOTE] Title became <aside class="alert note"> with the title as
+    // an injected <h2>. The variant is the class. The heading is kept as
+    // the title, as plain text (inline marks in it are flattened, like
+    // any mark the editor can't hold), unless it is the default the html
+    // plugin made from the type - then there was no title to keep.
+    const variant = classList(element).find(name => name !== "alert") || "note"
+    const heading = [...element.children].find(child => child.tagName === "H2")
+    const text = heading?.textContent.trim() ?? ""
+    const title = text === alertLabel(variant) ? "" : text
     const body = [...element.children]
-      .filter(child => child.tagName !== "H2")
+      .filter(child => child !== heading)
       .map(child => blockFrom(child, context))
 
     if (body.some(id => !id)) return null
 
     return context.create({
       type: "alert",
-      variant: variant || "note",
+      variant,
+      title,
       body: { nodes: body, marks: [], annotations: [] }
     })
   }

@@ -4,6 +4,7 @@ import { fromMarkdown } from "mdast-util-from-markdown"
 import { frontmatter } from "micromark-extension-frontmatter"
 import { frontmatterFromMarkdown } from "mdast-util-frontmatter"
 import { toString as mdastToString } from "mdast-util-to-string"
+import path from "node:path"
 
 import getMetadata, { normalizeHeadingLevels, findTitleNode } from "../plugins/markdown/metadata.js"
 
@@ -135,4 +136,89 @@ test("a page's date is declared as a date: the value is unchanged and target.typ
     await rm(sourceFolder, { recursive: true, force: true })
     await rm(systemFolder, { recursive: true, force: true })
   }
+})
+
+test("a page with no other date takes the one its path spells", () => {
+  const tree = parse("Wednesday\n")
+  const metadata = getMetadata(tree, path.join("journal", "2024", "april", "1.md"), path.join("journal", "2024", "april", "1.html"))
+  assert.equal(metadata.inferred_date, "2024-04-01T00:00:00.000Z")
+  assert.equal(metadata.date, "2024-04-01T00:00:00.000Z")
+})
+
+test("a date in the frontmatter or the body wins over the path's", () => {
+  const sourcePath = path.join("journal", "2024", "april", "1.md")
+  const targetPath = path.join("journal", "2024", "april", "1.html")
+  const fromFrontmatter = getMetadata(parse("---\ndate: 2020-05-06\n---\n\nText.\n"), sourcePath, targetPath)
+  assert.equal(fromFrontmatter.date, "2020-05-06T00:00:00.000Z")
+  assert.equal(fromFrontmatter.inferred_date, undefined)
+  const fromBody = getMetadata(parse("2021-07-08\n\nText.\n"), sourcePath, targetPath)
+  assert.equal(fromBody.date, "2021-07-08T00:00:00.000Z")
+})
+
+test("a secret folder's salt is not read as part of a path date", () => {
+  const tree = parse("Text.\n")
+  const metadata = getMetadata(tree, path.join("journal", "2024##0412", "04", "12.md"), null)
+  assert.equal(metadata.inferred_date, "2024-04-12T00:00:00.000Z")
+})
+
+test("one paragraph and then a rule: the paragraph is the description, marked where it is", () => {
+  const { metadata, tree } = read("# Title\n\nMay 28, 2026\n\nThe description.\n\n---\n\nThe body begins.\n")
+  assert.equal(metadata.description, "The description.")
+  assert.equal(metadata.inferred_description, undefined)
+  const paragraph = tree.children.find(child => child.type === "paragraph" && mdastToString(child) === "The description.")
+  assert.equal(paragraph.data.hProperties.itemprop, "description")
+  assert.ok(tree.children.some(child => child.type === "thematicBreak"), "the rule stays")
+})
+
+test("without a rule, the first paragraph is the description, as before", () => {
+  const { metadata, tree } = read("# Title\n\nThe first paragraph.\n\nThe second.\n")
+  assert.equal(metadata.description, "The first paragraph.")
+  assert.equal(tree.children.find(child => child.type === "paragraph").data?.hProperties?.itemprop, undefined)
+})
+
+test("two paragraphs before the rule: the first is the description, inferred as before, and unmarked", () => {
+  const { metadata, tree } = read("# Title\n\nOne.\n\nTwo.\n\n---\n")
+  assert.equal(metadata.description, "One.")
+  assert.equal(metadata.declared_description, undefined)
+  assert.ok(tree.children.every(child => child.data?.hProperties?.itemprop === undefined))
+})
+
+test("a paragraph above a rule outranks a slogan; frontmatter's description outranks both, and the paragraph isn't marked", () => {
+  const slogan = read("---\nslogan: A slogan\n---\n# Title\n\nThe description.\n\n---\n")
+  assert.equal(slogan.metadata.description, "The description.")
+  const declared = read("---\ndescription: From frontmatter\n---\n# Title\n\nA paragraph.\n\n---\n")
+  assert.equal(declared.metadata.description, "From frontmatter")
+  const paragraph = declared.tree.children.find(child => child.type === "paragraph")
+  assert.equal(paragraph.data?.hProperties?.itemprop, undefined)
+})
+
+test("text then --- on the next line is a heading, not a description and a rule", () => {
+  const { metadata, tree } = read("# Title\n\nNot a description\n---\n\nBody.\n")
+  assert.equal(metadata.declared_description, undefined)
+  assert.ok(tree.children.some(child => child.type === "heading" && child.depth === 2))
+})
+
+test("a property the frontmatter declares is filled: its line in the text is content, and the scan stops there", () => {
+  const dated = read("---\ndate: 2020-01-01\n---\n# Title\n\nMay 28, 2026\n\nA paragraph.\n\n---\n")
+  assert.equal(dated.metadata.date, "2020-01-01T00:00:00.000Z")
+  assert.equal(dated.metadata.inferred_date, undefined)
+  assert.equal(dated.metadata.declared_description, undefined, "the scan stopped at the date line")
+  assert.ok(dated.tree.children.every(child => !child.data?.hProperties?.dataMetadata), "nothing is natural metadata")
+
+  const pictured = read("---\nimage: /cover.jpg\n---\n# Title\n\n![Alt](other.jpg)\n\nMay 28, 2026\n")
+  assert.equal(pictured.metadata.inferred_image, undefined)
+  assert.equal(pictured.metadata.inferred_date, undefined, "the scan stopped at the image")
+})
+
+test("a second date line is content: the property is already filled", () => {
+  const { metadata, tree } = read("# Title\n\nMay 28, 2026\n\nJune 1, 2026\n")
+  assert.equal(metadata.date, "2026-05-28T00:00:00.000Z")
+  const marked = tree.children.filter(child => child.data?.hProperties?.dataMetadata).map(child => child.data.hProperties.dataMetadata)
+  assert.deepEqual(marked, ["date"])
+})
+
+test("natural metadata is marked for the html plugin to lift out: date, image, description, and the rule that ended it", () => {
+  const { tree } = read("# Title\n\nMay 28, 2026\n\n![Alt](pic.jpg)\n\nThe description.\n\n---\n\nBody.\n")
+  const marked = tree.children.filter(child => child.data?.hProperties?.dataMetadata).map(child => child.data.hProperties.dataMetadata)
+  assert.deepEqual(marked, ["date", "image", "description", "end"])
 })

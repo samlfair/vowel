@@ -88,6 +88,13 @@ test("alerts rebuild their marker from the class", () => {
   assert.equal(markdown, "> [!NOTE]\n>\n> body text")
 })
 
+test("an alert's own title is kept after its marker; the default one is not written out", () => {
+  const titled = roundtrip('<aside class="alert note"><h2>How to render</h2><p>body text</p></aside>')
+  assert.equal(titled.markdown, "> [!NOTE] How to render\n>\n> body text")
+  const card = roundtrip('<aside class="alert my-card"><h2>My card</h2><p>body text</p></aside>')
+  assert.equal(card.markdown, "> [!MY-CARD]\n>\n> body text", "My card is the default for my-card")
+})
+
 test("thematic break", () => {
   const { markdown } = roundtrip("<hr>")
   assert.equal(markdown, "---")
@@ -163,9 +170,9 @@ test("glob directives round trip", () => {
 
 test("frontmatter values round trip by type", () => {
   const { document } = parseHTML(`<main>
-    <h1>The Title</h1>
-    <time datetime="2026-03-04T00:00:00.000Z" itemprop="date">March 4, 2026</time>
-    <p itemprop="description">A description.</p>
+    <h1 class="fm_title">The Title</h1>
+    <time datetime="2026-03-04T00:00:00.000Z" itemprop="date" class="fm_date">March 4, 2026</time>
+    <p itemprop="description" class="fm_description">A description.</p>
     <dl><dt>tags</dt><dd><ul><li>design</li><li>code</li></ul></dd></dl>
     <dl><dt>author</dt><dd><dl><dt>name</dt><dd>Sam</dd><dt>url</dt><dd><a href="https://example.com">https://example.com</a></dd></dl></dd></dl>
     <dl><dt>count</dt><dd>5</dd></dl>
@@ -187,7 +194,38 @@ test("frontmatter values round trip by type", () => {
   })
 })
 
-test("the title is written as a heading, never as a frontmatter key", () => {
+test("natural metadata - in <main>, no fm_ class - comes back as the lines that made it, in order", () => {
+  const { document } = parseHTML(`<main>
+    <h1>Natural</h1>
+    <time datetime="2026-05-28T00:00:00.000Z" itemprop="date">May 28, 2026</time>
+    <picture data-original="/pic.jpg" itemprop="image"><img src="/pic-1.jpg" alt="A picture"></picture>
+    <p itemprop="description">The description.</p>
+    <dl class="fm_client"><dt>client</dt><dd>Acme</dd></dl>
+    <section id="content"><p>The body.</p></section>
+  </main>`)
+
+  const frontmatter = readFrontmatter(document.querySelector("main"))
+  assert.equal(frontmatter.titleDeclared, false)
+  assert.deepEqual(frontmatter.properties, { client: "Acme" }, "only the fm_ ones are frontmatter")
+  assert.equal(frontmatter.natural, "May 28, 2026\n\n![A picture](/pic.jpg)\n\nThe description.\n\n---\n\n")
+
+  const { doc } = ingest(document.getElementById("content"), (() => { let n = 0; return () => `n${n++}` })())
+  const markdown = serialize(doc, { title: frontmatter.title, natural: frontmatter.natural, properties: { client: "Acme" } })
+  assert.equal(markdown, "---\nclient: Acme\n---\n\n# Natural\n\nMay 28, 2026\n\n![A picture](/pic.jpg)\n\nThe description.\n\n---\n\nThe body.\n")
+})
+
+test("an image not yet read is a plain <img>, and still comes back", () => {
+  const { document } = parseHTML(`<main><h1>T</h1><img src="/pic.jpg" alt="Alt" itemprop="image"><section id="content"></section></main>`)
+  assert.equal(readFrontmatter(document.querySelector("main")).natural, "![Alt](/pic.jpg)\n\n")
+})
+
+test("a title from the frontmatter is declared: it stays a key, and no heading is written", () => {
+  const { document } = parseHTML(`<main><h1 class="fm_title">Declared</h1><section id="content"></section></main>`)
+  const { titleDeclared } = readFrontmatter(document.querySelector("main"))
+  assert.equal(titleDeclared, true)
+})
+
+test("a title from a heading is written back as a heading, not a frontmatter key", () => {
   const { document } = parseHTML('<section id="content"><p>Body.</p></section>')
   let n = 0
   const { doc } = ingest(document.getElementById("content"), () => `n${n++}`)
@@ -207,4 +245,13 @@ test("a page with no frontmatter emits no fence", () => {
 test("a date left in the body survives as plain text", () => {
   const { markdown } = roundtrip('<p><time datetime="2026-01-15T00:00:00.000Z">2026-01-15</time></p>')
   assert.equal(markdown, "2026-01-15")
+})
+
+test("a table listing in its <figure> is still the directive it came from", () => {
+  const classes = globClasses({ folder: "work", recursive: false, view: "table" }).join(" ")
+  const { markdown, unrecognised } = roundtrip(
+    `<p>Intro.</p><figure><table class="${classes}"><thead><tr><th>title</th></tr></thead><tbody><tr><td>One</td></tr></tbody></table></figure>`
+  )
+  assert.deepEqual(unrecognised, [])
+  assert.equal(markdown, "Intro.\n\n/work/*?view=table")
 })

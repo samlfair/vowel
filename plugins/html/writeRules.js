@@ -4,8 +4,8 @@ import { common, createLowlight } from "lowlight"
 import { toText } from "hast-util-to-text"
 import GithubSlugger from "github-slugger"
 import { createVisitor, SKIP } from "../markdown/visitor.js"
-import { toTitleCase, listPages } from "../../utils.js"
-import { globClasses } from "./editor/directives.js"
+import { showPages, isPageWithoutFile } from "../../utils.js"
+import { globClasses, alertLabel } from "./editor/directives.js"
 import createDynamicImage from "./image.js"
 import { displayPath } from "../../secretPaths.js"
 
@@ -35,27 +35,111 @@ const soleText = (node) => isElement(node) && node.tagName === "p" && node.child
   ? node.children[0].value
   : null
 
+/** A url this site would serve: not another site, not an anchor, not mailto: and the like. */
+const isInternal = (url) => typeof url === "string"
+  && url !== ""
+  && !/^[a-z][a-z0-9+.-]*:/i.test(url)
+  && !url.startsWith("//")
+  && !url.startsWith("#")
+  && !url.startsWith("?")
+
 /**
- * `[text](./post.md)` resolves by *source* path to the routed target -
- * which for a secret page is the hashed one, with no second trip
- * through the router. The href may arrive percent-encoded (toHast
- * normalizes non-ASCII). A link to a file that produces no page is the
- * author's to notice, not a reason to stop the build.
+ * A url split into its path, decoded, and what follows it (`?query`,
+ * `#anchor`). `##` is a secret segment's marker, not an anchor, so it
+ * is kept in the path.
+ * @param {string} url
+ */
+function splitURL(url) {
+  const masked = url.replaceAll("##", "\0\0")
+  const end = masked.search(/[?#]/)
+  const cut = end === -1 ? url.length : end
+  return { pathname: decodeURIComponent(url.slice(0, cut)), suffix: url.slice(cut) }
+}
+
+/** Where a target is served: a page's pretty url, anything else its path. */
+const urlOf = (found) => found.metadata?.prettyURL ?? "/" + found.path.split(path.sep).join("/")
+
+/**
+ * A path as the browser resolves it from this page: `pic.jpg` on
+ * /blog/post is /blog/pic.jpg. Decoded, from the root. `#` is encoded
+ * on the way in, so a secret segment's `##` stays in the path.
+ * @param {string} pathname - decoded, no query or anchor
+ * @param {any} target - the page
+ */
+function fromPage(pathname, target) {
+  const base = new URL(urlOf(target), "thismessage://")
+  return decodeURIComponent(new URL(pathname.replaceAll("#", "%23"), base).pathname)
+}
+
+/**
+ * The target a browser would get for this url from this page, or null
+ * for a 404: resolved against the page's own url, then looked up as a
+ * file (`/pic.jpg`, `/feed.xml`) or a page (`/about` is about.html). A
+ * tracked read, so a page that appears later rewrites the one linking
+ * to it.
+ * @param {string} pathname - decoded, no query or anchor
+ * @param {{ target: any, api: any }} context
+ */
+function servedTarget(pathname, { target, api }) {
+  const resolved = fromPage(pathname, target)
+  const trimmed = resolved.length > 1 ? resolved.replace(/\/+$/, "") : resolved
+  if (trimmed === "/") return api.target("index.html")
+  const file = trimmed.slice(1).split("/").join(path.sep)
+  return api.target(file) ?? api.target(`${file}.html`)
+}
+
+/** Per config: the extensions its plugins read in the background. */
+const backgroundExtensions = new WeakMap()
+
+/**
+ * Whether a missing path may only be not read *yet*: a file in the
+ * background (format "buffer": images, fonts, documents, video) has no
+ * target until its deferred read, which on a cold build runs after the
+ * first write pass. A miss there is not a 404, and warning about it
+ * flagged 71 of 98 links and images on style-builder whose files were
+ * there. So those go unwarned; the miss is tracked, and the page is
+ * rewritten with the right link when the file is read. A page link or
+ * a wikilink (markdown, read before any write) still warns.
+ * @param {string} pathname
+ * @param {any} config
+ */
+function readInBackground(pathname, config) {
+  if (!backgroundExtensions.has(config)) {
+    const processors = (config.plugins ?? []).flatMap(plugin => plugin.processors ?? [])
+    const extensions = processors.filter(processor => processor.format === "buffer").flatMap(processor => processor.extensions ?? [])
+    backgroundExtensions.set(config, new Set(extensions))
+  }
+  return backgroundExtensions.get(config).has(path.extname(pathname).toLowerCase())
+}
+
+/**
+ * A link to this site: `[text](./post.md)`, `../post.md` or
+ * `/blog/post.md` resolves by *source* path to the routed target - for a
+ * secret page the hashed one, with no second trip through the router -
+ * and an asset (`./pic.jpg`) to its path. Anything else (`/about`,
+ * `../tags/x`) is checked as the url it is. A link that goes nowhere
+ * is warned about and left as written: the author's to fix, not a
+ * reason to stop the build. A file read in the background isn't
+ * (readInBackground).
  * @type {import("../markdown/visitor.js").BlockRule}
  */
-const relativeLink = {
-  name: "relativeLink",
-  test: (node) => isElement(node) && node.tagName === "a" && typeof node.properties?.href === "string" && node.properties.href.startsWith("./"),
-  transform: (node, index, parent, { target, api, config }) => {
+const internalLink = {
+  name: "internalLink",
+  test: (node) => isElement(node) && node.tagName === "a" && !hasClass(node, "wikilink") && isInternal(node.properties?.href),
+  transform: (node, index, parent, context) => {
+    const { target, api, config } = context
+    const href = node.properties.href
+    const { pathname, suffix } = splitURL(href)
     // A stub has a source path but no neighbours to resolve against.
-    if (!target.source) return
-    const sourcePath = path.normalize(path.join(path.dirname(target.source), decodeURIComponent(node.properties.href)))
-    const found = api.targetBySource(sourcePath)
+    const sourcePath = target.source && path.extname(pathname)
+      ? path.normalize(pathname.startsWith("/") ? pathname.slice(1) : path.join(path.dirname(target.source), pathname))
+      : null
+    const found = (sourcePath && api.targetBySource(sourcePath)) || servedTarget(pathname, context)
     if (!found) {
-      config.log?.("warn", `${target.source}: link to ${node.properties.href} matches no page`)
+      if (!readInBackground(pathname, config)) config.log?.("warn", `${target.source ?? target.path}: link to ${href} matches no page`)
       return
     }
-    node.properties.href = found.metadata.prettyURL
+    node.properties.href = urlOf(found) + suffix
   }
 }
 
@@ -147,6 +231,8 @@ const wikilink = {
     const isFile = /\.[a-z0-9]+$/i.test(name.trim())
     const found = isFile ? resolveFile(name, context) : resolveNote(name, context)
     if (!found) {
+      const { target, config } = context
+      config.log?.("warn", `${target.source ?? target.path}: [[${name}]] matches no page`)
       delete node.properties.href
       return SKIP
     }
@@ -160,7 +246,7 @@ const wikilink = {
 /**
  * `:fa/surfer:` is `fa/surfer.svg` in the project, read through
  * api.target() so a replaced icon restales the page. The same shape as
- * a#logo - an <img> plus --icon-url - so a monochrome SVG can be masked
+ * a#logo - an <img> plus --url-icon - so a monochrome SVG can be masked
  * in currentColor. Missing: the shortcode is put back as written.
  * @type {import("../markdown/visitor.js").BlockRule}
  */
@@ -173,7 +259,7 @@ const icon = {
     if (!found) return { type: "text", value: `:${name}:` }
     const src = `/${found.path}`
     node.properties.src = src
-    node.properties.style = `--icon-url: url("${src}")`
+    node.properties.style = `--url-icon: url("${src}")`
     return SKIP
   }
 }
@@ -213,10 +299,23 @@ const highlight = {
 const image = {
   name: "image",
   test: (node) => isElement(node) && node.tagName === "img" && !hasClass(node, "icon"),
-  transform: (node, index, parent, { api }) => {
+  transform: (node, index, parent, context) => {
+    const { api, target } = context
     const { src, alt } = node.properties
-    const picture = createDynamicImage(src, api, alt)
-    if (!picture) return SKIP
+    // createDynamicImage reads a path from the root; a relative one
+    // (`pic.jpg`, `./pic.jpg`, `../pic.jpg`) is the page's, so resolve it
+    // first. It used to be looked up at the root, miss, and stay a
+    // plain <img>: shown, but never optimised.
+    const relative = isInternal(src) && !src.startsWith("/")
+    const picture = createDynamicImage(relative ? fromPage(splitURL(src).pathname, target) : src, api, alt)
+    if (!picture) {
+      // Left as an <img>: say so when the browser would get a 404 for it.
+      const { pathname } = isInternal(src) ? splitURL(src) : {}
+      if (pathname && !readInBackground(pathname, context.config) && !servedTarget(pathname, context)) {
+        context.config.log?.("warn", `${context.target.source ?? context.target.path}: image ${src} matches no file`)
+      }
+      return SKIP
+    }
     if (index === 0 && parent.children.length > 1) {
       const caption = parent.children.slice(1)
       parent.children = [h("figure", [picture, h("figcaption", caption)])]
@@ -281,7 +380,7 @@ const directive = {
       // Lowercased: every vowel target path is (config.js's router).
       const found = api.target(path.relative("/", path.format(info)).toLowerCase())
       if (!found) return SKIP
-      return makeHeader(found.metadata, found.metadata.prettyURL, api, config)
+      return makeHeader(found.metadata, cardLink(found), api, config, found.source)
     }
 
     const folder = path.relative("/", dir)
@@ -299,16 +398,23 @@ const directive = {
     // (`status: hidden`) is hidden from both.
     const listing = { folder, recursive, query, orderBy: { property: "date", direction: "desc" }, limit: count ? Number(count) : undefined }
     const targets = relative
-      ? api.targets(listing).filter(page => page.write !== false && page.extension === ".html" && page.metadata.fm_status !== "hidden")
-      : listPages(api, listing)
+      ? api.targets(listing).filter(page => (page.write !== false || isPageWithoutFile(page)) && page.extension === ".html" && page.metadata.fm_status !== "hidden")
+      : showPages(api, listing)
 
     const listClasses = globClasses({ folder, recursive, limit: count, tag, view, properties })
 
     return view === "table"
       ? makeTable(listClasses, properties.length ? properties : ["title"], targets, api)
-      : h("ul", { class: listClasses }, targets.map(found => h("li", makeHeader(found.metadata, found.metadata.prettyURL, api, config))))
+      : h("ul", { class: listClasses }, targets.map(found => h("li", makeHeader(found.metadata, cardLink(found), api, config, found.source))))
   }
 }
+
+/**
+ * Where a card links: the page's url, or nowhere for a page with no
+ * file (`html_file: false`), which is a card and nothing more.
+ * @param {any} found
+ */
+const cardLink = (found) => isPageWithoutFile(found) ? null : found.metadata.prettyURL
 
 /**
  * A relative directive path as the absolute published path it names.
@@ -350,29 +456,81 @@ const preview = {
   }
 }
 
+/** `[!TYPE]` at the very start of an alert, and the spaces after it. */
+const ALERT_MARKER = /^\[!([a-z][\w-]*)\][ \t]*/i
+
+/** A blockquote's first block, if it is a paragraph that opens with `[!TYPE]`. */
+const alertParagraph = (node) => {
+  const first = node.children?.find(isElement)
+  const lead = first?.tagName === "p" ? first.children?.[0] : null
+  return typeof lead?.value === "string" && ALERT_MARKER.test(lead.value) ? first : null
+}
+
 /**
- * A GFM alert: a blockquote whose first line is `[!NOTE]` (or WARNING,
- * DANGER...) becomes an aside with the label as its heading.
+ * A GFM alert, or an Obsidian callout: a blockquote whose first line is
+ * `[!TYPE]`, any word, becomes `<aside class="alert type">` with a
+ * heading. The rest of that line is the heading (`> [!NOTE] How to
+ * render`, inline markdown and all), else the type in sentence case
+ * (alertLabel). Both spellings work: GitHub's, with the text on the
+ * next line - one paragraph, so the marker line is cut off the front of
+ * it - and the marker alone, then a blank `>` line.
  * @type {import("../markdown/visitor.js").BlockRule}
  */
 const alert = {
   name: "alert",
-  test: (node) => isElement(node) && node.tagName === "blockquote"
-    && isElement(node.children?.[1]) && node.children[1].tagName === "p"
-    && node.children[1].children?.length === 1
-    && /^\[!(\w+)\]$/.test(node.children[1].children[0].value ?? ""),
+  test: (node) => isElement(node) && node.tagName === "blockquote" && alertParagraph(node) !== null,
   transform: (node) => {
-    const [, label] = node.children[1].children[0].value.match(/^\[!(\w+)\]$/)
+    const paragraph = alertParagraph(node)
+    const [lead, ...rest] = paragraph.children
+    const marker = ALERT_MARKER.exec(lead.value)
+    const type = marker[1].toLowerCase()
+
+    // The marker's line ends at the first newline: what comes before it
+    // is the title, what comes after is the paragraph.
+    const inline = [{ type: "text", value: lead.value.slice(marker[0].length) }, ...rest]
+    const breakAt = inline.findIndex(child => typeof child.value === "string" && child.value.includes("\n"))
+    const lineEnd = breakAt === -1 ? inline.length : breakAt
+    const split = breakAt === -1 ? null : inline[breakAt].value.indexOf("\n")
+    const title = [
+      ...inline.slice(0, lineEnd),
+      ...(split === null ? [] : [{ type: "text", value: inline[breakAt].value.slice(0, split) }])
+    ]
+    const body = split === null ? [] : [
+      { type: "text", value: inline[breakAt].value.slice(split + 1) },
+      ...inline.slice(breakAt + 1)
+    ]
+
+    const hasTitle = title.some(child => child.type !== "text" || child.value.trim())
+    const heading = h("h2", hasTitle ? trimText(title) : alertLabel(type))
+    const hasBody = body.some(child => child.type !== "text" || child.value.trim())
+
     node.tagName = "aside"
-    node.properties = { class: `alert ${label.toLowerCase()}` }
-    node.children.splice(0, 2, h("h2", toTitleCase(label)))
+    node.properties = { class: `alert ${type}` }
+    const index = node.children.indexOf(paragraph)
+    const kept = hasBody ? [{ ...paragraph, children: trimText(body) }] : []
+    node.children = [heading, ...node.children.slice(0, index).filter(isElement), ...kept, ...node.children.slice(index + 1)]
   }
+}
+
+/**
+ * Inline nodes with the whitespace trimmed from both ends of the run.
+ * @param {any[]} nodes
+ */
+function trimText(nodes) {
+  const last = nodes.length - 1
+  return nodes
+    .map((child, index) => {
+      if (typeof child.value !== "string" || child.type !== "text") return child
+      const start = index === 0 ? child.value.trimStart() : child.value
+      return { ...child, value: index === last ? start.trimEnd() : start }
+    })
+    .filter(child => child.type !== "text" || child.value !== "")
 }
 
 const skipped = new Set(["pre", "code", "script", "style"])
 
 const writeWalk = createVisitor({
-  block: [relativeLink, wikilink, icon, highlight, image, directive, preview, alert],
+  block: [internalLink, wikilink, icon, highlight, image, directive, preview, alert],
   skip: (node) => isElement(node) && skipped.has(node.tagName)
 })
 

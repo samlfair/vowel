@@ -77,7 +77,7 @@ test("a folder's theme gets its own colours; a folder with none inherits its anc
     const rootColors = await page("colors.css")
     const blogColors = await page(`colors-${blogKey}.css`)
     assert.notEqual(rootColors, blogColors)
-    assert.ok(rootColors.includes("--primary-") && blogColors.includes("--primary-"))
+    assert.ok(rootColors.includes("--color-primary-") && blogColors.includes("--color-primary-"))
   } finally {
     if (site) await site.close()
     await rm(sourceFolder, { recursive: true, force: true })

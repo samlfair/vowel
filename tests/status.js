@@ -102,14 +102,25 @@ test("status: a page set to deleted or draft takes its file with it; back to pub
   })
 })
 
-test("status: case doesn't matter; anything else is logged and ignored, so the page is published", () => {
+test("status: case doesn't matter; any other value is the author's own (a garden's \"evergreen\"), kept and published", () => {
   const problems = []
   const read = (value) => coerce({ status: value }, "post.md", "", message => problems.push(message)).status
   assert.equal(read("Hidden"), "hidden")
   assert.equal(read("draft"), "draft")
-  assert.equal(problems.length, 0)
-  assert.equal(read("archived"), undefined)
-  assert.equal(read(true), undefined)
-  assert.equal(problems.length, 2)
-  assert.match(problems[0], /expected one of published, draft, hidden, deleted/)
+  assert.equal(read("evergreen"), "evergreen")
+  assert.equal(read("growing"), "growing")
+  assert.deepEqual(problems, [], "nothing to warn about")
+})
+
+test("status: the author's own value is shown with the page's frontmatter; vowel's own isn't", async () => {
+  await withSite({
+    "settings.md": FILES["settings.md"],
+    "garden.md": "---\nstatus: evergreen\n---\n# Garden\n",
+    "quiet.md": "---\nstatus: hidden\n---\n# Quiet\n"
+  }, async ({ read }) => {
+    const garden = await read("garden.html")
+    assert.ok(garden, "an unknown status is published")
+    assert.match(garden, /evergreen/)
+    assert.ok(!(await read("quiet.html")).includes(">hidden<"), "an instruction isn't content")
+  })
 })

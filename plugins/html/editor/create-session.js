@@ -95,11 +95,13 @@ const document_schema = define_document_schema({
       body: { type: "node_array", node_types: BLOCK_TYPES, default_node_type: "paragraph" }
     }
   },
-  // > [!NOTE] - the variant is what the html plugin encodes in the class.
+  // > [!NOTE] Title - the variant is what the html plugin encodes in the
+  // class; the title is its heading, "" when it is the type's default.
   alert: {
     kind: "block",
     properties: {
       variant: { type: "string", default: "note" },
+      title: { type: "string", default: "" },
       body: { type: "node_array", node_types: BLOCK_TYPES, default_node_type: "paragraph" }
     }
   },

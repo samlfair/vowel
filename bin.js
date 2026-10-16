@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import fs from "node:fs/promises"
-import { intro, note, text, select, confirm, spinner, outro, box } from "@clack/prompts"
+import os from "node:os"
+import { intro, note, text, select, confirm, spinner, outro, box, isCancel, cancel } from "@clack/prompts"
 import { parse } from "@bomb.sh/args"
 import t from "@bomb.sh/tab"
 import votive from "votive"
@@ -19,7 +20,23 @@ function wait(ms) {
 }
 
 import init from "./index.js"
-import { shouldClear } from "./cli.js"
+import { shouldClear, normalizeDomain, wrongFolderWarning } from "./cli.js"
+
+/**
+ * A prompt's answer - or, when the author pressed Ctrl-C or Escape, a
+ * clean exit. clack returns a cancel symbol instead of an answer, and
+ * the wizard used to carry on with it until a template string threw
+ * "Cannot convert a Symbol value to a string". Nothing has been written
+ * at that point: the wizard writes its files last.
+ * @template T
+ * @param {T | symbol} value
+ * @returns {T}
+ */
+function answer(value) {
+  if (!isCancel(value)) return /** @type {T} */ (value)
+  cancel("Setup cancelled. Nothing was written.")
+  process.exit(0)
+}
 
 /**
  * Discards the build database. Only under --clear (alias --reset): an
@@ -64,14 +81,14 @@ async function wizard() {
   {
     box(`Welcome!\n\nVowel is a static blog generator. It bundles markdown into HTML.`)
 
-    await select({
+    answer(await select({
       message: "Proceed",
       options: [
         {
           value: true,
           label: "OK"
         }]
-    })
+    }))
 
     box(`Vowel infers most relevant information from common markdown conventions, so it requires very little configuration.
 
@@ -80,25 +97,25 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
 
 
 
-    const proceed = await confirm({
+    const proceed = answer(await confirm({
       message: "Generate settings file"
-    })
+    }))
 
     if (proceed) {
       const frontmatter = [`---`]
 
       box(`Change these configurations by editing 'settings.md'.`)
 
-      const websiteName = await text({
+      const websiteName = answer(await text({
         message: "Website name",
         placeholder: "My Cool Website"
-      })
+      }))
 
       frontmatter.push(`name: ${websiteName}`)
 
       box(`Vowel comes loaded with themes. You can override these themes by writing styles in a 'styles.css' file at the root of your project.`)
 
-      const theme = await select({
+      const theme = answer(await select({
         message: "Theme",
         options: [
           {
@@ -122,7 +139,7 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
             hint: 'write your own styles in `./styles.css`'
           }
         ]
-      })
+      }))
 
       if (theme) {
         frontmatter.push(`theme: ${theme}`)
@@ -130,21 +147,24 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
 
       box(`To publish a sitemap and RSS feed, provide the domain that you plan to use.`)
 
-      const domain = await text({
+      const domain = answer(await text({
         message: "Domain",
         placeholder: "thebomb.com"
-      })
+      }))
 
-      if (domain) {
-        frontmatter.push(`domain: ${domain}`)
+      // As pasted from a browser: https://Example.com/ is example.com.
+      const siteDomain = normalizeDomain(domain)
+
+      if (siteDomain) {
+        frontmatter.push(`domain: ${siteDomain}`)
       }
 
       box(`To credit an author on your RSS feed, provide an author.`)
 
-      const author = await text({
+      const author = answer(await text({
         message: "Author",
         placeholder: "George Constanza"
-      })
+      }))
 
       if (author) {
         frontmatter.push(`author: ${author}`)
@@ -152,15 +172,16 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
 
       box(`Markdown files are pages. Filenames are breadcrumbs. Folders are website sections. 'home.md' is your homepage.`)
 
-      const homepage = await confirm({
+      const homepage = answer(await confirm({
         message: "Generate homepage"
-      })
+      }))
 
-      // A tagline is a page's; the homepage's is the site's hero.
-      const tagline = await text({
-        message: "Homepage tagline (leave empty to skip)",
+      // A slogan is a page's; the homepage's is the site's hero. Only
+      // asked for the homepage the wizard is about to write.
+      const slogan = homepage ? answer(await text({
+        message: "Homepage slogan (leave empty to skip)",
         placeholder: "All the news that's fit to blog"
-      })
+      })) : undefined
 
       const spin = spinner()
 
@@ -178,14 +199,14 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
 
       const homeExists = await exists("home.md")
 
-      if (!homeExists) {
-        const homeFrontmatter = tagline ? `---\ntagline: ${tagline}\n---\n` : ""
+      if (homepage && !homeExists) {
+        const homeFrontmatter = slogan ? `---\nslogan: ${slogan}\n---\n` : ""
         await fs.writeFile("home.md", `${homeFrontmatter}# Home\n\nWelcome home!`, "utf-8")
       }
 
       spin.clear()
 
-      await select({
+      answer(await select({
         message: "Ready to go. Vowel will now launch your website.",
         options: [
           {
@@ -193,7 +214,7 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
             label: "Let's go"
           }
         ]
-      })
+      }))
 
 
     }
@@ -243,7 +264,29 @@ async function main() {
     return
   }
 
-  const dbExists = await exists(config.databasePath)
+  // `vowel export <folder>`: the export command (plugins/export), spelled
+  // as a word rather than --command/--payload.
+  if (args._?.[0] === "export") {
+    await runCLICommand("export", JSON.stringify({ path: args._[1] }))
+    return
+  }
+
+  // A site is a folder with a settings.md; the wizard writes one. Not "no
+  // database yet", which was also true of every site cloned onto a new
+  // machine. And only with a terminal to ask in: under CI or a pipe the
+  // prompts waited forever.
+  const settingsExists = await exists("settings.md")
+  const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY)
+
+  if (!settingsExists && interactive) {
+    const entries = await fs.readdir(".")
+    const folder = process.cwd()
+    const warning = wrongFolderWarning(entries, { folder, home: folder === os.homedir() })
+    if (warning && !answer(await confirm({ message: warning, initialValue: false }))) {
+      cancel("Run vowel inside your site's folder, or in a new, empty one.")
+      return
+    }
+  }
 
   if (shouldClear(args)) {
     await removeDatabase(args.logging === "verbose")
@@ -251,10 +294,9 @@ async function main() {
   }
   await fs.mkdir(config.targetFolder, { recursive: true })
 
-  // The wizard runs on a first launch only: no database yet is the one
-  // signal that legitimately means "new project", and --clear does not
-  // change that - a cleared project is still one that was set up.
-  if (!args.skip && !dbExists) {
+  // The wizard runs for a new site only; --clear doesn't change that - a
+  // cleared project is still one that was set up.
+  if (!args.skip && !settingsExists && interactive) {
     // const loading = votive({ ...config, verbose: false })
     await wizard()
     // await (loading)

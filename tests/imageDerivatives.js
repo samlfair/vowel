@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { mkdtemp, writeFile, readFile, readdir, rm } from "node:fs/promises"
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import sharp from "sharp"
@@ -75,6 +75,65 @@ test("derivatives survive a warm start, follow the image's content, and go with 
     site = await build(sourceFolder, systemFolder)
     assert.deepEqual(await derivatives(targetFolder), [])
     assert.equal(site.database.raw.prepare("SELECT COUNT(*) AS n FROM targets WHERE path LIKE 'pic-%'").get().n, 0)
+  } finally {
+    if (site) await site.close()
+    await rm(sourceFolder, { recursive: true, force: true })
+    await rm(systemFolder, { recursive: true, force: true })
+  }
+})
+
+test("an opaque image gets an inlined placeholder behind it; one with transparency doesn't", async () => {
+  const sourceFolder = await mkdtemp(path.join(tmpdir(), "vowel-placeholder-"))
+  const systemFolder = await mkdtemp(path.join(tmpdir(), "vowel-placeholder-sys-"))
+  const targetFolder = path.join(systemFolder, "output")
+  let site
+  try {
+    await writeFile(path.join(sourceFolder, "home.md"), "# Home\n\n![opaque](/pic.jpg)\n\n![clear](/logo.png)\n")
+    await sharp({ create: { width: 800, height: 500, channels: 3, background: "#4060a0" } }).jpeg().toFile(path.join(sourceFolder, "pic.jpg"))
+    await sharp({ create: { width: 400, height: 400, channels: 4, background: { r: 200, g: 40, b: 40, alpha: 0.5 } } }).png().toFile(path.join(sourceFolder, "logo.png"))
+
+    site = await build(sourceFolder, systemFolder)
+    const home = await readFile(path.join(targetFolder, "index.html"), "utf-8")
+    const pictures = home.match(/<picture[^>]*>/g)
+    assert.equal(pictures.length, 2)
+    const [opaque, clear] = pictures
+
+    const uri = opaque.match(/--url-image-placeholder: url\((data:image\/webp;base64,[A-Za-z0-9+/=]+)\)/)?.[1]
+    assert.ok(uri, `the opaque image's <picture> carries a WebP data URI: ${opaque}`)
+    const tiny = await sharp(Buffer.from(uri.split(",")[1], "base64")).metadata()
+    assert.equal(Math.max(tiny.width, tiny.height), 16, "16 px on its long side")
+    assert.ok(uri.length < 400, `small enough to inline: ${uri.length} bytes`)
+    assert.match(opaque, /--color-image-dominant: #/, "the dominant colour is still there")
+
+    assert.doesNotMatch(clear, /--url-image-placeholder/, "nothing that would show through transparency")
+  } finally {
+    if (site) await site.close()
+    await rm(sourceFolder, { recursive: true, force: true })
+    await rm(systemFolder, { recursive: true, force: true })
+  }
+})
+
+test("a relative image is the page's, and is optimised like any other", async () => {
+  const sourceFolder = await mkdtemp(path.join(tmpdir(), "vowel-relative-"))
+  const systemFolder = await mkdtemp(path.join(tmpdir(), "vowel-relative-sys-"))
+  const targetFolder = path.join(systemFolder, "output")
+  let site
+  try {
+    await mkdir(path.join(sourceFolder, "blog"), { recursive: true })
+    await writeFile(path.join(sourceFolder, "home.md"), "# Home\n")
+    await writeFile(path.join(sourceFolder, "blog", "post.md"), "# Post\n\n![dot](./here.jpg)\n\n![bare](here.jpg)\n\n![up](../top.jpg)\n")
+    const make = (file) => sharp({ create: { width: 600, height: 400, channels: 3, background: "#806040" } }).jpeg().toFile(file)
+    await make(path.join(sourceFolder, "blog", "here.jpg"))
+    await make(path.join(sourceFolder, "top.jpg"))
+
+    site = await build(sourceFolder, systemFolder)
+    const post = await readFile(path.join(targetFolder, "blog", "post.html"), "utf-8")
+    const pictures = post.match(/<picture[^>]*>[\s\S]*?<\/picture>/g) ?? []
+    assert.equal(pictures.length, 3, `each image is a <picture>: ${post.match(/<section id=content>[\s\S]*?<\/section>/)[0]}`)
+    assert.match(pictures[0], /srcset="?\/blog\/here-[0-9a-f]{8}-414\.avif/, "./here.jpg is blog/here.jpg")
+    assert.match(pictures[1], /srcset="?\/blog\/here-[0-9a-f]{8}-414\.avif/, "here.jpg too")
+    assert.match(pictures[2], /srcset="?\/top-[0-9a-f]{8}-414\.avif/, "../top.jpg is the root's")
+    assert.match(pictures[0], /width=600/, "with its measured size")
   } finally {
     if (site) await site.close()
     await rm(sourceFolder, { recursive: true, force: true })

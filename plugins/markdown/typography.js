@@ -9,7 +9,7 @@
 // the document for live preview, so preview and build cannot disagree.
 //
 // No bundled fonts, and no font setting: a family is CSS - the author
-// sets `--font-sans-brand` (and the @font-face behind it) in their own
+// sets `--fontfamily-sans-brand` (and the @font-face behind it) in their own
 // stylesheet, where the sheet's stacks put a system fallback after it.
 // Fonts by url is tasks/2-in-progress/load-fonts.md. Free of node
 // builtins.
@@ -20,7 +20,7 @@
  * @property {string} variable - the custom property in TypographyStyles.css
  * @property {string} label
  * @property {string} [hint]
- * @property {"x" | "ch" | ""} unit - "x" is a multiple of --font-size-root
+ * @property {"x" | "ch" | ""} unit - "x" is a multiple of --fontsize-root
  * @property {number} min
  * @property {number} max
  * @property {number} step
@@ -29,14 +29,14 @@
 
 /** @type {TypographySetting[]} */
 export const rampSettings = [
-  { key: "heading-size", variable: "--font-size-delta", label: "Heading size", hint: "How much larger h1 is than body text", unit: "x", min: 0.25, max: 4, step: 0.05, default: 2 },
-  { key: "heading-size-decay", variable: "--font-size-decay", label: "Size decay", hint: "Higher makes subheadings smaller", unit: "", min: 0.5, max: 6, step: 0.1, default: 3 },
-  { key: "h1-letter-spacing", variable: "--letter-spacing-h1", label: "h1 letter spacing", unit: "ch", min: -0.1, max: 0.1, step: 0.005, default: -0.01 },
-  { key: "h6-letter-spacing", variable: "--letter-spacing-h6", label: "h6 letter spacing", unit: "ch", min: -0.1, max: 0.1, step: 0.005, default: 0 },
-  { key: "letter-spacing-decay", variable: "--letter-spacing-decay", label: "Spacing decay", unit: "", min: 0.5, max: 6, step: 0.1, default: 2 },
-  { key: "h1-weight", variable: "--font-weight-h1", label: "h1 weight", unit: "", min: 100, max: 900, step: 10, default: 800 },
-  { key: "h6-weight", variable: "--font-weight-h6", label: "h6 weight", unit: "", min: 100, max: 900, step: 10, default: 600 },
-  { key: "weight-decay", variable: "--font-weight-decay", label: "Weight decay", unit: "", min: 0.5, max: 6, step: 0.1, default: 2 }
+  { key: "heading-size", variable: "--fontsize-delta", label: "Heading size", hint: "How much larger h1 is than body text", unit: "x", min: 0.25, max: 4, step: 0.05, default: 2 },
+  { key: "heading-size-decay", variable: "--fontsize-decay", label: "Size decay", hint: "Higher makes subheadings smaller", unit: "", min: 0.5, max: 6, step: 0.1, default: 3 },
+  { key: "h1-letter-spacing", variable: "--letterspacing-h1", label: "h1 letter spacing", unit: "ch", min: -0.1, max: 0.1, step: 0.005, default: -0.01 },
+  { key: "h6-letter-spacing", variable: "--letterspacing-h6", label: "h6 letter spacing", unit: "ch", min: -0.1, max: 0.1, step: 0.005, default: 0 },
+  { key: "letter-spacing-decay", variable: "--letterspacing-decay", label: "Spacing decay", unit: "", min: 0.5, max: 6, step: 0.1, default: 2 },
+  { key: "h1-weight", variable: "--fontweight-h1", label: "h1 weight", unit: "", min: 100, max: 900, step: 10, default: 800 },
+  { key: "h6-weight", variable: "--fontweight-h6", label: "h6 weight", unit: "", min: 100, max: 900, step: 10, default: 600 },
+  { key: "weight-decay", variable: "--fontweight-decay", label: "Weight decay", unit: "", min: 0.5, max: 6, step: 0.1, default: 2 }
 ]
 
 /**
@@ -57,7 +57,7 @@ function themeSettings(theme) {
 function rampValue(setting, value) {
   const clamped = Math.min(setting.max, Math.max(setting.min, value))
   const number = String(Number(clamped.toFixed(4)))
-  if (setting.unit === "x") return `calc(${number} * var(--font-size-root))`
+  if (setting.unit === "x") return `calc(${number} * var(--fontsize-root))`
   return `${number}${setting.unit}`
 }
 

@@ -45,3 +45,26 @@ test("video, data and documents are copied through; a file over the size limit i
     await rm(systemFolder, { recursive: true, force: true })
   }
 })
+
+test(".ico is copied through", async () => {
+  const sourceFolder = await mkdtemp(path.join(tmpdir(), "vowel-ico-"))
+  const systemFolder = await mkdtemp(path.join(tmpdir(), "vowel-ico-sys-"))
+  let site
+  try {
+    const bytes = Buffer.from([0, 0, 1, 0, 1, 0, 16, 16])
+    await writeFile(path.join(sourceFolder, "home.md"), "# Home\n")
+    await writeFile(path.join(sourceFolder, "favicon.ico"), bytes)
+    site = await votive(createConfig(sourceFolder, {
+      targetFolder: path.join(systemFolder, "output"),
+      databasePath: path.join(systemFolder, ".votive.db"),
+      cacheDirectory: path.join(systemFolder, ".cache"),
+      logging: "silent"
+    }))
+    await (await site.build()).deferred
+    assert.deepEqual(await readFile(path.join(systemFolder, "output", "favicon.ico")), bytes)
+  } finally {
+    if (site) await site.close()
+    await rm(sourceFolder, { recursive: true, force: true })
+    await rm(systemFolder, { recursive: true, force: true })
+  }
+})

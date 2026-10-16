@@ -93,9 +93,10 @@ function blockFrom(id, nodes) {
     // The marker line the html plugin consumed is regenerated here. It is
     // emitted raw rather than as text: escaping would make it "\[!NOTE]",
     // which survives vowel's own parser but is not the literal GFM syntax.
+    const title = node.title ? ` ${node.title}` : ""
     const marker = {
       type: "html",
-      value: `[!${(node.variant || "note").toUpperCase()}]`
+      value: `[!${(node.variant || "note").toUpperCase()}]${title}`
     }
     const body = node.body.nodes.map(child => blockFrom(child, nodes))
     return { type: "blockquote", children: [marker, ...body] }
@@ -144,14 +145,17 @@ export default function serialize(doc, frontmatter = { title: null, properties: 
     rule: "-"
   })
 
-  // The title is written as a heading rather than a frontmatter key, so a
-  // page whose title only ever lived in frontmatter gains one here.
+  // A title from a `#` heading is written back as one; a declared title
+  // arrives as null and stays in the properties.
   const heading = frontmatter.title ? `# ${frontmatter.title}\n\n` : ""
+
+  // The natural metadata (readFrontmatter), as markdown, already spaced.
+  const natural = frontmatter.natural || ""
 
   const properties = frontmatter.properties || {}
   const yaml = Object.keys(properties).length
     ? `---\n${stringifyYAML(properties)}---\n\n`
     : ""
 
-  return yaml + heading + body
+  return yaml + heading + natural + body
 }

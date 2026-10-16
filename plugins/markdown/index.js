@@ -13,11 +13,11 @@ import { gfmTable } from 'micromark-extension-gfm-table'
 import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
 import { normalizeHeadingLevels } from './metadata.js'
 import { readFileSync } from "fs"
-import { createHashtagPage, toTitleCase, listPages } from "./../../utils.js"
-import { toHast } from 'mdast-util-to-hast'
+import { createHashtagPage, labelFromName, showPages } from "./../../utils.js"
+import { toHast, defaultHandlers } from 'mdast-util-to-hast'
 import { toString as hastToString } from 'hast-util-to-string'
 import getMetadata, { reservedProperties } from "./metadata.js"
-import { isSecretPath } from "./../../secretPaths.js"
+import { isSecretPath, secretRouter, displayPath } from "./../../secretPaths.js"
 import { collectLinks } from "./links.js"
 import { readWalk } from "./readRules.js"
 import { h } from "hastscript"
@@ -68,10 +68,9 @@ function readFile(source, { api, config }) {
   }
 
 
-  // `status` (frontmatter.js). A draft - or `published: false`, its older
-  // spelling - is not a page at all.
+  // `status` (frontmatter.js). A draft is not a page at all.
   const status = metadata.fm_status ?? "published"
-  if (metadata.fm_published === false || status === "draft") return
+  if (status === "draft") return
 
   // A deleted page is not written, and carries nothing a listing, a tag
   // page, a backlink or a wikilink could find it by. It exists only so
@@ -96,11 +95,13 @@ function readFile(source, { api, config }) {
   // time, could not cover a folder, left a virtual target at the public
   // path, and had to be hidden from its own rendering.
   // `status: hidden` is the same promise made on purpose: written, never
-  // listed.
-  if (isSecretPath(filePath) || status === "hidden") {
+  // listed. So is the site's 404 page, generated or the author's own: it
+  // is served for a missing url, and no listing, sitemap, feed or
+  // AT Protocol record should name it.
+  if (isSecretPath(filePath) || status === "hidden" || filePath === "404.md") {
     metadata.hidden = true
-    metadata.local_menu_item ??= false
-    metadata.global_menu_item ??= false
+    metadata.local_nav_item ??= false
+    metadata.global_nav_item ??= false
     metadata.sitemap_item ??= false
     metadata.rss_item ??= false
   }
@@ -131,6 +132,13 @@ function readFile(source, { api, config }) {
 
 
   const hast = toHast(mdast, {
+    // A table in a <figure>: the figure scrolls sideways when the table
+    // is too wide, so the table itself can be a real table at full width
+    // (a table that scrolls has to be display: block, which sizes its
+    // columns to their content), and a caption has somewhere to go.
+    handlers: {
+      table: (state, node) => h("figure", [defaultHandlers.table(state, node)])
+    },
     // `state.all(node)` converts the children to hast; handing over
     // `node.children` gives the HTML compiler raw *mdast* instead. Plain
     // text survives that by coincidence - mdast and hast spell a text
@@ -209,7 +217,7 @@ function withDeclaredTypes(metadata) {
  * label inferred from its own filename - and its first paragraph became
  * the description. The site's name is `name:` (read as `fm_name`); a
  * `title:` here is an old spelling and is warned about, since a page
- * has a title and a site has a name. `tagline:` is warned about too: it
+ * has a title and a site has a name. `slogan:` is warned about too: it
  * is a page's, and the homepage's is the one a site shows on its front
  * door. `markdown` is the source, which the settings panel edits.
  * @param {Record<string, any>} metadata
@@ -220,8 +228,8 @@ function settingsContribution(metadata, filePath, log) {
   if (metadata.fm_title !== undefined && metadata.fm_name === undefined) {
     log?.("warn", `${filePath}: \`title:\` in a settings file does nothing - the site's name is \`name:\``)
   }
-  if (metadata.fm_tagline !== undefined) {
-    log?.("warn", `${filePath}: \`tagline:\` in a settings file does nothing - a tagline belongs to a page, e.g. home.md`)
+  if (metadata.fm_slogan !== undefined) {
+    log?.("warn", `${filePath}: \`slogan:\` in a settings file does nothing - a slogan belongs to a page, e.g. home.md`)
   }
   const declared = Object.entries(metadata)
     .filter(([key]) => key.startsWith("fm_") || reservedProperties.includes(key))
@@ -293,10 +301,12 @@ function createStubs({ api }) {
   ]
   const taken = new Set(named.map(stub => stub.path))
 
-  // A section index per folder with a listed page (see folderIndexes) -
-  // except where a stub above already is that page: `tags.md` is the
-  // tags folder's index.
-  return [...named, ...folderIndexes(api).filter(stub => !taken.has(stub.path))]
+  // A section index per folder with a listed page (see folderIndexes),
+  // and per secret folder with a page (secretFolderIndexes) - except
+  // where a stub above already is that page: `tags.md` is the tags
+  // folder's index.
+  const indexes = [...folderIndexes(api), ...secretFolderIndexes(api)]
+  return [...named, ...indexes.filter(stub => !taken.has(stub.path))]
 }
 
 /**
@@ -307,10 +317,13 @@ function createStubs({ api }) {
  * find it with no change.
  *
  * Derived from the targets, since there is no api.folders(): a folder
- * counts when a page *listPages would show* lives in it or below it.
- * An empty folder, an asset-only folder and a secret folder (every page
- * hidden) get no index, and a folder whose last page goes loses its
- * index on that pass - the stub is simply no longer declared.
+ * counts when a page *a listing would show* lives in it or below it -
+ * a page without a file (`html_file: false`) too, since the index is
+ * where its card is.
+ * An empty folder and an asset-only folder get no index, and a folder
+ * whose last page goes loses its index on that pass - the stub is simply
+ * no longer declared. A secret folder's pages are all hidden, so none
+ * counts here; secretFolderIndexes gives those folders theirs.
  *
  * An author's own `blog.md` beside `blog/` shadows the stub by path,
  * votive's ordinary rule; the stub stands down when `<folder>.html`
@@ -322,7 +335,7 @@ function createStubs({ api }) {
  * @param {any} api - the enumerator's untracked api
  */
 function folderIndexes(api) {
-  const pages = listPages(api, { folder: "", recursive: true })
+  const pages = showPages(api, { folder: "", recursive: true })
     .filter(page => page.source && page.dir)
 
   const folders = new Set()
@@ -338,6 +351,50 @@ function folderIndexes(api) {
     const indexTarget = api.target(`${folder}.html`)
     const ours = !indexTarget || indexTarget.source === stubPath
     return ours ? [{ path: stubPath, params: { folder } }] : []
+  })
+}
+
+/**
+ * One index per secret folder (`members##salt/`) with a written page,
+ * and per folder below one. Per Sam: a secret folder should get its
+ * index like any other, and without one its breadcrumb had nothing to
+ * link to.
+ *
+ * Built in *source* terms, because a secret folder's published name is
+ * a hash. The stub is `members##salt.md`, which routing hashes to
+ * `<hash>.html` beside the folder's `<hash>/`, the way `blog.md` sits
+ * beside `blog/` - so the breadcrumb's `<folder>.html` lookup finds it.
+ * Its listing is a relative glob, the only kind that sees secret pages,
+ * and its title is the folder's name without the salt (expandStubs). As
+ * a page under a secret segment it is hidden itself.
+ *
+ * Folders *above* the secret segment get nothing from a secret page:
+ * their index would list none of it. A `status: hidden` page doesn't
+ * count. An author's own `members##salt.md` shadows the stub by path.
+ * @param {any} api - the enumerator's untracked api
+ */
+function secretFolderIndexes(api) {
+  const pages = api.targets({ folder: "", recursive: true, query: { hidden: true } })
+    .filter(page => page.write !== false
+      && page.extension === ".html"
+      && typeof page.source === "string"
+      && isSecretPath(page.source)
+      && page.metadata.fm_status !== "hidden")
+
+  const folders = new Set(pages.flatMap(page => {
+    const segments = page.source.split(path.sep).slice(0, -1)
+    const first = segments.findIndex(segment => isSecretPath(segment))
+    if (first === -1) return []
+    return segments.slice(first).map((_, offset) => segments.slice(0, first + offset + 1).join(path.sep))
+  }))
+
+  return [...folders].sort().flatMap(folder => {
+    const stubPath = `${folder}.md`
+    // vowel's router (config.js): secret segments hashed, then lowercased.
+    const routed = secretRouter(stubPath).toLowerCase().replace(/\.md$/, ".html")
+    const indexTarget = api.target(routed.split("/").join(path.sep))
+    const ours = !indexTarget || indexTarget.source === stubPath
+    return ours ? [{ path: stubPath, params: { folder, secret: true } }] : []
   })
 }
 
@@ -371,13 +428,23 @@ function expandStubs({ path: sourcePath, params }) {
     return { text: createHashtagPage(params.tag) }
   }
 
+  if (params?.secret) {
+    // A secret folder's index: titled by its name without the salt, and
+    // listed by a relative glob, resolved against this stub's own source
+    // path - the folder beside it - which is how a listing sees the
+    // secret pages a published-path glob never does.
+    const name = displayPath(params.folder).split(path.sep).at(-1)
+    const own = params.folder.split(path.sep).at(-1)
+    return { text: `# ${labelFromName(name)}\n\n./${own}/*` }
+  }
+
   if (params?.folder !== undefined) {
     // The folder's name as its title, and a listing of the folder - not
     // recursive: a nested section has an index of its own, and that
     // index is what appears here.
     const name = params.folder.split(path.sep).at(-1)
     const url = "/" + params.folder.split(path.sep).join("/")
-    return { text: `# ${toTitleCase(name)}\n\n${url}/*` }
+    return { text: `# ${labelFromName(name)}\n\n${url}/*` }
   }
 
   return null

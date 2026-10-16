@@ -18761,9 +18761,10 @@ ${fallback_html}`;
 	    return { type: "blockquote", children: node.body.nodes.map(child => blockFrom$1(child, nodes)) }
 	  }
 	  if (node.type === "alert") {
+	    const title = node.title ? ` ${node.title}` : "";
 	    const marker = {
 	      type: "html",
-	      value: `[!${(node.variant || "note").toUpperCase()}]`
+	      value: `[!${(node.variant || "note").toUpperCase()}]${title}`
 	    };
 	    const body = node.body.nodes.map(child => blockFrom$1(child, nodes));
 	    return { type: "blockquote", children: [marker, ...body] }
@@ -18798,11 +18799,12 @@ ${fallback_html}`;
 	    rule: "-"
 	  });
 	  const heading = frontmatter.title ? `# ${frontmatter.title}\n\n` : "";
+	  const natural = frontmatter.natural || "";
 	  const properties = frontmatter.properties || {};
 	  const yaml = Object.keys(properties).length
 	    ? `---\n${stringify(properties)}---\n\n`
 	    : "";
-	  return yaml + heading + body
+	  return yaml + heading + natural + body
 	}
 
 	const divider = ($$anchor) => {
@@ -19533,9 +19535,11 @@ ${fallback_html}`;
 		// socket pushes, so it is read at save time rather than when the
 		// editor opened. Taking the frontmatter from the source rather than
 		// the rendered page is what lets a key that never renders survive a
-		// save. The title is the one key that isn't kept: it is written back
-		// as a `#` heading, never as `title:`, so a file whose title lived
-		// only in frontmatter gains a heading and loses the key.
+		// save. A title declared in the frontmatter (`h1.fm_title`) stays a
+		// `title:` key; one from a `#` heading is written back as one. The
+		// natural metadata - a date line, an image, a description and its
+		// rule, lifted out of the content when the page was built - goes back
+		// between the heading and the body.
 		async function save() {
 			const { path, markdown: text } = getSource();
 
@@ -19545,8 +19549,10 @@ ${fallback_html}`;
 				return;
 			}
 
-			const { title: ignoredTitle, ...properties } = splitFrontmatter(text).data;
-			const markdown = serialize($$props.session.doc, { title: $$props.frontmatter.title, properties });
+			const { title: sourceTitle, ...rest } = splitFrontmatter(text).data;
+			const properties = $$props.frontmatter.titleDeclared ? { title: sourceTitle, ...rest } : rest;
+			const title = $$props.frontmatter.titleDeclared ? null : $$props.frontmatter.title;
+			const markdown = serialize($$props.session.doc, { title, natural: $$props.frontmatter.natural, properties });
 
 			await writeSettings(path, markdown);
 			console.info("[vowel] saved %s", path);
@@ -19684,14 +19690,14 @@ ${fallback_html}`;
 	delegate(['click']);
 
 	const rampSettings = [
-	  { key: "heading-size", variable: "--font-size-delta", label: "Heading size", hint: "How much larger h1 is than body text", unit: "x", min: 0.25, max: 4, step: 0.05, default: 2 },
-	  { key: "heading-size-decay", variable: "--font-size-decay", label: "Size decay", hint: "Higher makes subheadings smaller", unit: "", min: 0.5, max: 6, step: 0.1, default: 3 },
-	  { key: "h1-letter-spacing", variable: "--letter-spacing-h1", label: "h1 letter spacing", unit: "ch", min: -0.1, max: 0.1, step: 0.005, default: -0.01 },
-	  { key: "h6-letter-spacing", variable: "--letter-spacing-h6", label: "h6 letter spacing", unit: "ch", min: -0.1, max: 0.1, step: 0.005, default: 0 },
-	  { key: "letter-spacing-decay", variable: "--letter-spacing-decay", label: "Spacing decay", unit: "", min: 0.5, max: 6, step: 0.1, default: 2 },
-	  { key: "h1-weight", variable: "--font-weight-h1", label: "h1 weight", unit: "", min: 100, max: 900, step: 10, default: 800 },
-	  { key: "h6-weight", variable: "--font-weight-h6", label: "h6 weight", unit: "", min: 100, max: 900, step: 10, default: 600 },
-	  { key: "weight-decay", variable: "--font-weight-decay", label: "Weight decay", unit: "", min: 0.5, max: 6, step: 0.1, default: 2 }
+	  { key: "heading-size", variable: "--fontsize-delta", label: "Heading size", hint: "How much larger h1 is than body text", unit: "x", min: 0.25, max: 4, step: 0.05, default: 2 },
+	  { key: "heading-size-decay", variable: "--fontsize-decay", label: "Size decay", hint: "Higher makes subheadings smaller", unit: "", min: 0.5, max: 6, step: 0.1, default: 3 },
+	  { key: "h1-letter-spacing", variable: "--letterspacing-h1", label: "h1 letter spacing", unit: "ch", min: -0.1, max: 0.1, step: 0.005, default: -0.01 },
+	  { key: "h6-letter-spacing", variable: "--letterspacing-h6", label: "h6 letter spacing", unit: "ch", min: -0.1, max: 0.1, step: 0.005, default: 0 },
+	  { key: "letter-spacing-decay", variable: "--letterspacing-decay", label: "Spacing decay", unit: "", min: 0.5, max: 6, step: 0.1, default: 2 },
+	  { key: "h1-weight", variable: "--fontweight-h1", label: "h1 weight", unit: "", min: 100, max: 900, step: 10, default: 800 },
+	  { key: "h6-weight", variable: "--fontweight-h6", label: "h6 weight", unit: "", min: 100, max: 900, step: 10, default: 600 },
+	  { key: "weight-decay", variable: "--fontweight-decay", label: "Weight decay", unit: "", min: 0.5, max: 6, step: 0.1, default: 2 }
 	];
 	function themeSettings(theme) {
 	  return theme && typeof theme === "object" && !Array.isArray(theme) ?  (theme) : {}
@@ -19699,7 +19705,7 @@ ${fallback_html}`;
 	function rampValue(setting, value) {
 	  const clamped = Math.min(setting.max, Math.max(setting.min, value));
 	  const number = String(Number(clamped.toFixed(4)));
-	  if (setting.unit === "x") return `calc(${number} * var(--font-size-root))`
+	  if (setting.unit === "x") return `calc(${number} * var(--fontsize-root))`
 	  return `${number}${setting.unit}`
 	}
 	function typographyVariables(theme) {
@@ -20036,6 +20042,10 @@ ${fallback_html}`;
 	  if (properties.length) url.searchParams.set("properties", properties.join(","));
 	  return decodeURIComponent(url.pathname + url.search)
 	}
+	function alertLabel(type) {
+	  const spaced = type.replace(/[-_]+/g, " ");
+	  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+	}
 
 	const TEXT_NODE = 3;
 	const ELEMENT_NODE = 1;
@@ -20063,6 +20073,9 @@ ${fallback_html}`;
 	}
 	function expansionDirective(element) {
 	  const classes = classList(element);
+	  if (element.tagName === "FIGURE" && element.children.length === 1 && element.firstElementChild.tagName === "TABLE") {
+	    return expansionDirective(element.firstElementChild)
+	  }
 	  if ((element.tagName === "UL" || element.tagName === "TABLE") && classes.some(name => name.startsWith("_"))) {
 	    const params = globParams(classes);
 	    return params && globDirective(params)
@@ -20172,14 +20185,18 @@ ${fallback_html}`;
 	    })
 	  }
 	  if (tag === "ASIDE" && classList(element).includes("alert")) {
-	    const variant = classList(element).find(name => name !== "alert");
+	    const variant = classList(element).find(name => name !== "alert") || "note";
+	    const heading = [...element.children].find(child => child.tagName === "H2");
+	    const text = heading?.textContent.trim() ?? "";
+	    const title = text === alertLabel(variant) ? "" : text;
 	    const body = [...element.children]
-	      .filter(child => child.tagName !== "H2")
+	      .filter(child => child !== heading)
 	      .map(child => blockFrom(child, context));
 	    if (body.some(id => !id)) return null
 	    return context.create({
 	      type: "alert",
-	      variant: variant || "note",
+	      variant,
+	      title,
 	      body: { nodes: body, marks: [], annotations: [] }
 	    })
 	  }
@@ -20818,6 +20835,7 @@ ${fallback_html}`;
 	    kind: "block",
 	    properties: {
 	      variant: { type: "string", default: "note" },
+	      title: { type: "string", default: "" },
 	      body: { type: "node_array", node_types: BLOCK_TYPES, default_node_type: "paragraph" }
 	    }
 	  },
@@ -20970,12 +20988,26 @@ ${fallback_html}`;
 	    return { ...accumulated, [node.textContent.trim()]: valueFrom(value) }
 	  }, {})
 	}
+	function naturalLine(element) {
+	  const property = element.getAttribute("itemprop");
+	  if (property === "date") return element.textContent.trim()
+	  if (property === "description") return `${element.textContent.trim()}\n\n---`
+	  if (property !== "image") return null
+	  const img = element.tagName === "IMG" ? element : element.querySelector("img");
+	  const source = element.getAttribute("data-original") ?? img?.getAttribute("src");
+	  return source ? `![${img?.getAttribute("alt") ?? ""}](${source})` : null
+	}
 	function readFrontmatter(main) {
 	  const children = [...main.children];
+	  const declared = (key) => (child) => child.classList.contains(`fm_${key}`);
 	  const heading = children.find(child => child.tagName === "H1");
-	  const date = children.find(child => child.matches('time[itemprop="date"]'));
-	  const image = children.find(child => child.matches('picture[itemprop="image"]'));
-	  const description = children.find(child => child.matches('p[itemprop="description"]'));
+	  const date = children.find(declared("date"));
+	  const image = children.find(declared("image"));
+	  const description = children.find(declared("description"));
+	  const natural = children
+	    .filter(child => child.hasAttribute("itemprop") && ![...child.classList].some(name => name.startsWith("fm_")))
+	    .map(naturalLine)
+	    .filter(Boolean);
 	  const known = {
 	    ...(date ? { date: dateFrom(date) } : {}),
 	    ...(image ? { image: image.getAttribute("data-original") } : {}),
@@ -20986,7 +21018,9 @@ ${fallback_html}`;
 	    .reduce((accumulated, list) => ({ ...accumulated, ...objectFrom(list) }), {});
 	  return {
 	    title: heading ? heading.textContent.trim() : null,
-	    properties: { ...known, ...generic }
+	    titleDeclared: Boolean(heading?.classList.contains("fm_title")),
+	    properties: { ...known, ...generic },
+	    natural: natural.length ? `${natural.join("\n\n")}\n\n` : ""
 	  }
 	}
 

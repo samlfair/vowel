@@ -46,11 +46,11 @@ test("rule 1: a block that parses to a list or a scalar is not a mapping and is 
 })
 
 test("rule 2: a wrong value is coerced when it can be, with an error naming the key", () => {
-  const { metadata, errors } = read("---\ntitle: [Alpha, Beta]\ntags: solo\nfeed_limit: '7'\npublished: 'no'\nimage: {src: pic.png}\ndate: 03/04/2026\n---\n\ntext")
+  const { metadata, errors } = read("---\ntitle: [Alpha, Beta]\ntags: solo\nfeed_limit: '7'\nrss_item: 'no'\nimage: {src: pic.png}\ndate: 03/04/2026\n---\n\ntext")
   assert.equal(metadata.title, "Alpha, Beta")
   assert.deepEqual(metadata.fm_tags, ["solo"])
   assert.equal(metadata.fm_feed_limit, 7)
-  assert.equal(metadata.fm_published, false)
+  assert.equal(metadata.rss_item, false)
   assert.equal(metadata.fm_image, "/pic.png")
   assert.equal(metadata.date, "2026-04-03T00:00:00.000Z")
   assert.equal(errors.length, 5, errors.join("\n"))
@@ -136,7 +136,7 @@ test("a site with a broken file and bad values builds whole, logs each, and rend
     assert.match(broken, /Still here\./)
     assert.match(broken, /<hr>/)
     const dated = await readFile(path.join(targetFolder, "dated.html"), "utf-8")
-    assert.match(dated, /<h1>A, B<\/h1>/)
+    assert.match(dated, /<h1 class=fm_title>A, B<\/h1>/, "a title from the frontmatter carries its key")
     assert.equal(dated.includes("<time"), false)
     const errors = logged.filter(([level]) => level === "error").map(([, m]) => m)
     assert.equal(errors.length, 3, errors.join("\n"))

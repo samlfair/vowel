@@ -9,17 +9,17 @@
 	:root {
 		/*
 			these variables declare a stack with system fallbacks
-			declare brand fonts with `--font-x-brand` to keep stack intact
+			declare brand fonts with `--fontfamily-x-brand` to keep stack intact
 		*/
-		--font-stack-serif: var(--font-serif-brand), var(--font-serif-system);
-		--font-stack-sans: var(--font-sans-brand), var(--font-sans-system);
-		--font-stack-monospace: var(--font-monospace-brand), var(--font-monospace-system);
+		--fontfamily-serif: var(--fontfamily-serif-brand), var(--fontfamily-serif-system);
+		--fontfamily-sans: var(--fontfamily-sans-brand), var(--fontfamily-sans-system);
+		--fontfamily-monospace: var(--fontfamily-monospace-brand), var(--fontfamily-monospace-system);
 
-		--font-serif-brand: "Declare a brand serif font with this variable";
-		--font-sans-brand: "Declare a brand sans-serif font with this variable";
-		--font-monospace-brand: "Declare a brand monospace font with this variable";
+		--fontfamily-serif-brand: "Declare a brand serif font with this variable";
+		--fontfamily-sans-brand: "Declare a brand sans-serif font with this variable";
+		--fontfamily-monospace-brand: "Declare a brand monospace font with this variable";
 
-		--font-sans-system:
+		--fontfamily-sans-system:
 			-apple-system,
 			BlinkMacSystemFont,
 			avenir next,
@@ -34,7 +34,7 @@
 			arial,
 			sans-serif;
 
-		--font-monospace-system:
+		--fontfamily-monospace-system:
 			Menlo,
 			Consolas,
 			Monaco,
@@ -42,7 +42,7 @@
 			Lucida Console,
 			monospace;
 
-		--font-serif-system:
+		--fontfamily-serif-system:
 			Iowan Old Style,
 			Apple Garamond,
 			Baskerville,
@@ -60,68 +60,96 @@
 			the recommended root font size on small screens (16px) and
 			large screens (18px)
 		*/
-		--font-size-root: clamp(1rem, 0.875rem + 0.333vw, 1.125rem);
+		--fontsize-root: clamp(1rem, 0.875rem + 0.333vw, 1.125rem);
 
 		/*
 			the difference in size of h1 relative to the root
 			font size; increase or decrease this number for larger or
 			smaller headings
 		*/
-		--font-size-delta: calc(1.5 * var(--font-size-root));
+		--fontsize-delta: calc(1.5 * var(--fontsize-root));
 
 		/*
 			the rate of decay from h1 to h6 font size, where h6 is
 			almost as small as the root font size; a higher number
 			makes subheadings smaller
 		*/
-		--font-size-decay: 3;
+		--fontsize-decay: 3;
 
 		/*
 			letter spacing of h1 and h6, with h2-h6 imputed
 			according to the decay variable
 		*/
-		--letter-spacing-h1: -0.01ch;
-		--letter-spacing-h6: 0ch;
-		--letter-spacing-decay: 2;
+		--letterspacing-h1: -0.01ch;
+		--letterspacing-h6: 0ch;
+		--letterspacing-decay: 2;
 
 		/*
 			weight of h1 and h6, with h2-h6 imputed according
 			to the decay variable
 		*/
-		--font-weight-h1: 800;
-		--font-weight-h6: 600;
-		--font-weight-decay: 2;
+		--fontweight-h1: 800;
+		--fontweight-h6: 600;
+		--fontweight-decay: 2;
 
 		/*
 			*do not edit or overwrite*: calculations to impute
 			font sizes, weights, and spacing between h1 and h6
 		*/
-		--font-size-h1: calc(var(--font-size-root) + var(--font-size-delta));
-		--font-size-h2: calc(var(--font-size-root) + calc(var(--font-size-delta) * pow(5 / 6, var(--font-size-decay))));
-		--font-size-h3: calc(var(--font-size-root) + calc(var(--font-size-delta) * pow(4 / 6, var(--font-size-decay))));
-		--font-size-h4: calc(var(--font-size-root) + calc(var(--font-size-delta) * pow(3 / 6, var(--font-size-decay))));
-		--font-size-h5: calc(var(--font-size-root) + calc(var(--font-size-delta) * pow(2 / 6, var(--font-size-decay))));
-		--font-size-h6: calc(var(--font-size-root) + calc(var(--font-size-delta) * pow(1 / 6, var(--font-size-decay))));
-		--letter-spacing-delta: calc(var(--letter-spacing-h1) - var(--letter-spacing-h6));
-		--letter-spacing-h2: calc(var(--letter-spacing-h6) + calc(var(--letter-spacing-delta) * pow(5 / 6, var(--letter-spacing-decay))));
-		--letter-spacing-h3: calc(var(--letter-spacing-h6) + calc(var(--letter-spacing-delta) * pow(4 / 6, var(--letter-spacing-decay))));
-		--letter-spacing-h4: calc(var(--letter-spacing-h6) + calc(var(--letter-spacing-delta) * pow(3 / 6, var(--letter-spacing-decay))));
-		--letter-spacing-h5: calc(var(--letter-spacing-h6) + calc(var(--letter-spacing-delta) * pow(2 / 6, var(--letter-spacing-decay))));
-		--font-weight-delta: calc(var(--font-weight-h1) - var(--font-weight-h6));
-		--font-weight-h2: calc(var(--font-weight-h6) + calc(var(--font-weight-delta) * pow(5 / 6, var(--font-weight-decay))));
-		--font-weight-h3: calc(var(--font-weight-h6) + calc(var(--font-weight-delta) * pow(4 / 6, var(--font-weight-decay))));
-		--font-weight-h4: calc(var(--font-weight-h6) + calc(var(--font-weight-delta) * pow(3 / 6, var(--font-weight-decay))));
-		--font-weight-h5: calc(var(--font-weight-h6) + calc(var(--font-weight-delta) * pow(2 / 6, var(--font-weight-decay))));
+		--fontsize-h1: calc(var(--fontsize-root) + var(--fontsize-delta));
+		--fontsize-h2: calc(var(--fontsize-root) + calc(var(--fontsize-delta) * pow(5 / 6, var(--fontsize-decay))));
+		--fontsize-h3: calc(var(--fontsize-root) + calc(var(--fontsize-delta) * pow(4 / 6, var(--fontsize-decay))));
+		--fontsize-h4: calc(var(--fontsize-root) + calc(var(--fontsize-delta) * pow(3 / 6, var(--fontsize-decay))));
+		--fontsize-h5: calc(var(--fontsize-root) + calc(var(--fontsize-delta) * pow(2 / 6, var(--fontsize-decay))));
+		--fontsize-h6: calc(var(--fontsize-root) + calc(var(--fontsize-delta) * pow(1 / 6, var(--fontsize-decay))));
+		--_letterspacing-delta: calc(var(--letterspacing-h1) - var(--letterspacing-h6));
+		--letterspacing-h2: calc(var(--letterspacing-h6) + calc(var(--_letterspacing-delta) * pow(5 / 6, var(--letterspacing-decay))));
+		--letterspacing-h3: calc(var(--letterspacing-h6) + calc(var(--_letterspacing-delta) * pow(4 / 6, var(--letterspacing-decay))));
+		--letterspacing-h4: calc(var(--letterspacing-h6) + calc(var(--_letterspacing-delta) * pow(3 / 6, var(--letterspacing-decay))));
+		--letterspacing-h5: calc(var(--letterspacing-h6) + calc(var(--_letterspacing-delta) * pow(2 / 6, var(--letterspacing-decay))));
+		--_fontweight-delta: calc(var(--fontweight-h1) - var(--fontweight-h6));
+		--fontweight-h2: calc(var(--fontweight-h6) + calc(var(--_fontweight-delta) * pow(5 / 6, var(--fontweight-decay))));
+		--fontweight-h3: calc(var(--fontweight-h6) + calc(var(--_fontweight-delta) * pow(4 / 6, var(--fontweight-decay))));
+		--fontweight-h4: calc(var(--fontweight-h6) + calc(var(--_fontweight-delta) * pow(3 / 6, var(--fontweight-decay))));
+		--fontweight-h5: calc(var(--fontweight-h6) + calc(var(--_fontweight-delta) * pow(2 / 6, var(--fontweight-decay))));
+
+		/*
+			heading sizes by context, for the contexts that differ: in
+			main, a heading inside a listing card (article), an aside or a
+			blockquote is set a step or two down the ramp. Set one of
+			these to change that context alone. No context is the
+			default, everywhere else.
+		*/
+		--fontsize-h1-article: var(--fontsize-h3);
+		--fontsize-h2-article: var(--fontsize-h3);
+		--fontsize-h3-article: var(--fontsize-h4);
+		--fontsize-h4-article: var(--fontsize-h5);
+		--fontsize-h5-article: var(--fontsize-h6);
+		--fontsize-h1-aside: var(--fontsize-h3);
+		--fontsize-h2-aside: var(--fontsize-h3);
+		--fontsize-h3-aside: var(--fontsize-h4);
+		--fontsize-h4-aside: var(--fontsize-h5);
+		--fontsize-h5-aside: var(--fontsize-h6);
+		--fontsize-h1-blockquote: var(--fontsize-h3);
+		--fontsize-h2-blockquote: var(--fontsize-h3);
+		--fontsize-h3-blockquote: var(--fontsize-h4);
+		--fontsize-h4-blockquote: var(--fontsize-h5);
+		--fontsize-h5-blockquote: var(--fontsize-h6);
+
+		/* the site's name, in the header */
+		--fontsize-name-header: var(--fontsize-h3);
+		--fontweight-name-header: var(--fontweight-h1);
+		--letterspacing-name-header: var(--letterspacing-h1);
 	}
 
 	html {
-		font-family: var(--font-stack-sans);
+		font-family: var(--fontfamily-sans);
 	}
 
 	pre,
 	code,
 	kbd {
-		font-family: var(--font-stack-monospace);
+		font-family: var(--fontfamily-monospace);
 	}
 
 	/*
@@ -189,8 +217,11 @@
 
 	table {
 		border-collapse: collapse;
-		display: block;
-		overflow: auto;
+	}
+
+	/* a table too wide for the page scrolls sideways inside its figure */
+	figure:has(>table) {
+		overflow-x: auto;
 	}
 
 	time {
@@ -339,6 +370,12 @@
 			overflow-x: auto;
 		}
 
+		/* markdown is prose: its long lines wrap rather than scroll */
+		pre:has(>code:is(.language-markdown, .language-md)) {
+			white-space: pre-wrap;
+			overflow-wrap: anywhere;
+		}
+
 		/* table spacing */
 		td,
 		th {
@@ -379,79 +416,109 @@
 	*/
 
 	body {
-		font-size: var(--font-size-root);
+		font-size: var(--fontsize-root);
 	}
 
 	h1 {
-		font-size: var(--font-size-h1);
-		letter-spacing: var(--letter-spacing-h1);
-		font-weight: var(--font-weight-h1);
+		font-size: var(--fontsize-h1);
+		letter-spacing: var(--letterspacing-h1);
+		font-weight: var(--fontweight-h1);
 
-		main article &,
-		main aside &,
+		main article & {
+			font-size: var(--fontsize-h1-article);
+		}
+
+		main aside & {
+			font-size: var(--fontsize-h1-aside);
+		}
+
 		main blockquote & {
-			font-size: var(--font-size-h3);
+			font-size: var(--fontsize-h1-blockquote);
 		}
 	}
 
 	h2 {
-		font-size: var(--font-size-h2);
-		letter-spacing: var(--letter-spacing-h2);
-		font-weight: var(--font-weight-h2);
+		font-size: var(--fontsize-h2);
+		letter-spacing: var(--letterspacing-h2);
+		font-weight: var(--fontweight-h2);
 
-		main article &,
-		main aside &,
+		main article & {
+			font-size: var(--fontsize-h2-article);
+		}
+
+		main aside & {
+			font-size: var(--fontsize-h2-aside);
+		}
+
 		main blockquote & {
-			font-size: var(--font-size-h3);
+			font-size: var(--fontsize-h2-blockquote);
 		}
 	}
 
 	h3 {
-		font-size: var(--font-size-h3);
-		letter-spacing: var(--letter-spacing-h3);
-		font-weight: var(--font-weight-h3);
+		font-size: var(--fontsize-h3);
+		letter-spacing: var(--letterspacing-h3);
+		font-weight: var(--fontweight-h3);
 
-		main article &,
-		main aside &,
+		main article & {
+			font-size: var(--fontsize-h3-article);
+		}
+
+		main aside & {
+			font-size: var(--fontsize-h3-aside);
+		}
+
 		main blockquote & {
-			font-size: var(--font-size-h4);
+			font-size: var(--fontsize-h3-blockquote);
 		}
 	}
 
 	h4 {
-		font-size: var(--font-size-h4);
-		letter-spacing: var(--letter-spacing-h4);
-		font-weight: var(--font-weight-h4);
+		font-size: var(--fontsize-h4);
+		letter-spacing: var(--letterspacing-h4);
+		font-weight: var(--fontweight-h4);
 
-		main article &,
-		main aside &,
+		main article & {
+			font-size: var(--fontsize-h4-article);
+		}
+
+		main aside & {
+			font-size: var(--fontsize-h4-aside);
+		}
+
 		main blockquote & {
-			font-size: var(--font-size-h5);
+			font-size: var(--fontsize-h4-blockquote);
 		}
 	}
 
 	h5 {
-		font-size: var(--font-size-h5);
-		letter-spacing: var(--letter-spacing-h5);
-		font-weight: var(--font-weight-h5);
+		font-size: var(--fontsize-h5);
+		letter-spacing: var(--letterspacing-h5);
+		font-weight: var(--fontweight-h5);
 
-		main article &,
-		main aside &,
+		main article & {
+			font-size: var(--fontsize-h5-article);
+		}
+
+		main aside & {
+			font-size: var(--fontsize-h5-aside);
+		}
+
 		main blockquote & {
-			font-size: var(--font-size-h6);
+			font-size: var(--fontsize-h5-blockquote);
 		}
 	}
 
 	h6 {
-		font-size: var(--font-size-h6);
-		letter-spacing: var(--letter-spacing-h6);
-		font-weight: var(--font-weight-h6);
+		font-size: var(--fontsize-h6);
+		letter-spacing: var(--letterspacing-h6);
+		font-weight: var(--fontweight-h6);
 	}
 
 	[rel=home] {
-		font-size: var(--font-size-h3);
-		font-weight: var(--font-weight-h1);
-		letter-spacing: var(--letter-spacing-h1);
+		font-size: var(--fontsize-name-header);
+		font-weight: var(--fontweight-name-header);
+		letter-spacing: var(--letterspacing-name-header);
 	}
 
 

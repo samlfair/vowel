@@ -4,7 +4,7 @@ import { styleText } from "node:util"
 import { transform } from "lightningcss"
 import { hash } from "node:crypto"
 import { resolveTheme, themeStylesheets, themeKey } from "./theme.js"
-import { themeColorSchemeCSS } from "../markdown/colorScheme.js"
+import { themeColorSchemeCSS, colorParams } from "../markdown/colorScheme.js"
 import { typographyCSS } from "../markdown/typography.js"
 
 /** @import * as Votive from "votive" */
@@ -54,7 +54,7 @@ function createStubs({ api, settings }) {
     return themeStylesheets(theme, rootTheme).map(sheet => {
       // Generated sheets carry the part of the theme they are generated
       // from, so they re-expand exactly when that part changes.
-      if (sheet.startsWith("colors")) return { path: sheet, params: { colors: config.colors ?? null } }
+      if (sheet.startsWith("colors")) return { path: sheet, params: colorParams(config) }
       if (sheet.startsWith("type")) return { path: sheet, params: { theme: config } }
       return { path: sheet }
     })
@@ -80,8 +80,8 @@ function expandStubs({ path: sourcePath, params }) {
     // Reports and falls back rather than throwing: a site with unusable
     // colours should lose its palette, not its build.
     return {
-      text: themeColorSchemeCSS(params?.colors, error => (
-        console.warn(`${styleText("dim", "build: ")}${styleText("yellow", `ignoring theme.colors - ${error.message}`)}`)
+      text: themeColorSchemeCSS(params ?? {}, error => (
+        console.warn(`${styleText("dim", "build: ")}${styleText("yellow", error.message)}`)
       ))
     }
   }

@@ -29,17 +29,21 @@
   // socket pushes, so it is read at save time rather than when the
   // editor opened. Taking the frontmatter from the source rather than
   // the rendered page is what lets a key that never renders survive a
-  // save. The title is the one key that isn't kept: it is written back
-  // as a `#` heading, never as `title:`, so a file whose title lived
-  // only in frontmatter gains a heading and loses the key.
+  // save. A title declared in the frontmatter (`h1.fm_title`) stays a
+  // `title:` key; one from a `#` heading is written back as one. The
+  // natural metadata - a date line, an image, a description and its
+  // rule, lifted out of the content when the page was built - goes back
+  // between the heading and the body.
   async function save() {
     const { path, markdown: text } = getSource()
     if (!path || typeof text !== "string") {
       console.error("[vowel] not saved: this page has no source to save to")
       return
     }
-    const { title: ignoredTitle, ...properties } = splitFrontmatter(text).data
-    const markdown = serialize(session.doc, { title: frontmatter.title, properties })
+    const { title: sourceTitle, ...rest } = splitFrontmatter(text).data
+    const properties = frontmatter.titleDeclared ? { title: sourceTitle, ...rest } : rest
+    const title = frontmatter.titleDeclared ? null : frontmatter.title
+    const markdown = serialize(session.doc, { title, natural: frontmatter.natural, properties })
     await writeFile(path, markdown)
     console.info("[vowel] saved %s", path)
   }

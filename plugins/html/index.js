@@ -13,7 +13,7 @@ import { gfmTable } from 'micromark-extension-gfm-table'
 import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
 import { h } from 'hastscript'
 import { readFileSync } from "fs"
-import { testURL, testHashtags, createHashtagPage, toTitleCase, hashtagRegexSingle, createImagePaths, imageSizes, imageExts } from "./../../utils.js"
+import { testURL, testHashtags, createHashtagPage, labelFromName, isPageWithoutFile, pageClasses, hashtagRegexSingle, createImagePaths, imageSizes, imageExts } from "./../../utils.js"
 import extractDate from "./../../extractDate.js"
 import { reservedProperties, hiddenProperties } from "./../markdown/metadata.js"
 import { toString as hastToString } from 'hast-util-to-string'
@@ -22,6 +22,8 @@ import toc from "@jsdevtools/rehype-toc"
 import slug from "rehype-slug"
 import createDynamicImage from "./image.js"
 import { listPages } from "./../../utils.js"
+import { pageRecordURI } from "../atproto/record.js"
+import { STATUSES } from "../markdown/frontmatter.js"
 import { themeStylesheets, isVowelStylesheet } from "../styles/theme.js"
 import { displayPath } from "../../secretPaths.js"
 import { socialLinksNav } from "./socialLinks.js"
@@ -75,8 +77,9 @@ function siteName(settings, api) {
  * @param {string} url
  * @param {import("votive").PluginAPI} api
  * @param {Votive.VotiveConfig} config
+ * @param {string} [source] - the page's source path, for its classes
  */
-function makeHeader(metadata, url, api, config) {
+function makeHeader(metadata, url, api, config, source) {
 
   const treeMainHead = []
 
@@ -89,7 +92,7 @@ function makeHeader(metadata, url, api, config) {
     treeMainHead.push(makeTime(date))
   }
 
-  if (metadata.image || (metadata.first_image && url)) {
+  if (metadata.image || metadata.first_image) {
     const metaImage = metadata.image || metadata.first_image
 
     treeMainHead.push(
@@ -106,9 +109,36 @@ function makeHeader(metadata, url, api, config) {
     )
   )
 
-  if (url) return h('a', { href: url }, h('article', treeMainHead))
+  // A card carries its page's classes, as the page's <body> does, and is
+  // an item of its own: the itemprops inside it (date, description,
+  // image) describe that page, not the page it's listed on. A page with
+  // no file (`html_file: false`) has no url, so its card links nowhere.
+  const article = h('article', { className: pageClasses(metadata.prettyURL, source), itemscope: true }, treeMainHead)
+  return url ? h('a', { href: url }, article) : article
+}
 
-  return treeMainHead
+/**
+ * How many links a hast tree holds.
+ * @param {any} node
+ * @returns {number}
+ */
+function linkCount(node) {
+  const own = node.tagName === "a" ? 1 : 0
+  const children = node.children ?? []
+  return children.reduce((sum, child) => sum + linkCount(child), own)
+}
+
+/**
+ * The nav, or null when it has fewer than two links: a nav is only
+ * rendered when there is somewhere else to go (per Sam). A one-entry
+ * menu, a trail that is only the home crumb, a table of contents with
+ * one heading are left out of the page, rather than hidden with CSS.
+ * Social links are exempt: one link is still a `rel="me"` verification.
+ * @param {any} nav - a hast element, or null
+ */
+function navWithChoices(nav) {
+  if (!nav) return null
+  return linkCount(nav) > 1 ? nav : null
 }
 
 /**
@@ -187,35 +217,81 @@ function makeValue(value) {
  * @param {import("votive").PluginAPI} api
  * @param {Votive.VotiveConfig} config
  */
-function makeFrontmatter(metadata, api, config) {
-  const handled = ["title", "tagline", "date", "image", "description"]
+/**
+ * An element with one more class. Frontmatter properties carry their key
+ * this way (`fm_date`, `fm_description`), which is how the editor tells
+ * them from the same properties written in the text: those have the
+ * itemprop and no class.
+ * @param {any} node - a hast element, or nothing
+ * @param {string} name
+ */
+function withClass(node, name) {
+  if (!node) return node
+  const className = [...(node.properties?.className ?? []), name]
+  return { ...node, properties: { ...node.properties, className } }
+}
+
+/**
+ * Natural metadata, lifted out of the content: the date line, image and
+ * description the author wrote in the text, which the read marked
+ * (`data-metadata`, metadata.js) and the write walk has already turned
+ * into a <time>, a <picture> and a paragraph. Each becomes a direct
+ * child of <main>, like its frontmatter equivalent but without the
+ * `fm_` class; the rule that closed a description renders as nothing.
+ * The source is untouched - only where the output puts them.
+ * @param {any} tree - the walked content; the marked blocks are removed from it
+ * @returns {any[]}
+ */
+function naturalMetadata(tree) {
+  const isMarked = (node) => Boolean(node.properties?.dataMetadata)
+  const marked = tree.children.filter(isMarked)
+  tree.children = tree.children.filter(node => !isMarked(node))
+
+  return marked.flatMap(node => {
+    const { dataMetadata: kind, ...properties } = node.properties
+    if (kind === "end") return []
+    if (kind === "description") return [{ ...node, properties }]
+    // A date or an image paragraph only wrapped the one element that is
+    // the metadata: the <time>, or the <picture> (an <img> until the
+    // image has been read).
+    const element = node.children.find(child => child.type === "element")
+    if (!element) return []
+    return [{ ...element, properties: { ...element.properties, itemprop: kind } }]
+  })
+}
+
+function makeFrontmatter(metadata, api, config, natural = []) {
+  const handled = ["title", "slogan", "date", "image", "description"]
 
   // hiddenProperties never render: the editor takes frontmatter from
   // the source file, so nothing is lost by leaving a key off the page.
+  // `status` is shown only when it's the author's own word ("evergreen");
+  // vowel's four (published, hidden, …) are instructions, not content.
+  const ownStatus = !STATUSES.includes(metadata.fm_status)
   const properties = (metadata.frontmatter_keys || []).filter(key => {
-    return !handled.includes(key) && !hiddenProperties.includes(key)
+    return !handled.includes(key) && !hiddenProperties.includes(key) && (key !== "status" || ownStatus)
   })
 
   const known = []
 
   if (metadata.fm_date) {
-    known.push(makeTime(new Date(metadata.fm_date)))
+    known.push(withClass(makeTime(new Date(metadata.fm_date)), "fm_date"))
   }
 
   if (metadata.fm_image) {
-    known.push(createDynamicImage(metadata.fm_image, api, null, true))
+    known.push(withClass(createDynamicImage(metadata.fm_image, api, null, true), "fm_image"))
   }
 
   if (metadata.fm_description) {
-    known.push(h("p", { itemprop: "description" }, metadata.fm_description))
+    known.push(h("p.fm_description", { itemprop: "description" }, metadata.fm_description))
   }
 
   const generic = properties.map(key => {
     const name = reservedProperties.includes(key) ? key : "fm_" + key
-    return h("dl", [h("dt", key), h("dd", makeValue(metadata[name]))])
+    return h(`dl.fm_${key}`, [h("dt", key), h("dd", makeValue(metadata[name]))])
   })
 
-  return [...known, ...generic]
+  return [...known, ...natural, ...generic]
 }
 
 /** @type {Votive.ProcessorWrite} */
@@ -289,11 +365,26 @@ function writeFile(target, { settings, api, config }) {
   // setting); the root's decides which theme gets the plain file names.
   const themeSheets = themeStylesheets(settings.lastNonNull("theme"), settings.raw("theme")?.[0]?.at(-1))
 
+  // The sheets a `styles:` names: each settings.md's along the chain,
+  // root first, then the page's own frontmatter. A path is a URL path
+  // from the root (frontmatter.js resolves it); a URL - a web font's
+  // stylesheet - is linked as written. A path to no file is skipped,
+  // with a warning: the <link> would 404. api.target() tracks it, so
+  // the file appearing later relinks the page.
+  const listed = [...new Set([...(settings.flat("fm_styles") ?? []), ...(metadata.fm_styles ?? [])])]
+  const external = listed.filter(entry => /^[a-z][a-z0-9+.-]*:|^\/\//i.test(entry))
+  const named = listed
+    .filter(entry => !external.includes(entry))
+    .map(entry => ({ entry, sheet: entry.replace(/^\/+/, "").split("/").join(path.sep) }))
+  const missing = named.filter(({ sheet }) => !api.target(sheet))
+  missing.forEach(({ entry }) => config.log?.("warn", `${target.path}: styles names ${entry}, which isn't in the project`))
+  const namedSheets = named.filter(({ sheet }) => !missing.some(gone => gone.sheet === sheet)).map(({ sheet }) => sheet)
+
   // A stub stylesheet has a source path like any other source, so the
   // `sheet.source` test alone no longer separates vowel's sheets from the
   // project's - exclude them by name instead, or every theme sheet would
   // be linked twice.
-  const sheets = [...themeSheets, ...projectSheets.map(sheet => sheet.path).filter(sheet => !themeSheets.includes(sheet))]
+  const sheets = [...new Set([...themeSheets, ...projectSheets.map(sheet => sheet.path), ...namedSheets])]
   const projectHash = new Map(projectSheets.map(sheet => [sheet.path, sheet.hash]))
 
   sheets.forEach(sheet => {
@@ -321,124 +412,31 @@ function writeFile(target, { settings, api, config }) {
           })
         )
   })
+  external.forEach(href => treeStyleSheets.push(h('link', { rel: "stylesheet", href })))
 
-  // The document title: the page's own title, then every `name:` from
-  // the page's folder up to the root, then the page's own tagline,
-  // hyphen-delimited - "Hats - Shop - Site - Warm heads". The homepage is
-  // the site's front door and shows the site's name and its tagline.
+  // The document title: the page's own title, then every folder from
+  // the page's up to the root, then the site's name, then the page's
+  // own slogan, hyphen-delimited - "Hats - Shop - Site - Warm heads".
+  // The homepage is the site's front door and shows the site's name and
+  // its slogan.
   function createTitle() {
     if (isRoot) {
-      return [site || metadata?.title, metadata?.fm_tagline]
+      return [site || metadata?.title, metadata?.fm_slogan]
         .filter(a => a)
         .join(" - ")
     }
 
-    const names = settings.flat("fm_name").reverse()
-    const chain = names.length ? names : (site ? [site] : [])
-    const parts = [metadata.title, ...chain, metadata.fm_tagline].filter(a => a)
+    // Every folder between the page and the root, leaf first, by the
+    // label its breadcrumb shows: its index page's. `name:` is the
+    // site's, so the root (index 0) is left to `site`.
+    const folders = ancestorFolders
+      .map((folder, index) => index === 0 ? null : folderCrumb(folder, index).label)
+      .slice(1)
+      .reverse()
+    const parts = [metadata.title, ...folders, site, metadata.fm_slogan].filter(a => a)
     return parts.length ? parts.join(" - ") : "Website"
   }
 
-
-  const site = siteName(settings, api)
-  const title = createTitle()
-
-
-  const treeHead = h('head', [
-    h('meta', {
-      charset: "UTF-8",
-    }),
-    h("meta", {
-      name: "viewport",
-      content: "width=device-width, initial-scale=1.0"
-    }),
-    h("meta", {
-      "http-equiv": "X-UA-Compatible",
-      content: "ie-edge"
-    }),
-    h('title', title),
-    h('meta', {
-      property: "og:title",
-      content: title
-    }),
-    h('meta', {
-      property: "og:description",
-      content: metadata.description,
-    }),
-    ...treeStyleSheets,
-  ])
-
-  const settingsDomain = settings.lastNonNull("fm_domain")
-  if (settingsDomain) {
-    const domain = settingsDomain.startsWith("http")
-      ? settingsDomain
-      : "https://" + settingsDomain
-
-    const { href } = new URL(metadata.prettyURL, domain)
-
-    treeHead.children.push(
-      h("meta", {
-        property: "og:url",
-        content: href
-      }),
-      h("link", {
-        rel: "canonical",
-        href
-      })
-    )
-  }
-
-  // The page's AT Protocol record, for readers that verify a document
-  // against its site: standard.site's convention, so only for a
-  // site.standard.document, and only for a page that can be one - it
-  // needs a title and a date (its `publishedAt`). Set by the atproto
-  // plugin's transform for a page under a lexicon.
-  const standardDocument = typeof metadata.atUri === "string" && metadata.atUri.split("/")[3] === "site.standard.document"
-  if (standardDocument && metadata.title && metadata.date) {
-    treeHead.children.push(h("link", {
-      rel: "site.standard.document",
-      href: metadata.atUri
-    }))
-  }
-
-  if (metadata.image) {
-    treeHead.children.push(h("meta", {
-      property: "og:image",
-      content: metadata.image
-    }))
-  }
-
-
-  /* FIXME this could be a section title */
-  if (site) {
-    treeHead.children.push(h("meta", {
-      property: "og:site_name",
-      content: site
-    }))
-  }
-
-  // `icon` is a path, everywhere (Sam, Sept 19) - a URL path from the
-  // root, resolved at read like `logo` (frontmatter.js). The type is
-  // taken from its extension; a browser ignores a wrong one, but a
-  // right one lets it pick between several.
-  const icon = settings.lastNonNull("fm_icon")
-  if (icon) {
-    treeHead.children.push(h("link", {
-      href: icon,
-      rel: "icon",
-      type: iconType(icon)
-    }))
-  }
-
-  // The header nav is a partial: the lists for this page's folder chain,
-  // computed once per pass by createPartialStubs and rendered once by
-  // the partials processor. A page whose own name is a folder (shop.html
-  // beside shop/) takes that folder's chain, which ends in its own
-  // list; otherwise its folder's. The first lookup may miss - votive
-  // tracks the miss, so the page is rebuilt if that folder appears.
-  const treeNav = navPartial ? withCurrent(navPartial.metadata.hast, metadata.prettyURL) : h("nav")
-
-  let treeBreadcrumbs = []
 
   /**
    * A folder's crumb, deduced from the path at render time rather than
@@ -473,18 +471,129 @@ function writeFile(target, { settings, api, config }) {
     // index 0 is the root, so ancestor i is source segment i - 1.
     const sourceName = sourceFolderNames[index - 1]
     const label = indexTarget?.metadata?.breadcrumb
-      || toTitleCase(sourceName ?? folderPath.split(path.sep).at(-1))
+      || labelFromName(sourceName ?? folderPath.split(path.sep).at(-1))
     // folderPath is a stored folder (path.sep); an href is a url.
     return { label, href: indexTarget ? "/" + folderPath.split(path.sep).join("/") : null }
   }
 
+  const site = siteName(settings, api)
+  const title = createTitle()
+
+
+  const treeHead = h('head', [
+    h('meta', {
+      charset: "UTF-8",
+    }),
+    h("meta", {
+      name: "viewport",
+      content: "width=device-width, initial-scale=1.0"
+    }),
+    h("meta", {
+      "http-equiv": "X-UA-Compatible",
+      content: "ie-edge"
+    }),
+    h('title', title),
+    h('meta', {
+      property: "og:title",
+      content: title
+    }),
+    h('meta', {
+      property: "og:description",
+      content: metadata.description,
+    }),
+    // The plain description most search engines read; og: is for
+    // link previews.
+    ...(metadata.description ? [h('meta', { name: "description", content: metadata.description })] : []),
+    ...treeStyleSheets,
+  ])
+
+  const settingsDomain = settings.lastNonNull("fm_domain")
+  if (settingsDomain) {
+    const domain = settingsDomain.startsWith("http")
+      ? settingsDomain
+      : "https://" + settingsDomain
+
+    const { href } = new URL(metadata.prettyURL, domain)
+
+    treeHead.children.push(
+      h("meta", {
+        property: "og:url",
+        content: href
+      }),
+      h("link", {
+        rel: "canonical",
+        href
+      })
+    )
+  }
+
+  // The page's AT Protocol record, for readers that verify a document
+  // against its site: standard.site's convention, so only for a
+  // site.standard.document, and only for a page that can be one - it
+  // needs a title and a date (its `publishedAt`). Worked out here, from
+  // the settings this write reads and so is rebuilt by, rather than
+  // stored by a transform that only reruns when the page is re-read.
+  const record = pageRecordURI(target, settings)
+  if (record.warning) config.log?.("warn", `${target.path}: ${record.warning}`)
+  const standardDocument = typeof record.uri === "string" && record.uri.split("/")[3] === "site.standard.document"
+  if (standardDocument && metadata.title && metadata.date) {
+    treeHead.children.push(h("link", {
+      rel: "site.standard.document",
+      href: record.uri
+    }))
+  }
+
+  // The page's own image, else the site's `fallback_image` (a setting,
+  // so a folder can have its own), so a link preview always has one.
+  const ogImage = metadata.image || settings.lastNonNull("fm_fallback_image")
+  if (ogImage) {
+    treeHead.children.push(h("meta", {
+      property: "og:image",
+      content: ogImage
+    }))
+  }
+
+
+  /* FIXME this could be a section title */
+  if (site) {
+    treeHead.children.push(h("meta", {
+      property: "og:site_name",
+      content: site
+    }))
+  }
+
+  // `icon` is a path, everywhere (Sam, Sept 19) - a URL path from the
+  // root, resolved at read like `logo` (frontmatter.js). The type is
+  // taken from its extension; a browser ignores a wrong one, but a
+  // right one lets it pick between several. Without one, the project's
+  // own favicon.png, else Vowel's placeholder (plugins/images). A
+  // tracked read, so a favicon.png that appears later is linked.
+  const icon = settings.lastNonNull("fm_icon")
+    ?? (api.target("favicon.png") ? "/favicon.png" : "/favicon-placeholder.png")
+  treeHead.children.push(h("link", {
+    href: icon,
+    rel: "icon",
+    type: iconType(icon)
+  }))
+
+  // The header nav is a partial: the lists for this page's folder chain,
+  // computed once per pass by createPartialStubs and rendered once by
+  // the partials processor. A page whose own name is a folder (shop.html
+  // beside shop/) takes that folder's chain, which ends in its own
+  // list; otherwise its folder's. The first lookup may miss - votive
+  // tracks the miss, so the page is rebuilt if that folder appears.
+  const treeNav = navWithChoices(navPartial ? withCurrent(navPartial.metadata.hast, metadata.prettyURL) : null)
+
+  let treeBreadcrumbs = []
+
+  // Always an <a>, with or without an href: the breadcrumb's CSS styles
+  // its links, and a <span> among them broke it. A crumb has no href
+  // only when its folder has no index page to go to.
   treeBreadcrumbs.push(
     ...ancestorFolders
       .map(folderCrumb)
       .filter(crumb => crumb.label)
-      .map(crumb => crumb.href
-        ? h('a', { href: crumb.href }, crumb.label)
-        : h('span', crumb.label))
+      .map(crumb => h('a', crumb.href ? { href: crumb.href } : {}, crumb.label))
   )
 
   if (!isRoot) {
@@ -509,7 +618,7 @@ function writeFile(target, { settings, api, config }) {
     identityElements.push(h("img#logo", {
       src: logo,
       "aria-label": "Logo",
-      style: `--logo-url: url("${logo}")`,
+      style: `--url-logo: url("${logo}")`,
       alt: ""
     }))
   }
@@ -560,16 +669,19 @@ function writeFile(target, { settings, api, config }) {
 
   const treeTableOfContents = treeContentSlugged.children.shift()
 
-  const treeMainHead = makeFrontmatter(metadata, api, config)
-
-  treeMainHead.push(treeTableOfContents)
-
   // One walk for everything that renders against other targets, settings
   // or the url store: relative links, wikilinks, icons, code highlighting,
   // images, directives, link previews and alerts. See writeRules.js.
   // After the slugger, so a listing's headings stay out of the contents.
   const walked = { target, api, config, settings, makeHeader, makeTable, highlighted: false }
   writeWalk(abstract, walked)
+
+  // After the walk, so a natural image is already its <picture>.
+  const natural = naturalMetadata(abstract)
+  const treeMainHead = makeFrontmatter(metadata, api, config, natural)
+
+  const tableOfContents = navWithChoices(treeTableOfContents)
+  if (tableOfContents) treeMainHead.push(tableOfContents)
 
   if (walked.highlighted) {
     // syntax-highlighting.css is always declared by the styles processor
@@ -592,20 +704,23 @@ function writeFile(target, { settings, api, config }) {
     [
       // The title is main's first child: the one piece of data hoisted out
       // of the content regardless of where the author placed it.
-      ...(metadata.title ? [h("h1", metadata.title)] : []),
-      // A tagline is the page's, not the site's: under its title.
-      ...(metadata.fm_tagline ? [h("p#tagline", metadata.fm_tagline)] : []),
-      h('nav', {
+      ...(metadata.title ? [h("h1", metadata.fm_title ? { className: ["fm_title"] } : {}, metadata.title)] : []),
+      // A slogan is the page's, not the site's: under its title. An
+      // itemprop, not an id: a listing can hold several, one per card.
+      ...(metadata.fm_slogan ? [h("p.fm_slogan", { itemprop: "slogan" }, metadata.fm_slogan)] : []),
+      navWithChoices(h('nav', {
         'aria-label': 'Breadcrumbs'
-      }, treeBreadcrumbs),
+      }, treeBreadcrumbs)),
       treeMainHead,
       h('section#content', abstract),
       treeBacklinks
     ].filter(Boolean))
 
-  // The aside tree is one partial, the same on every page.
+  // The aside tree is one partial, the same on every page. Without a
+  // nav worth rendering there is no aside at all.
   const asidePartial = api.target(ASIDE_PARTIAL)
-  const treeAside = h("aside", asidePartial ? asidePartial.metadata.hast : h("nav", h("ul")))
+  const asideNav = navWithChoices(asidePartial ? asidePartial.metadata.hast : null)
+  const treeAside = asideNav ? h("aside", asideNav) : null
 
   const treeFooter = h('footer', [
     socialLinksNav(settings),
@@ -618,14 +733,7 @@ function writeFile(target, { settings, api, config }) {
     ])
   ])
 
-  const pageClass = target.metadata.prettyURL
-    .split("/")
-    .filter(a => a)
-    .map(a => a.replace("_", ""))
-    .join("_")
-    || "home"
-
-  const treeBody = h(`body.${pageClass}`, [
+  const treeBody = h("body", { className: pageClasses(target.metadata.prettyURL, target.source) }, [
     treeHeader,
     treeMain,
     treeAside,
@@ -682,6 +790,7 @@ function makeTable(classes, properties, targets, api) {
 
   const cell = (target, name) => {
     const value = valueOf(target.metadata, name)
+    if (name === "title" && isPageWithoutFile(target)) return h("td", value ?? "")
     if (name === "title") return h("td", h("a", { href: target.metadata.prettyURL }, value ?? target.metadata.prettyURL))
     if (value === undefined || value === null) return h("td")
     if (name === "image") return h("td", createDynamicImage(String(value), api, "") ?? String(value))
@@ -690,10 +799,12 @@ function makeTable(classes, properties, targets, api) {
     return h("td", String(value))
   }
 
-  return h("table", { class: classes }, [
+  // In a <figure>, like a markdown table (markdown/index.js). The
+  // directive's parameters stay on the <table>, where the editor reads them.
+  return h("figure", h("table", { class: classes }, [
     h("thead", h("tr", properties.map(name => h("th", name)))),
     h("tbody", targets.map(target => h("tr", properties.map(name => cell(target, name)))))
-  ])
+  ]))
 }
 
 /**

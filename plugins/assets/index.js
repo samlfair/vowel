@@ -20,7 +20,7 @@ import path from "node:path"
  * to be there; adding an extension is adding it here.
  */
 
-const EXTENSIONS = [".mp4", ".webm", ".csv", ".json", ".pdf"]
+const EXTENSIONS = [".mp4", ".webm", ".csv", ".json", ".pdf", ".ico"]
 
 /** 25 MiB: Cloudflare Pages' per-file limit. */
 const DEFAULT_SIZE_LIMIT = 25 * 1024 * 1024

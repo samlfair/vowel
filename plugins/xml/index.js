@@ -1,5 +1,5 @@
 import xml from "xml"
-import { listPages } from "./../../utils.js"
+import { showPages, isPageWithoutFile } from "./../../utils.js"
 import { entryContent } from "./entryContent.js"
 
 /** @import * as Votive from "votive" */
@@ -134,7 +134,10 @@ const processor = {
       // the entries kept read it. `feed_limit` in settings.md raises or
       // lowers it.
       const limit = Number(settings.lastNonNull("fm_feed_limit")) || DEFAULT_FEED_LIMIT
-      const pages = listPages(api, {
+      // A page with no file (`html_file: false`) is an entry too, with
+      // its body and no <link>: Atom needs an <id> and content, not a
+      // link, which is what makes a feed-only post possible.
+      const pages = showPages(api, {
         query: {
           "!": {
             rss_item: false
@@ -194,21 +197,25 @@ const processor = {
 
       feed.push(
         ...pages.map((page) => {
+          // The url the page has, or would have: an Atom <id> is an
+          // identifier, so a page without a file keeps the one it would
+          // have, and keeps it if it gets a file later.
           const url = (new URL(page.path, domain)).href
+          const link = isPageWithoutFile(page) ? [] : [{
+            link: {
+              _attr: {
+                rel: 'alternate',
+                href: url
+              }
+            }
+          }]
 
           /** @type {object[]} */
           const entry = [
             {
               title: page.metadata.title
             },
-            {
-              link: {
-                _attr: {
-                  rel: 'alternate',
-                  href: url
-                }
-              }
-            },
+            ...link,
             { id: url },
             { updated: page.metadata.date }
           ];

@@ -7,7 +7,7 @@ import votive from "votive"
 import { systemDirectoryFor } from "../../systemPaths.js"
 import { EXPECTED } from "../markdown/frontmatter.js"
 import { contentSection } from "../xml/entryContent.js"
-import { PUBLICATION, siteOrigin, publicationURI } from "./record.js"
+import { PUBLICATION, siteOrigin, publicationURI, pageRecordURI } from "./record.js"
 import { createLexiconResolver, resolvePDS } from "./lexicons.js"
 import { mapRecord } from "./mapper.js"
 import { markdownBody, richTextBody } from "./body.js"
@@ -233,6 +233,36 @@ function pageFor(target, pageURL) {
 }
 
 /**
+ * The folder whose settings a page reads: the page as a folder -
+ * `blog/post.html` → `blog/post` - which is what votive hands a write
+ * (`pageSettingsFolder` in votive's lib/utils, not exported), so publish
+ * sees each page's lexicon exactly as its write did. `index.html` is
+ * `/index` there, and here.
+ * @param {string} targetPath
+ */
+function pageSettingsFolder(targetPath) {
+  const segments = targetPath.split("/").filter(Boolean)
+  const folder = path.relative("", [...segments.slice(0, -1), ""].join(path.sep))
+  return folder + path.sep + path.parse(targetPath).name
+}
+
+/**
+ * Every page under a lexicon, with its AT-URI: the author's own pages -
+ * a generated one (a tag page, a folder index, the default home or 404)
+ * is a stub, and inherits a folder's lexicon without being anything to
+ * publish.
+ * @param {any} database - a built site's
+ * @returns {{ target: any, uri: string }[]}
+ */
+function recordPages(database) {
+  const stubs = new Set(database.source.getStubs().map(row => row.path))
+  return database.target.getAll()
+    .filter(target => target.extension === ".html" && !stubs.has(target.source))
+    .map(target => ({ target, uri: pageRecordURI(target, database.setting.getByFolder(pageSettingsFolder(target.path))).uri }))
+    .filter(page => typeof page.uri === "string")
+}
+
+/**
  * What the site should hold: every page under a lexicon - its AT-URI,
  * its status, and what mapper.js reads - the site's own settings, and
  * the publication's name, description and icon. The icon is read from
@@ -257,13 +287,8 @@ async function collectPages(config) {
       const pds = root.lastNonNull("fm_atproto_pds")
       const domain = root.lastNonNull("fm_domain")
       const origin = siteOrigin(domain)
-      // Only the author's own pages: a generated one - a tag page, a
-      // folder index, the default home or 404 - is a stub, and inherits a
-      // folder's lexicon without being anything to publish.
-      const stubs = new Set(site.database.source.getStubs().map(row => row.path))
-      const targets = site.database.target.getAll()
-      const pages = targets.filter(target => typeof target.metadata.atUri === "string" && !stubs.has(target.source)).map(target => {
-        const [, , account, collection, rkey] = target.metadata.atUri.split("/")
+      const pages = recordPages(site.database).map(({ target, uri }) => {
+        const [, , account, collection, rkey] = uri.split("/")
         const pageURL = new URL(target.metadata.prettyURL, origin).href
         const contentLexicon = site.database.setting.getByFolder(target.dir).lastNonNull("fm_atproto_content")
         return {
@@ -468,4 +493,4 @@ async function publishToAtproto(payload, { config, notify }) {
   return summary
 }
 
-export { publishToAtproto, planWrites, planPublication, sameRecord, resolvePDS, blobCID, xrpc, passwordFile }
+export { publishToAtproto, recordPages, pageSettingsFolder, planWrites, planPublication, sameRecord, resolvePDS, blobCID, xrpc, passwordFile }

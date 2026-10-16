@@ -3,84 +3,108 @@
 			Barebones, Basic.css, Pico, Typeplate, Simple.css, and more
 		*/
 
+/*
+	Variable names: --{kind}-{subject}-{variant}-{state}-{context},
+	general to specific, unused positions dropped, one word per position
+	(compounds joined: fontsize, borderradius).
+
+	kind      the CSS type when the value feeds many properties (color,
+	          url, string), else the property it feeds (fontsize, gap)
+	context   where it applies: an element (main, article, aside) or a
+	          component (menu, panel); none means the default
+
+	--color-link-hover-menu    --fontsize-h1-article    --color-primary-01
+	--_name is internal to a sheet: computed here, not for setting.
+*/
+
 @layer reset, typography, default, dynamic-typography;
 
 @layer default {
 	:root {
 
 		/* vertical space between main sections */
-		--large-gap: 3em;
+		--gap-large: 3em;
 
 		/* vertical space within content */
-		--small-gap: 2em;
+		--gap-small: 2em;
 
 		/* horizontal space between items */
-		--gutter: 2em;
+		--gap-gutter: 2em;
 
 		/* main body maximum width */
 		--width-body: 100ch;
 
-		--separator-breadcrumb: "/";
+		--string-separator-breadcrumb: "/";
 
 		/* borders */
-		--border-radius-tight: 5px;
-		--border-radius-loose: calc(clamp(0.3rem, 1vw, 0.7rem) + 2px);
+		--borderradius-tight: 5px;
+		--borderradius-loose: calc(clamp(0.3rem, 1vw, 0.7rem) + 2px);
 
 		/* body colors */
-		--color-background-body: light-dark(var(--primary-10), var(--primary-01));
-		--color-text-body: light-dark(var(--primary-01), var(--primary-10));
-		--color-heading-body: light-dark(var(--primary-01), var(--primary-09));
-		--color-link-body: light-dark(var(--secondary-05), var(--secondary-09));
-		--color-link-hover-body: light-dark(var(--secondary-07), var(--secondary-10));
-		--color-border-body: light-dark(var(--primary-07), var(--primary-04));
-		--color-highlight-body: light-dark(var(--secondary-08), var(--secondary-03));
+		--color-background-body: light-dark(var(--color-primary-10), var(--color-primary-01));
+		--color-text-body: light-dark(var(--color-primary-01), var(--color-primary-10));
+		--color-heading-body: light-dark(var(--color-primary-01), var(--color-primary-09));
+		--color-link-body: light-dark(var(--color-secondary-05), var(--color-secondary-09));
+		--color-link-hover-body: light-dark(var(--color-secondary-07), var(--color-secondary-10));
+		--color-border-body: light-dark(var(--color-primary-07), var(--color-primary-03));
+		--color-highlight-body: light-dark(var(--color-secondary-08), var(--color-secondary-03));
 
 		/* menu colors */
-		--color-background-menu: light-dark(var(--primary-09), var(--primary-02));
-		--color-surface-menu: light-dark(var(--tertiary-09), var(--tertiary-02));
-		--color-surface-border-menu: light-dark(var(--tertiary-09), var(--tertiary-01));
-		--color-border-menu: light-dark(var(--primary-07), var(--primary-03));
-		--color-link-menu: light-dark(var(--tertiary-04), var(--tertiary-09));
-		--color-link-disabled-menu: light-dark(var(--secondary-04), var(--secondary-07));
-		--color-link-hover-menu: light-dark(var(--tertiary-06), var(--tertiary-10));
+		--color-background-menu: light-dark(var(--color-primary-09), var(--color-primary-02));
+		--color-surface-menu: light-dark(var(--color-tertiary-09), var(--color-tertiary-02));
+		--color-border-surface-menu: light-dark(var(--color-tertiary-09), var(--color-tertiary-01));
+		--color-border-menu: light-dark(var(--color-primary-07), var(--color-primary-03));
+		--color-link-menu: light-dark(var(--color-tertiary-04), var(--color-tertiary-09));
+		--color-link-disabled-menu: light-dark(var(--color-secondary-04), var(--color-secondary-07));
+		--color-link-hover-menu: light-dark(var(--color-tertiary-06), var(--color-tertiary-10));
 
 		/* panel colors */
-		--color-background-panel: light-dark(var(--primary-09), var(--primary-02));
-		--color-background-hover-panel: light-dark(var(--primary-09), var(--primary-02));
-		--color-border-panel: light-dark(var(--primary-08), var(--primary-02));
-		--color-text-panel: light-dark(var(--primary-02), var(--primary-08));
-		--color-text-hover-panel: light-dark(var(--primary-02), var(--primary-08));
-		--color-border-hover-panel: light-dark(var(--accent-08), var(--accent-05));
+		--color-background-panel: light-dark(var(--color-primary-09), var(--color-primary-02));
+		--color-background-hover-panel: light-dark(var(--color-primary-09), var(--color-primary-02));
+		--color-border-panel: light-dark(var(--color-primary-08), var(--color-primary-02));
+		--color-text-panel: light-dark(var(--color-primary-02), var(--color-primary-08));
+		--color-text-hover-panel: light-dark(var(--color-primary-02), var(--color-primary-08));
+		--color-border-hover-panel: light-dark(var(--color-accent-08), var(--color-accent-05));
 
 		/* pre colors */
-		--color-background-pre: light-dark(var(--tertiary-09), var(--tertiary-02));
-		--color-border-pre: light-dark(var(--tertiary-08), var(--tertiary-01));
-		--color-text-pre: light-dark(var(--tertiary-02), var(--tertiary-02));
+		--color-background-pre: light-dark(var(--color-tertiary-09), var(--color-tertiary-02));
+		--color-border-pre: light-dark(var(--color-tertiary-08), var(--color-tertiary-01));
+		--color-text-pre: light-dark(var(--color-tertiary-02), var(--color-tertiary-02));
 
-		/* semantic colors */
-		--color-text-warning: light-dark(var(--warning-01), var(--warning-10));
-		--color-heading-warning: light-dark(var(--warning-02), var(--warning-09));
-		--color-icon-warning: light-dark(var(--warning-04), var(--warning-07));
-		--color-background-warning: light-dark(var(--warning-09), var(--warning-02));
-		--color-border-warning: light-dark(var(--warning-07), var(--warning-04));
+		/*
+			alert colors: --color-{element}-alert-{type} for the types the
+			theme colours, and --color-{element}-alert for any other type
+			([!CARD] is .alert.card): set those inside .alert.card to
+			colour your own
+		*/
+		--color-text-alert: var(--color-text-body);
+		--color-heading-alert: var(--color-heading-body);
+		--color-background-alert: transparent;
+		--color-border-alert: var(--color-border-body);
 
-		--color-text-note: light-dark(var(--info-01), var(--info-10));
-		--color-heading-note: light-dark(var(--info-02), var(--info-09));
-		--color-icon-note: light-dark(var(--info-04), var(--info-07));
-		--color-background-note: light-dark(var(--info-09), var(--info-02));
-		--color-border-note: light-dark(var(--info-07), var(--info-04));
+		--color-text-alert-warning: light-dark(var(--color-warning-01), var(--color-warning-10));
+		--color-heading-alert-warning: light-dark(var(--color-warning-02), var(--color-warning-09));
+		--color-icon-alert-warning: light-dark(var(--color-warning-04), var(--color-warning-07));
+		--color-background-alert-warning: light-dark(var(--color-warning-09), var(--color-warning-02));
+		--color-border-alert-warning: light-dark(var(--color-warning-07), var(--color-warning-04));
 
-		--color-text-success: light-dark(var(--success-01), var(--success-10));
-		--color-heading-success: light-dark(var(--success-02), var(--success-09));
-		--color-icon-success: light-dark(var(--success-04), var(--success-07));
-		--color-background-success: light-dark(var(--success-09), var(--success-02));
-		--color-border-success: light-dark(var(--success-07), var(--success-04));
+		--color-text-alert-note: light-dark(var(--color-info-01), var(--color-info-10));
+		--color-heading-alert-note: light-dark(var(--color-info-02), var(--color-info-09));
+		--color-icon-alert-note: light-dark(var(--color-info-04), var(--color-info-07));
+		--color-background-alert-note: light-dark(var(--color-info-09), var(--color-info-02));
+		--color-border-alert-note: light-dark(var(--color-info-07), var(--color-info-04));
 
-		--color-text-danger: light-dark(var(--danger-01), var(--danger-10));
-		--color-heading-danger: light-dark(var(--danger-02), var(--danger-09));
-		--color-icon-danger: light-dark(var(--danger-04), var(--danger-07));
-		--color-background-danger: light-dark(var(--danger-09), var(--danger-02));
-		--color-border-danger: light-dark(var(--danger-07), var(--danger-04));
+		--color-text-alert-success: light-dark(var(--color-success-01), var(--color-success-10));
+		--color-heading-alert-success: light-dark(var(--color-success-02), var(--color-success-09));
+		--color-icon-alert-success: light-dark(var(--color-success-04), var(--color-success-07));
+		--color-background-alert-success: light-dark(var(--color-success-09), var(--color-success-02));
+		--color-border-alert-success: light-dark(var(--color-success-07), var(--color-success-04));
+
+		--color-text-alert-danger: light-dark(var(--color-danger-01), var(--color-danger-10));
+		--color-heading-alert-danger: light-dark(var(--color-danger-02), var(--color-danger-09));
+		--color-icon-alert-danger: light-dark(var(--color-danger-04), var(--color-danger-07));
+		--color-background-alert-danger: light-dark(var(--color-danger-09), var(--color-danger-02));
+		--color-border-alert-danger: light-dark(var(--color-danger-07), var(--color-danger-04));
 
 		/* automatic dark mode */
 		color-scheme: light dark;
@@ -128,7 +152,7 @@
 		}
 
 		&:hover {
-			color: var(--color-link-body-hover);
+			color: var(--color-link-hover-body);
 		}
 
 		&:before {
@@ -138,7 +162,7 @@
 
 	nav[aria-label=Contents]>ol {
 		/* background: var(--color-surface-menu); */
-		/* border-color: var(--color-surface-border-menu); */
+		/* border-color: var(--color-border-surface-menu); */
 
 		a {
 
@@ -198,6 +222,10 @@
 				display: grid;
 				grid-template-columns: subgrid;
 				align-items: baseline;
+
+				nav {
+					justify-self: end;
+				}
 			}
 
 			&>main {
@@ -206,6 +234,7 @@
 
 				display: grid;
 				grid-template-columns: subgrid;
+				align-content: start;
 
 				&>* {
 					grid-column-start: 1;
@@ -268,9 +297,6 @@
 		}
 
 		nav {
-			border-radius: var(--border-radius-tight);
-			border: 1px solid var(--color-menu-border);
-
 			&>:first-child~* {
 				display: none;
 			}
@@ -295,15 +321,9 @@
 		text-transform: uppercase;
 
 		&+a:before {
-			content: var(--separator-breadcrumb);
+			content: var(--string-separator-breadcrumb);
 			margin-inline: 1ch;
 		}
-	}
-
-	/* TODO: Only render contents when necessary */
-	nav[aria-label=Contents]:has(>ol:empty),
-	nav[aria-label=Contents]:has(>ol>li:only-of-type>a) {
-		display: none;
 	}
 
 	/* table of contents */
@@ -311,7 +331,7 @@
 	nav[aria-label=Contents]>ol {
 		/* border-width: 1px; */
 		/* border-style: solid; */
-		/* border-radius: var(--border-radius-tight); */
+		/* border-radius: var(--borderradius-tight); */
 		height: max-content;
 		max-height: 80vh;
 
@@ -376,6 +396,27 @@
 		}
 	}
 
+	/*
+		A hack, on purpose, for social link icons only: each takes the
+		colour of the text around it. The <img>'s background is that
+		colour and its own url (--url-icon) is the mask; object-position
+		moves its own pixels out of its box, where the browser clips
+		them. It keeps its size and its alt. The logo and inline icons
+		carry their url the same way (--url-logo, --url-icon) for an
+		author who wants this.
+	*/
+	.social-links img {
+		background: currentColor;
+		mask: var(--url-icon) center / contain no-repeat;
+		object-position: -100vmax 0;
+	}
+
+	/* images: a blurry copy behind each one while it loads */
+
+	picture>img {
+		background: var(--url-image-placeholder, none) center / cover no-repeat;
+	}
+
 	/* main */
 
 	main>p:where([itemprop=description]) {
@@ -386,17 +427,14 @@
 	main {
 
 		max-width: min(80rch, 100%);
-		margin-bottom: var(--large-gap);
+		margin-bottom: var(--gap-large);
 		overflow-x: clip;
 		/* position: relative; */
 
 		table {
-			position: relative;
-			max-height: 80vh;
-
-			thead {
-				position: sticky;
-				top: 0;
+			th,
+			td {
+				vertical-align: top;
 			}
 		}
 
@@ -417,7 +455,7 @@
 			}
 
 			img {
-				border-radius: var(--border-radius-tight);
+				border-radius: var(--borderradius-tight);
 			}
 
 			mark,
@@ -434,7 +472,7 @@
 			pre,
 			:not(pre)>code {
 				border: 1px solid var(--color-border-pre);
-				border-radius: var(--border-radius-tight);
+				border-radius: var(--borderradius-tight);
 			}
 
 
@@ -451,6 +489,15 @@
 			th,
 			td {
 				border-bottom: 1px solid var(--color-border-body);
+			}
+
+			/*
+				Tables fill the content's width, the spare space shared
+				between columns by their content. A table too wide for the
+				page scrolls inside its <figure> (the typography sheet).
+			*/
+			table {
+				width: 100%;
 			}
 
 			hr {
@@ -473,7 +520,7 @@
 				background: var(--color-background-panel);
 				transition-property: border-color, box-shadow, color;
 				transition-duration: 0.2s;
-				border-radius: var(--border-radius-loose);
+				border-radius: var(--borderradius-loose);
 
 				a &:hover {
 					border-color: var(--color-border-hover-panel);
@@ -491,61 +538,67 @@
 			/* alerts */
 
 			aside.alert {
-				&.danger {
-					--icon: '⛔️';
-					background: var(--color-background-danger);
-					color: var(--color-text-danger);
-					border-color: var(--color-border-danger);
+				/* GitHub's CAUTION and TIP share DANGER's and SUCCESS's colours */
+				&.danger,
+				&.caution {
+					--string-alert-icon: '⛔️';
+					background: var(--color-background-alert-danger);
+					color: var(--color-text-alert-danger);
+					border-color: var(--color-border-alert-danger);
 
 					h2 {
-						color: var(--color-heading-danger);
+						color: var(--color-heading-alert-danger);
 					}
 				}
 
 				&.note {
-					--icon: 'ℹ️';
-					background: var(--color-background-note);
-					color: var(--color-text-note);
-					border-color: var(--color-border-note);
+					--string-alert-icon: 'ℹ️';
+					background: var(--color-background-alert-note);
+					color: var(--color-text-alert-note);
+					border-color: var(--color-border-alert-note);
 
 					h2 {
-						color: var(--color-heading-note);
+						color: var(--color-heading-alert-note);
 					}
 				}
 
-				&.success {
-					--icon: '💡';
-					background: var(--color-background-success);
-					color: var(--color-text-success);
-					border-color: var(--color-border-success);
+				&.success,
+				&.tip {
+					--string-alert-icon: '💡';
+					background: var(--color-background-alert-success);
+					color: var(--color-text-alert-success);
+					border-color: var(--color-border-alert-success);
 
 					h2 {
-						color: var(--color-heading-success);
+						color: var(--color-heading-alert-success);
 					}
 				}
 
 				&.warning {
-					--icon: '⚠️';
-					background: var(--color-background-warning);
-					color: var(--color-text-warning);
-					border-color: var(--color-border-warning);
+					--string-alert-icon: '⚠️';
+					background: var(--color-background-alert-warning);
+					color: var(--color-text-alert-warning);
+					border-color: var(--color-border-alert-warning);
 
 					h2 {
-						color: var(--color-heading-warning);
+						color: var(--color-heading-alert-warning);
 					}
 				}
 
+				background: var(--color-background-alert);
+				color: var(--color-text-alert);
+				border-color: var(--color-border-alert);
 				border-left-width: 0.5ch;
 				border-left-style: solid;
 
 				h2 {
-					color: var(--heading);
+					color: var(--color-heading-alert);
 
 					&:before {
 						font-size: 0.8em;
 						margin-right: 0.7rem;
 						opacity: 0.9;
-						content: var(--icon);
+						content: var(--string-alert-icon);
 					}
 				}
 			}
@@ -604,18 +657,18 @@ footer {
 
 /* homepage */
 @media (min-width: 140rch) {
-	body.home {
+	body.page_home {
 		grid-template-columns: 1fr 15rch 70rch 15rch 1fr;
 	}
 }
 
-body.home {
+body.page_home {
 
 
 	/*
-		The homepage's tagline is the hero
+		The homepage's slogan is the hero
 	*/
-	#tagline {
+	main>[itemprop="slogan"] {
 		font-size: 4em;
 		font-weight: bold;
 		padding-block: 0.5lh;

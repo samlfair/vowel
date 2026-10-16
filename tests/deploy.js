@@ -22,11 +22,11 @@ test("the deploy command is registered, builds the whole site first, and hands t
 
     await assert.rejects(() => runCommand(config, "deploy", undefined), /project name/)
 
-    // No wrangler here: the command builds, then fails to spawn it. The
-    // build is the part vowel owns.
+    // No wrangler here: the command builds, then fails to spawn it, and
+    // says how to install it. The build is the part vowel owns.
     await assert.rejects(
       () => runCommand(config, "deploy", { projectName: "my-site" }, message => messages.push(message)),
-      /wrangler/
+      /wrangler isn't installed[\s\S]*npm install -g wrangler/
     )
     await stat(path.join(targetFolder, "index.html"))
     assert.ok(messages.some(m => /Building/.test(m.message)))

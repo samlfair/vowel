@@ -60,12 +60,13 @@ test("a settings.md with no title: does not name the site after itself", async (
   })
 })
 
-test("a declared name: in settings.md is the site name: the header shows the root's, <title> appends every folder's, leaf first", async () => {
+test("a declared name: in settings.md is the site name: the header shows the root's; <title> is the page, every folder leaf first by its index page, then the site", async () => {
   await withSite({
     "settings.md": "---\nname: Site\n---\n",
-    "home.md": "---\ntagline: Small things\n---\n# Home\n",
+    "home.md": "---\nslogan: Small things\n---\n# Home\n",
     "about.md": "# About\n",
-    "shop/settings.md": "---\nname: Shop\n---\n",
+    // name: is the site's, read at the root only.
+    "shop/settings.md": "---\nname: Store\n---\n",
     "shop/hats.md": "# Hats\n",
     "shop/hats/red.md": "# Red\n"
   }, async ({ site, targetFolder }) => {
@@ -76,7 +77,7 @@ test("a declared name: in settings.md is the site name: the header shows the roo
     assert.match(await page("index.html"), /<title>Site - Small things<\/title>/)
     assert.match(await page("about.html"), /<title>About - Site<\/title>/)
     assert.match(await page(path.join("shop", "hats.html")), /<title>Hats - Shop - Site<\/title>/)
-    assert.match(await page(path.join("shop", "hats", "red.html")), /<title>Red - Shop - Site<\/title>/)
+    assert.match(await page(path.join("shop", "hats", "red.html")), /<title>Red - Hats - Shop - Site<\/title>/, "each folder by its index page; shop's name: is ignored")
 
     // The header names the site everywhere, not the section.
     for (const file of ["about.html", path.join("shop", "hats.html")]) {
@@ -100,26 +101,36 @@ test("title: in a settings.md is an old spelling: it sets nothing and is warned 
   assert.ok(warnings.some(([level, message]) => level === "warn" && /title:.*name:/.test(message)), JSON.stringify(warnings))
 })
 
-test("tagline: is a page's: p#tagline under its title in <main>, appended to <title>, and does nothing in a settings.md", async () => {
+test("slogan: is a page's: p[itemprop=slogan] under its title in <main>, appended to <title>, and does nothing in a settings.md", async () => {
   const warnings = []
   await withSite({
-    "settings.md": "---\nname: Empeethree\ntagline: Ignored\n---\n",
-    "home.md": "---\ntagline: Music for everyone\n---\n# Home\n",
-    "about.md": "---\ntagline: The World's Best Music\n---\n# About\n\nHello.\n",
+    "settings.md": "---\nname: Empeethree\nslogan: Ignored\n---\n",
+    "home.md": "---\nslogan: Music for everyone\n---\n# Home\n",
+    "about.md": "---\nslogan: The World's Best Music\n---\n# About\n\nHello.\n",
     "plain.md": "# Plain\n"
   }, async ({ targetFolder }) => {
     const page = (file) => readFile(path.join(targetFolder, file), "utf-8")
     const about = await page("about.html")
     assert.match(about, /<title>About - Empeethree - The World's Best Music<\/title>/)
-    assert.match(about, /<main[^>]*><h1>About<\/h1><p id=tagline>The World's Best Music<nav/)
-    assert.ok(!/<header>.*id=tagline/s.test(about.split("</header>")[0] + "</header>"), "no tagline in the header")
-    assert.ok(!about.includes("<dt>tagline</dt>"), "not rendered again as a generic frontmatter key")
+    assert.match(about, /<main[^>]*><h1>About<\/h1><p class=fm_slogan itemprop=slogan>The World's Best Music<nav/)
+    assert.ok(!/<header>.*itemprop=slogan/s.test(about.split("</header>")[0] + "</header>"), "no slogan in the header")
+    assert.ok(!about.includes("<dt>slogan</dt>"), "not rendered again as a generic frontmatter key")
 
     assert.match(await page("index.html"), /<title>Empeethree - Music for everyone<\/title>/)
 
     const plain = await page("plain.html")
     assert.match(plain, /<title>Plain - Empeethree<\/title>/)
-    assert.ok(!plain.includes("id=tagline"), "the settings.md tagline is not the site's")
+    assert.ok(!plain.includes("itemprop=slogan"), "the settings.md slogan is not the site's")
   }, { log: (level, message) => warnings.push([level, message]) })
-  assert.ok(warnings.some(([level, message]) => level === "warn" && /tagline:/.test(message)), JSON.stringify(warnings))
+  assert.ok(warnings.some(([level, message]) => level === "warn" && /slogan:/.test(message)), JSON.stringify(warnings))
+})
+
+test("tagline: means nothing to vowel: it's the author's own key, not a slogan", async () => {
+  await withSite({
+    "about.md": "---\ntagline: Old words\n---\n# About\n"
+  }, async ({ targetFolder }) => {
+    const about = await readFile(path.join(targetFolder, "about.html"), "utf-8")
+    assert.ok(!about.includes("itemprop=slogan"))
+    assert.match(about, /<title>About<\/title>|<title>About - /)
+  })
 })
