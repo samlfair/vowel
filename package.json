@@ -68,7 +68,7 @@
     "unist-util-visit": "^5.0.0",
     "unpic": "^4.2.2",
     "url-metadata": "^5.4.1",
-    "votive": "0.5.1-beta.0",
+    "votive": "0.5.2",
     "xml": "^1.0.1",
     "yaml": "^2.8.2"
   },
