@@ -1,7 +1,7 @@
 {
   "name": "vowel",
   "type": "module",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "engines": {
     "node": ">=26"
   },
@@ -67,7 +67,6 @@
     "unified": "^11.0.5",
     "unist-util-visit": "^5.0.0",
     "unpic": "^4.2.2",
-    "url-metadata": "^5.4.1",
     "votive": "0.5.2",
     "xml": "^1.0.1",
     "yaml": "^2.8.2"
