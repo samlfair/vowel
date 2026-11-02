@@ -13,14 +13,14 @@ import { gfmTable } from 'micromark-extension-gfm-table'
 import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
 import { h } from 'hastscript'
 import { readFileSync } from "fs"
-import { testURL, testHashtags, createHashtagPage, labelFromName, isPageWithoutFile, pageClasses, hashtagRegexSingle, createImagePaths, imageSizes, imageExts } from "./../../utils.js"
+import { testURL, testHashtags, createHashtagPage, labelFromName, isPageWithoutFile, pageClasses, hashtagRegexSingle, imageSizes } from "./../../utils.js"
 import extractDate from "./../../extractDate.js"
 import { reservedProperties, hiddenProperties } from "./../markdown/metadata.js"
 import { toString as hastToString } from 'hast-util-to-string'
 import { unified } from "unified"
 import toc from "@jsdevtools/rehype-toc"
 import slug from "rehype-slug"
-import createDynamicImage, { dominantStyle } from "./image.js"
+import createDynamicImage, { dominantStyle, imageURL } from "./image.js"
 import { listPages } from "./../../utils.js"
 import { pageRecordURI } from "../atproto/record.js"
 import { STATUSES } from "../markdown/frontmatter.js"
@@ -549,7 +549,9 @@ function writeFile(target, { settings, api, config }) {
 
   // The page's own image, else the site's `fallback_image` (a setting,
   // so a folder can have its own), so a link preview always has one.
-  const ogImage = metadata.image || settings.lastNonNull("fm_fallback_image")
+  // The largest derivative of a png or jpeg (image.js): the original
+  // is not published.
+  const ogImage = imageURL(metadata.image || settings.lastNonNull("fm_fallback_image"), api, imageSizes.at(-1))
   if (ogImage) {
     treeHead.children.push(h("meta", {
       property: "og:image",
@@ -572,7 +574,7 @@ function writeFile(target, { settings, api, config }) {
   // right one lets it pick between several. Without one, the project's
   // own favicon.png, else Vowel's placeholder (plugins/images). A
   // tracked read, so a favicon.png that appears later is linked.
-  const icon = settings.lastNonNull("fm_icon")
+  const icon = imageURL(settings.lastNonNull("fm_icon"), api, imageSizes[0])
     ?? (api.target("favicon.png") ? "/favicon.png" : "/favicon-placeholder.png")
   treeHead.children.push(h("link", {
     href: icon,
@@ -613,8 +615,10 @@ function writeFile(target, { settings, api, config }) {
   const homeLink = []
 
 
-  const logo = settings.lastNonNull("logo")
-  const wordmark = settings.lastNonNull("fm_wordmark")
+  // The smallest derivative of a png or jpeg (image.js): the original
+  // is not published. An SVG is linked as it is.
+  const logo = imageURL(settings.lastNonNull("logo"), api, imageSizes[0])
+  const wordmark = imageURL(settings.lastNonNull("fm_wordmark"), api, imageSizes[0])
 
   const identityElements = []
 
@@ -651,7 +655,7 @@ function writeFile(target, { settings, api, config }) {
   const treeHeader = h('header', [
     identity,
     treeNav,
-    socialLinksNav(settings)
+    socialLinksNav(settings, api)
   ])
 
 
@@ -729,7 +733,7 @@ function writeFile(target, { settings, api, config }) {
   const treeAside = asideNav ? h("aside", asideNav) : null
 
   const treeFooter = h('footer', [
-    socialLinksNav(settings),
+    socialLinksNav(settings, api),
     h('section#copyright', `© ${new Date().getFullYear()}`),
     h('section#shoutout', [
       "Made with ",

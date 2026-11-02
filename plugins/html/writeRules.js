@@ -4,9 +4,9 @@ import { common, createLowlight } from "lowlight"
 import { toText } from "hast-util-to-text"
 import GithubSlugger from "github-slugger"
 import { createVisitor, SKIP } from "../markdown/visitor.js"
-import { showPages, isPageWithoutFile } from "../../utils.js"
+import { showPages, isPageWithoutFile, imageSizes } from "../../utils.js"
 import { globClasses, alertLabel } from "./editor/directives.js"
-import createDynamicImage from "./image.js"
+import createDynamicImage, { derivativeURL } from "./image.js"
 import { displayPath } from "../../secretPaths.js"
 
 /**
@@ -139,7 +139,9 @@ const internalLink = {
       if (!readInBackground(pathname, config)) config.log?.("warn", `${target.source ?? target.path}: link to ${href} matches no page`)
       return
     }
-    node.properties.href = urlOf(found) + suffix
+    // A link to a png or jpeg opens its largest derivative: the
+    // original is not published (image.js).
+    node.properties.href = (derivativeURL(found, imageSizes.at(-1)) ?? urlOf(found)) + suffix
   }
 }
 

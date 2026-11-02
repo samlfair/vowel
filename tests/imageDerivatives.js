@@ -140,3 +140,47 @@ test("a relative image is the page's, and is optimised like any other", async ()
     await rm(systemFolder, { recursive: true, force: true })
   }
 })
+
+test("a png or jpeg is never published at full size: every link to it names a derivative", async () => {
+  const sourceFolder = await mkdtemp(path.join(tmpdir(), "vowel-originals-"))
+  const systemFolder = await mkdtemp(path.join(tmpdir(), "vowel-originals-sys-"))
+  const targetFolder = path.join(systemFolder, "output")
+  let site
+  try {
+    await writeFile(path.join(sourceFolder, "settings.md"), "---\nlogo: logo.png\nsocial_links:\n  - label: Home\n    url: https://example.com\n    icon: badge.png\n---\n")
+    await writeFile(path.join(sourceFolder, "home.md"), "---\nimage: pic.jpg\n---\n# Home\n\n![a picture](/pic.jpg)\n\n[The full picture](/pic.jpg)\n")
+    const make = (file, format) => sharp({ create: { width: 600, height: 400, channels: 3, background: "#406080" } })[format]().toFile(path.join(sourceFolder, file))
+    await make("pic.jpg", "jpeg")
+    await make("logo.png", "png")
+    await make("badge.png", "png")
+    await make("favicon.png", "png")
+    await make("anim.gif", "gif")
+
+    site = await build(sourceFolder, systemFolder)
+    const files = await readdir(targetFolder)
+    for (const original of ["pic.jpg", "logo.png", "badge.png"]) {
+      assert.ok(!files.includes(original), `${original} is not published`)
+    }
+    assert.ok(files.includes("favicon.png"), "the root favicon.png is, as the site's icon")
+    assert.ok(files.includes("anim.gif"), "a gif is copied through as before")
+
+    const pic = site.database.target.get("pic.jpg")
+    assert.equal(pic.write, false, "the original is a virtual target")
+    assert.deepEqual(pic.metadata.derivatives.map(entry => entry.format), [...Array(4).fill("avif"), ...Array(4).fill("webp"), ...Array(4).fill("jpg")], "grouped in <picture> order")
+    for (const entry of pic.metadata.derivatives) assert.ok(files.includes(entry.path), `${entry.path} is published`)
+
+    const home = await readFile(path.join(targetFolder, "index.html"), "utf-8")
+    // data-original is the editor's way back to the markdown, never loaded.
+    const loaded = home.replace(/data-original=\S+/g, "")
+    assert.doesNotMatch(loaded, /["=(]\/(pic\.jpg|logo\.png|badge\.png)\b/, "nothing links an original")
+    assert.match(home, /property="?og:image"? content="?\/pic-[0-9a-f]{8}-1920\.jpg/, "og:image is the largest derivative")
+    assert.match(home, /<img id=logo src=\/logo-[0-9a-f]{8}-414\.png/, "the logo is the smallest")
+    assert.match(home, /<img src=\/badge-[0-9a-f]{8}-414\.png/, "so is a social link's icon")
+    assert.match(home, /href=\/pic-[0-9a-f]{8}-1920\.jpg>The full picture/, "a link to the image opens the largest")
+    assert.match(home, /rel=icon[^>]*href=\/favicon\.png|href=\/favicon\.png[^>]*rel=icon/, "the favicon is linked as it is")
+  } finally {
+    if (site) await site.close()
+    await rm(sourceFolder, { recursive: true, force: true })
+    await rm(systemFolder, { recursive: true, force: true })
+  }
+})

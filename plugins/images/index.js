@@ -72,23 +72,46 @@ async function readImagePath(source) {
   const hash = digest("sha1", buffer).slice(0, 8)
 
   const ext = path.extname(source.target)
-  const targets = imageSizes.flatMap(size => [...imageExts, ext].map(format => ({
+  const formats = [...imageExts, ext.replace(/^\./, "")]
+  const targets = formats.flatMap(format => imageSizes.map(size => ({
     path: createImagePath({ targetFilePath: source.target, size, ext: format, targetDirectory: "", uuid: hash }),
-    metadata: { derivative: { size, format: format.replace(/^\./, "") } }
+    metadata: { derivative: { size, format } }
   })))
+  const metadata = { hash, width, height, dominant: dominantColor, placeholder }
 
-  return { metadata: { hash, width, height, dominant: dominantColor, placeholder }, targets }
+  if (!isOptimized(source)) return { metadata, targets }
+
+  // Grouped by format in <picture> order (avif, webp, its own), each
+  // smallest first. This list is the one place a derivative's path is
+  // decided: plugins/html/image.js links what it names.
+  const derivatives = targets.map(({ path, metadata }) => ({ path, ...metadata.derivative }))
+  return { metadata: { ...metadata, derivatives }, targets, write: false }
 }
 
 /**
- * An original is copied through. A derivative is resized and converted
- * from its owner's bytes - which is what target.buffer() reads, because
- * votive stored the owner as the derivative's source.
+ * A png or jpeg is never published at full size: its derivatives are
+ * linked everywhere instead, and the original is a virtual target. The
+ * root favicon.png is exempt, because it is linked as it is, as the
+ * site's icon. The other formats are copied through as before; their
+ * derivatives are made but nothing links them yet.
+ * @param {{ path: string, target: string }} source
+ */
+function isOptimized(source) {
+  if (source.path === "favicon.png") return false
+  return /^\.(png|jpe?g)$/.test(path.extname(source.target))
+}
+
+/**
+ * A derivative is resized and converted from its owner's bytes - which
+ * is what target.buffer() reads, because votive stored the owner as the
+ * derivative's source. An original with derivatives is virtual and
+ * writes nothing; any other original is copied through.
  * @type {Votive.ProcessorWrite}
  */
 async function writeImage(target) {
   // The placeholder favicon has no file to read; its bytes are its data.
   if (target.metadata?.favicon) return { data: Buffer.from(target.data, "base64") }
+  if (target.metadata?.derivatives) return
 
   const bytes = target.buffer()
   const recipe = target.metadata?.derivative

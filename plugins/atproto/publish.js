@@ -11,6 +11,8 @@ import { PUBLICATION, siteOrigin, publicationURI, pageRecordURI } from "./record
 import { createLexiconResolver, resolvePDS } from "./lexicons.js"
 import { mapRecord } from "./mapper.js"
 import { markdownBody, richTextBody } from "./body.js"
+import { imageURL } from "../html/image.js"
+import { imageSizes } from "../../utils.js"
 
 /**
  * `vowel --command atproto-publish`: make the account's records match the
@@ -267,7 +269,9 @@ function recordPages(database) {
  * its status, and what mapper.js reads - the site's own settings, and
  * the publication's name, description and icon. The icon is read from
  * the build's output - it is a URL path from the root (frontmatter.js
- * resolves it), which is where the output has it. Built into a scratch
+ * resolves it), which is where the output has it; a png or jpeg is read
+ * from its largest derivative, since the original is not published
+ * (plugins/images). Built into a scratch
  * folder that is removed afterwards.
  * @param {import("votive").VotiveConfig} config
  */
@@ -306,7 +310,9 @@ async function collectPages(config) {
       const home = site.database.target.get("index.html")
       const name = root.raw("fm_name")?.[0]?.at(-1) ?? (home?.source ? home.metadata.title : undefined)
       const iconPath = settings.icon ?? root.lastNonNull("logo")
-      const icon = iconPath ? await readIcon(path.join(scratch, "output"), iconPath) : undefined
+      // imageURL asks an api for the target; the database answers the same.
+      const builtIcon = imageURL(iconPath, { target: (targetPath) => site.database.target.get(targetPath) }, imageSizes.at(-1))
+      const icon = builtIcon ? await readIcon(path.join(scratch, "output"), builtIcon) : undefined
       const publication = { name, description: settings.description, iconPath, icon }
       return { did, pds, domain, pages, publication }
     } finally {

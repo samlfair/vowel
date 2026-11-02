@@ -1,4 +1,4 @@
-import { testURL, createImagePaths, imageSizes, imageExts } from "./../../utils.js"
+import { testURL, imageSizes, imageExts } from "./../../utils.js"
 import path from "node:path"
 import { h } from 'hastscript'
 import * as unpic from "unpic"
@@ -15,6 +15,38 @@ import * as unpic from "unpic"
 function findImage(imagePath, api) {
   const relativePath = (imagePath.startsWith("/") ? path.relative("/", imagePath) : imagePath).toLowerCase()
   return api.target(relativePath)
+}
+
+/**
+ * The derivative to link where one file goes rather than a srcset: in
+ * the image's own format, at `size` (one of imageSizes). Undefined for
+ * an image without derivatives (plugins/images: a format that isn't
+ * optimised, the root favicon.png, or an image not read yet).
+ * @param {any} image - the image's target
+ * @param {number} size
+ */
+function derivativeURL(image, size) {
+  const format = path.extname(image.path).slice(1)
+  const derivative = image.metadata?.derivatives?.find(entry => entry.format === format && entry.size === size)
+  if (!derivative) return
+  return "/" + derivative.path
+}
+
+/**
+ * The url to put where an image path goes as one file - og:image, the
+ * logo, an icon. A png or jpeg is not published at full size
+ * (plugins/images), so the path names a derivative; anything else, an
+ * external url included, is returned as it is. A tracked read, so the
+ * page is rewritten when the image is read or changes.
+ * @param {string | undefined} imagePath - from the root
+ * @param {import("votive").PluginAPI} api
+ * @param {number} size - one of imageSizes
+ */
+function imageURL(imagePath, api, size) {
+  if (!imagePath || testURL(imagePath) || !/\.(png|jpe?g)$/i.test(imagePath)) return imagePath
+  const image = findImage(imagePath, api)
+  if (!image) return imagePath
+  return derivativeURL(image, size) ?? imagePath
 }
 
 /**
@@ -85,12 +117,15 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
 
   const image = findImage(imagePath, api)
   if (!image) return
-  // Until the image has been read (a deferred buffer read) it has no
-  // hash and no derivatives; a plain <img> stands in, and the tracked
-  // read of `hash` rewrites this page when they arrive. Derivatives are
-  // named from the *target* path, as the images processor declares them.
-  if (!image.metadata.hash) return h("img", { src: "/" + image.path, alt, loading: "lazy" })
-  const formats = createImagePaths(image.path, "./", image.metadata.hash)
+  // An image without derivatives is published as it is (the root
+  // favicon.png), and a plain <img> links it. The tracked read of
+  // `derivatives` rewrites this page if they arrive.
+  const { derivatives } = image.metadata
+  if (!derivatives) return h("img", { src: "/" + image.path, alt, loading: "lazy" })
+  // One group per format, in the order the read lists them, which is
+  // <picture> order: avif, webp, then the image's own format as the <img>.
+  const formats = [...new Set(derivatives.map(entry => entry.format))]
+    .map(format => derivatives.filter(entry => entry.format === format))
 
   // Intrinsic size, measured at read (plugins/images): the browser
   // reserves the right box before the bytes arrive, and the reset's
@@ -100,13 +135,13 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
   const sources = formats.map((format, index) => {
     const isImg = index === formats.length - 1
 
-    const sizes = format.map((size, index) => `/${size} ${imageSizes[index]}w`).join(", ")
-    const type = "image/" + path.extname(format[0]).slice(1)
+    const sizes = format.map(entry => `/${entry.path} ${entry.size}w`).join(", ")
+    const type = "image/" + format[0].format
     return h(isImg ? "img" : "source", {
       type,
       srcset: sizes,
       loading: isImg && "lazy",
-      src: isImg && "/" + format.at(-1),
+      src: isImg && "/" + format.at(-1).path,
       sizes: "100vw",
       width: isImg && width,
       height: isImg && height,
@@ -133,5 +168,5 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
   }, sources)
 }
 
-export { dominantStyle }
+export { dominantStyle, imageURL, derivativeURL }
 export default createDynamicImage

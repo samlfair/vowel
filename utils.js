@@ -23,26 +23,6 @@ export function createImagePath({ targetFilePath, size, ext, targetDirectory, uu
   })
 }
 
-/**
- * @param {string} targetFilePath
- * @param {string} targetDirectory
- * @param {string} uuid
- */
-export function createImagePaths(targetFilePath, targetDirectory, uuid) {
-  const defaultExt = path.extname(targetFilePath)
-  return [...imageExts, defaultExt].map(ext => {
-    return imageSizes.map(size => {
-      return createImagePath({
-        targetFilePath,
-        size,
-        ext,
-        targetDirectory,
-        uuid
-      })
-    })
-  })
-}
-
 /** @param {string} text */
 export function testURL(text) {
   if (text.match(/^https?:\/\/[\S]+$/)) {

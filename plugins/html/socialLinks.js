@@ -1,4 +1,6 @@
 import { h } from "hastscript"
+import { imageSizes } from "../../utils.js"
+import { imageURL } from "./image.js"
 
 /**
  * Social links, from the `social_links` setting:
@@ -45,16 +47,19 @@ function socialLinks(settings) {
 /**
  * A `<nav>` of the links, or null when there are none.
  * @param {any} settings
+ * @param {import("votive").PluginAPI} api
  */
-function socialLinksNav(settings) {
+function socialLinksNav(settings, api) {
   const links = socialLinks(settings)
   if (!links.length) return null
 
   return h("nav.social-links", { "aria-label": "Social links" },
     h("ul", links.map(({ label, url, icon }) => {
       const text = label ?? url
-      // A URL path from the root, resolved at read (frontmatter.js).
-      const iconURL = icon ? String(icon) : null
+      // A URL path from the root, resolved at read (frontmatter.js); a
+      // png or jpeg's smallest derivative, since the original is not
+      // published (image.js).
+      const iconURL = icon ? imageURL(String(icon), api, imageSizes[0]) : null
       const image = iconURL && h("img", { src: iconURL, alt: text, style: `--url-icon: url("${iconURL}")` })
       return h("li", h("a", { href: url, rel: "me" }, image || text))
     }))
