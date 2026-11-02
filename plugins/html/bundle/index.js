@@ -21035,7 +21035,10 @@ ${fallback_html}`;
 	  socket.addEventListener('message', e => {
 	    if (!isOpen()) return
 	    const target = JSON.parse(e.data);
-	    if (target.extension !== ".html") return
+	    if (target.extension !== ".html") {
+	      retryImages("/" + target.path);
+	      return
+	    }
 	    const regex = new RegExp(window.location.pathname + "(index)?(\\.html)");
 	    if (!("/" + target.path).match(regex)) return
 	    updateFromTarget(target);
@@ -21121,6 +21124,19 @@ ${fallback_html}`;
 	  for (const element of [...body.children]) {
 	    if (!produced.has(keyOf(element)) && wasProduced(element)) element.remove();
 	  }
+	}
+	function retryImages(url) {
+	  const failed = [...document.images].filter(img => img.complete && img.naturalWidth === 0);
+	  const elements = failed.map(img => img.parentElement?.tagName === "PICTURE" ? img.parentElement : img);
+	  const naming = elements.filter(element => urlsOf(element).includes(url));
+	  for (const element of naming) element.replaceWith(element.cloneNode(true));
+	}
+	function urlsOf(element) {
+	  const nodes = [element, ...element.querySelectorAll("source, img")];
+	  return nodes.flatMap(node => {
+	    const candidates = (node.getAttribute("srcset") ?? "").split(",").map(candidate => candidate.trim().split(/\s+/)[0]);
+	    return [node.getAttribute("src"), ...candidates].filter(Boolean)
+	  })
 	}
 	function wasProduced(element) {
 	  if (element.tagName === "SCRIPT") return false

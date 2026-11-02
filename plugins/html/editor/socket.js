@@ -51,10 +51,12 @@ export default function openSocket() {
 
     const target = JSON.parse(e.data)
 
-    // Nothing here knows what a non-html target should do on change yet -
-    // that's each content type's own concern to add, same as html's own
-    // patch logic below isn't generic.
-    if (target.extension !== ".html") return
+    // A file that isn't a page can only matter to this page as something
+    // it loads: an image the page named before its file existed.
+    if (target.extension !== ".html") {
+      retryImages("/" + target.path)
+      return
+    }
 
     const regex = new RegExp(window.location.pathname + "(index)?(\\.html)")
     if (!("/" + target.path).match(regex)) return
@@ -183,6 +185,34 @@ function patchBody(body, nextBody) {
   for (const element of [...body.children]) {
     if (!produced.has(keyOf(element)) && wasProduced(element)) element.remove()
   }
+}
+
+/**
+ * A page can arrive before the image files it names: an image's
+ * derivatives are encoded after the page is written, and a browser never
+ * asks again for an image that failed. When a file lands, every image
+ * that failed and names it is replaced with a copy of itself, which
+ * asks again. A <picture> is copied whole, so its <source>s are chosen
+ * from again too.
+ * @param {string} url - the file's url, from the root
+ */
+function retryImages(url) {
+  const failed = [...document.images].filter(img => img.complete && img.naturalWidth === 0)
+  const elements = failed.map(img => img.parentElement?.tagName === "PICTURE" ? img.parentElement : img)
+  const naming = elements.filter(element => urlsOf(element).includes(url))
+  for (const element of naming) element.replaceWith(element.cloneNode(true))
+}
+
+/**
+ * Every url an <img> or a <picture> could load.
+ * @param {Element} element
+ */
+function urlsOf(element) {
+  const nodes = [element, ...element.querySelectorAll("source, img")]
+  return nodes.flatMap(node => {
+    const candidates = (node.getAttribute("srcset") ?? "").split(",").map(candidate => candidate.trim().split(/\s+/)[0])
+    return [node.getAttribute("src"), ...candidates].filter(Boolean)
+  })
 }
 
 /**
