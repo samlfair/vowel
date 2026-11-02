@@ -100,13 +100,14 @@ test("thematic break", () => {
   assert.equal(markdown, "---")
 })
 
-test("images come back from data-original, not the derivative paths", () => {
-  const { markdown } = roundtrip(
-    '<p><picture data-original="/photo.jpg">' +
+test("an image leaves the page read-only: its <picture> names only derivatives, never the path the author wrote", () => {
+  const { markdown, unrecognised } = roundtrip(
+    '<p><picture>' +
     '<source type="image/avif" srcset="/photo-abc-400.avif 400w">' +
     '<img src="/photo-abc-1600.jpg" alt="A photo"></picture></p>'
   )
-  assert.equal(markdown, "![A photo](/photo.jpg)")
+  assert.equal(markdown, null)
+  assert.deepEqual(unrecognised, ["picture"])
 })
 
 test("a glob expansion collapses back to its directive", () => {
@@ -198,7 +199,7 @@ test("natural metadata - in <main>, no fm_ class - comes back as the lines that 
   const { document } = parseHTML(`<main>
     <h1>Natural</h1>
     <time datetime="2026-05-28T00:00:00.000Z" itemprop="date">May 28, 2026</time>
-    <picture data-original="/pic.jpg" itemprop="image"><img src="/pic-1.jpg" alt="A picture"></picture>
+    <img src="/pic.jpg" alt="A picture" itemprop="image">
     <p itemprop="description">The description.</p>
     <dl class="fm_client"><dt>client</dt><dd>Acme</dd></dl>
     <section id="content"><p>The body.</p></section>
@@ -217,6 +218,13 @@ test("natural metadata - in <main>, no fm_ class - comes back as the lines that 
 test("an image not yet read is a plain <img>, and still comes back", () => {
   const { document } = parseHTML(`<main><h1>T</h1><img src="/pic.jpg" alt="Alt" itemprop="image"><section id="content"></section></main>`)
   assert.equal(readFrontmatter(document.querySelector("main")).natural, "![Alt](/pic.jpg)\n\n")
+})
+
+test("a natural image that is a <picture> can't be written back, so it is reported", () => {
+  const { document } = parseHTML(`<main><h1>T</h1><picture itemprop="image"><img src="/pic-1.jpg" alt="Alt"></picture><section id="content"></section></main>`)
+  const frontmatter = readFrontmatter(document.querySelector("main"))
+  assert.equal(frontmatter.natural, "")
+  assert.deepEqual(frontmatter.unrecognised, ["picture"])
 })
 
 test("a title from the frontmatter is declared: it stays a key, and no heading is written", () => {

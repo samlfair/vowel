@@ -106,10 +106,7 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
         })
       })
 
-      // The derivative paths in srcset are hash-based, so the original asset
-  // path cannot be recovered from them. Carried here rather than as a
-  // <source>, which is a loading candidate a browser could select.
-  return h("picture", { itemprop: itemprop && "image", "data-original": imagePath }, sources)
+      return h("picture", { itemprop: itemprop && "image" }, sources)
     }
   }
 
@@ -149,9 +146,6 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
     })
   })
 
-  // The derivative paths in srcset are hash-based, so the original asset
-  // path cannot be recovered from them. Carried here rather than as a
-  // <source>, which is a loading candidate a browser could select.
   // Two values for a stylesheet to show behind the image while it loads:
   // its dominant colour, and a tiny blurry copy (plugins/images; none
   // for an image with transparency). Nothing here decides that it should.
@@ -163,7 +157,6 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
   ].filter(Boolean).join("; ")
   return h("picture", {
     itemprop: itemprop && "image",
-    "data-original": imagePath,
     style: style || undefined
   }, sources)
 }

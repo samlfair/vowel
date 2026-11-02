@@ -82,15 +82,17 @@ function naturalLine(element) {
   if (property === "description") return `${element.textContent.trim()}\n\n---`
   if (property !== "image") return null
 
-  // A <picture>, or a plain <img> until the image has been read.
-  const img = element.tagName === "IMG" ? element : element.querySelector("img")
-  const source = element.getAttribute("data-original") ?? img?.getAttribute("src")
-  return source ? `![${img?.getAttribute("alt") ?? ""}](${source})` : null
+  // A plain <img> links the path as written. A <picture> names only its
+  // derivatives, so it can't be written back, and readFrontmatter
+  // reports it.
+  if (element.tagName !== "IMG") return null
+  const source = element.getAttribute("src")
+  return source ? `![${element.getAttribute("alt") ?? ""}](${source})` : null
 }
 
 /**
  * @param {Element} main
- * @returns {{title: string|null, titleDeclared: boolean, properties: object, natural: string}}
+ * @returns {{title: string|null, titleDeclared: boolean, properties: object, natural: string, unrecognised: string[]}}
  */
 export default function readFrontmatter(main) {
   const children = [...main.children]
@@ -98,17 +100,22 @@ export default function readFrontmatter(main) {
 
   const heading = children.find(child => child.tagName === "H1")
   const date = children.find(declared("date"))
-  const image = children.find(declared("image"))
   const description = children.find(declared("description"))
 
-  const natural = children
+  const naturalChildren = children
     .filter(child => child.hasAttribute("itemprop") && ![...child.classList].some(name => name.startsWith("fm_")))
+  const natural = naturalChildren
     .map(naturalLine)
     .filter(Boolean)
+  // A natural image that is a <picture> can't be written back
+  // (naturalLine), so the page stays read-only rather than losing the
+  // line on save.
+  const unrecognised = naturalChildren
+    .filter(child => child.tagName === "PICTURE" || child.querySelector("picture"))
+    .map(() => "picture")
 
   const known = {
     ...(date ? { date: dateFrom(date) } : {}),
-    ...(image ? { image: image.getAttribute("data-original") } : {}),
     ...(description ? { description: description.textContent.trim() } : {})
   }
 
@@ -123,6 +130,7 @@ export default function readFrontmatter(main) {
     title: heading ? heading.textContent.trim() : null,
     titleDeclared: Boolean(heading?.classList.contains("fm_title")),
     properties: { ...known, ...generic },
-    natural: natural.length ? `${natural.join("\n\n")}\n\n` : ""
+    natural: natural.length ? `${natural.join("\n\n")}\n\n` : "",
+    unrecognised
   }
 }

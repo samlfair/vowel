@@ -113,7 +113,9 @@ function phrase(node, base) {
   }
   if (tag === "picture") {
     const img = (node.children ?? []).find(child => is(child, "img"))
-    const src = node.properties?.dataOriginal ?? img?.properties?.src
+    // The <img>'s src is the largest derivative in the image's own
+    // format; the original is not published (plugins/images).
+    const src = img?.properties?.src
     return src ? [{ type: "image", url: absolute(String(src), base), alt: String(img?.properties?.alt ?? "") }] : []
   }
   if (tag === "a") {

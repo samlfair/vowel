@@ -151,7 +151,7 @@ test("a site.standard record gets site and path as standard.site defines them", 
 
 const RENDERED = `<!doctype html><html><body><main><h1>The Title</h1><section id=content>
 <p>A <strong>bold</strong> and <a href=/blog/other>a link</a> and <a href=/tags/design class=hashtag>#design</a> and <a class=wikilink data-note=Nowhere>Nowhere</a> <img class=icon data-icon=icons/rocket alt=rocket src=/icons/rocket.svg> <img class=icon data-icon=brand/vowel alt=vowel src=/brand/vowel.svg> café <a href=#part>jump</a>.
-<p><picture data-original=/pic.png><source srcset="/pic-1920.avif 1920w"><img src=/pic-1920.png alt="alt text"></picture>
+<p><picture><source srcset="/pic-1920.avif 1920w"><img src=/pic-1920.png alt="alt text"></picture>
 <h2 id=part>Part</h2>
 <ul><li>one<li>two<ul><li>nested</ul></ul>
 <ul class="_ _blog"><li><a href=/blog/post><article><h1>First post</h1><time>March 4</time><p>Desc</article></a></ul>
@@ -166,7 +166,7 @@ test("simplified markdown: absolute links, the site's copy of an image, icons as
   assert.match(markdown, /\[#design\]\(https:\/\/example\.com\/tags\/design\)/)
   assert.match(markdown, / Nowhere 🚀 :brand\/vowel: café /, "an unresolved wikilink is its text; an icon is its emoji, else its shortcode")
   assert.match(markdown, /\[jump\]\(https:\/\/example\.com\/blog\/post#part\)/)
-  assert.match(markdown, /!\[alt text\]\(https:\/\/example\.com\/pic\.png\)/)
+  assert.match(markdown, /!\[alt text\]\(https:\/\/example\.com\/pic-1920\.png\)/)
   assert.match(markdown, /## Part/)
   assert.match(markdown, /- one\n- two\n {2}- nested/)
   // A second list straight after the first takes the other bullet, as CommonMark needs to tell them apart.

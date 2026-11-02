@@ -15,7 +15,7 @@ openSocket()
 // document's source of truth (see ingest.js).
 const content = document.getElementById("content")
 
-const noFrontmatter = { title: null, properties: {} }
+const noFrontmatter = { title: null, properties: {}, unrecognised: [] }
 
 /**
  * Swaps the server-rendered body for the editor. A previewed page runs
@@ -50,6 +50,10 @@ function startEditing() {
   // them is what lets a save reproduce the whole file.
   const main = content.closest("main")
   const frontmatter = main ? readFrontmatter(main) : noFrontmatter
+  if (frontmatter.unrecognised.length) {
+    console.warn("[vowel] editor stayed read-only: <main> holds natural metadata it can't write back:", frontmatter.unrecognised)
+    return frontmatter.unrecognised
+  }
 
   // Svedit renders the document itself rather than hydrating over the
   // server output, so the original children go before it mounts.

@@ -185,7 +185,7 @@ function blockFrom(element, context) {
     // The image transform replaces an <img> in place, so a paragraph whose
     // only element is a <picture> is an image block, not prose.
     const picture = pictureIn(element)
-    if (picture && !element.textContent.trim()) return imageFrom(picture, null, element, context)
+    if (picture && !element.textContent.trim()) return imageFrom(context)
 
     return context.create({
       type: "paragraph",
@@ -274,12 +274,11 @@ function blockFrom(element, context) {
 
   if (tag === "FIGURE") {
     const picture = pictureIn(element)
-    const caption = element.querySelector("figcaption")
-    if (picture) return imageFrom(picture, caption, element, context)
+    if (picture) return imageFrom(context)
   }
 
   if (tag === "PICTURE") {
-    return imageFrom(element, null, element, context)
+    return imageFrom(context)
   }
 
   context.unrecognised.push(tag.toLowerCase() + (element.className ? `.${element.className}` : ""))
@@ -287,26 +286,14 @@ function blockFrom(element, context) {
 }
 
 /**
- * @param {Element} picture
- * @param {Element|null} caption
- * @param {Element} outer the element whose markup is kept for rendering
+ * An image can't be edited yet. Its <picture> names only the image's
+ * derivatives, and the path the author wrote is not in the page (per
+ * Sam, the output carries no data-original for the editor), so a save
+ * could only guess it. It is reported, which leaves the page read-only.
  */
-function imageFrom(picture, caption, outer, context) {
-  const img = picture.querySelector("img")
-  const source = picture.getAttribute("data-original")
-
-  if (!source) {
-    context.unrecognised.push("picture (no data-original)")
-    return null
-  }
-
-  return context.create({
-    type: "image",
-    source,
-    alt: img ? (img.getAttribute("alt") || "") : "",
-    caption: caption ? caption.textContent : "",
-    html: outer.outerHTML
-  })
+function imageFrom(context) {
+  context.unrecognised.push("picture")
+  return null
 }
 
 /**

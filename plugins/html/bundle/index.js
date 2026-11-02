@@ -20156,7 +20156,7 @@ ${fallback_html}`;
 	  const tag = element.tagName;
 	  if (tag === "P") {
 	    const picture = pictureIn(element);
-	    if (picture && !element.textContent.trim()) return imageFrom(picture, null, element, context)
+	    if (picture && !element.textContent.trim()) return imageFrom(context)
 	    return context.create({
 	      type: "paragraph",
 	      content: textValue(element, context)
@@ -20224,29 +20224,17 @@ ${fallback_html}`;
 	  }
 	  if (tag === "FIGURE") {
 	    const picture = pictureIn(element);
-	    const caption = element.querySelector("figcaption");
-	    if (picture) return imageFrom(picture, caption, element, context)
+	    if (picture) return imageFrom(context)
 	  }
 	  if (tag === "PICTURE") {
-	    return imageFrom(element, null, element, context)
+	    return imageFrom(context)
 	  }
 	  context.unrecognised.push(tag.toLowerCase() + (element.className ? `.${element.className}` : ""));
 	  return null
 	}
-	function imageFrom(picture, caption, outer, context) {
-	  const img = picture.querySelector("img");
-	  const source = picture.getAttribute("data-original");
-	  if (!source) {
-	    context.unrecognised.push("picture (no data-original)");
-	    return null
-	  }
-	  return context.create({
-	    type: "image",
-	    source,
-	    alt: img ? (img.getAttribute("alt") || "") : "",
-	    caption: caption ? caption.textContent : "",
-	    html: outer.outerHTML
-	  })
+	function imageFrom(context) {
+	  context.unrecognised.push("picture");
+	  return null
 	}
 	function ingest(contentElement, generateId) {
 	  const nodes = {};
@@ -20993,24 +20981,26 @@ ${fallback_html}`;
 	  if (property === "date") return element.textContent.trim()
 	  if (property === "description") return `${element.textContent.trim()}\n\n---`
 	  if (property !== "image") return null
-	  const img = element.tagName === "IMG" ? element : element.querySelector("img");
-	  const source = element.getAttribute("data-original") ?? img?.getAttribute("src");
-	  return source ? `![${img?.getAttribute("alt") ?? ""}](${source})` : null
+	  if (element.tagName !== "IMG") return null
+	  const source = element.getAttribute("src");
+	  return source ? `![${element.getAttribute("alt") ?? ""}](${source})` : null
 	}
 	function readFrontmatter(main) {
 	  const children = [...main.children];
 	  const declared = (key) => (child) => child.classList.contains(`fm_${key}`);
 	  const heading = children.find(child => child.tagName === "H1");
 	  const date = children.find(declared("date"));
-	  const image = children.find(declared("image"));
 	  const description = children.find(declared("description"));
-	  const natural = children
-	    .filter(child => child.hasAttribute("itemprop") && ![...child.classList].some(name => name.startsWith("fm_")))
+	  const naturalChildren = children
+	    .filter(child => child.hasAttribute("itemprop") && ![...child.classList].some(name => name.startsWith("fm_")));
+	  const natural = naturalChildren
 	    .map(naturalLine)
 	    .filter(Boolean);
+	  const unrecognised = naturalChildren
+	    .filter(child => child.tagName === "PICTURE" || child.querySelector("picture"))
+	    .map(() => "picture");
 	  const known = {
 	    ...(date ? { date: dateFrom(date) } : {}),
-	    ...(image ? { image: image.getAttribute("data-original") } : {}),
 	    ...(description ? { description: description.textContent.trim() } : {})
 	  };
 	  const generic = children
@@ -21020,7 +21010,8 @@ ${fallback_html}`;
 	    title: heading ? heading.textContent.trim() : null,
 	    titleDeclared: Boolean(heading?.classList.contains("fm_title")),
 	    properties: { ...known, ...generic },
-	    natural: natural.length ? `${natural.join("\n\n")}\n\n` : ""
+	    natural: natural.length ? `${natural.join("\n\n")}\n\n` : "",
+	    unrecognised
 	  }
 	}
 
@@ -21139,7 +21130,7 @@ ${fallback_html}`;
 
 	openSocket();
 	const content = document.getElementById("content");
-	const noFrontmatter = { title: null, properties: {} };
+	const noFrontmatter = { title: null, properties: {}, unrecognised: [] };
 	function startEditing() {
 	  const { session, unrecognised } = create_session(content);
 	  if (!session) {
@@ -21151,6 +21142,10 @@ ${fallback_html}`;
 	  }
 	  const main = content.closest("main");
 	  const frontmatter = main ? readFrontmatter(main) : noFrontmatter;
+	  if (frontmatter.unrecognised.length) {
+	    console.warn("[vowel] editor stayed read-only: <main> holds natural metadata it can't write back:", frontmatter.unrecognised);
+	    return frontmatter.unrecognised
+	  }
 	  content.replaceChildren();
 	  mount(Editor, { target: content, props: { session, frontmatter } });
 	  document.documentElement.dataset.vowelEditing = "true";

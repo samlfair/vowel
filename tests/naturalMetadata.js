@@ -51,7 +51,7 @@ test("natural metadata is lifted into <main>, without fm_ classes, and the rule 
   await withSite(files, async (page) => {
     const html = await page("natural.html")
     assert.match(head(html), /<time datetime=2026-05-28T00:00:00\.000Z itemprop=date>May 28, 2026<\/time>/, "the date, as written")
-    assert.match(head(html), /<picture data-original=\/pic\.jpg[^>]*itemprop=image[^>]*>/)
+    assert.match(head(html), /<picture [^>]*itemprop=image[^>]*>/)
     assert.match(head(html), /<p itemprop=description>The description\./)
     assert.doesNotMatch(head(html), /fm_/)
     assert.doesNotMatch(content(html), /May 28|A picture|The description|<hr>/, "none of it is content")

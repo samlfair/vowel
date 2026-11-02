@@ -170,9 +170,7 @@ test("a png or jpeg is never published at full size: every link to it names a de
     for (const entry of pic.metadata.derivatives) assert.ok(files.includes(entry.path), `${entry.path} is published`)
 
     const home = await readFile(path.join(targetFolder, "index.html"), "utf-8")
-    // data-original is the editor's way back to the markdown, never loaded.
-    const loaded = home.replace(/data-original=\S+/g, "")
-    assert.doesNotMatch(loaded, /["=(]\/(pic\.jpg|logo\.png|badge\.png)\b/, "nothing links an original")
+    assert.doesNotMatch(home, /\/(pic\.jpg|logo\.png|badge\.png)\b/, "nothing names an original")
     assert.match(home, /property="?og:image"? content="?\/pic-[0-9a-f]{8}-1920\.jpg/, "og:image is the largest derivative")
     assert.match(home, /<img id=logo src=\/logo-[0-9a-f]{8}-414\.png/, "the logo is the smallest")
     assert.match(home, /<img src=\/badge-[0-9a-f]{8}-414\.png/, "so is a social link's icon")
