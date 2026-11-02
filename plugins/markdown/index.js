@@ -16,7 +16,7 @@ import { readFileSync } from "fs"
 import { createHashtagPage, labelFromName, showPages } from "./../../utils.js"
 import { toHast, defaultHandlers } from 'mdast-util-to-hast'
 import { toString as hastToString } from 'hast-util-to-string'
-import getMetadata, { reservedProperties } from "./metadata.js"
+import getMetadata, { imageFromPage, reservedProperties } from "./metadata.js"
 import { isSecretPath, secretRouter, displayPath } from "./../../secretPaths.js"
 import { collectLinks } from "./links.js"
 import { readWalk } from "./readRules.js"
@@ -63,7 +63,9 @@ function readFile(source, { api, config }) {
   if (!metadata.image) {
     const firstImageParagraph = mdast.children.find(child => child.children && child.children[0].type === "image")
     if (firstImageParagraph) {
-      metadata.first_image = firstImageParagraph.children[0].url
+      // A card shows it from another folder's page, so from the root.
+      const folder = path.dirname(targetPath ?? filePath).replace(/^\.$/, "")
+      metadata.first_image = imageFromPage(firstImageParagraph.children[0].url, folder)
     }
   }
 

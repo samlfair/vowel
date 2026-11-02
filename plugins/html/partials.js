@@ -41,8 +41,22 @@ const PROJECT_SHEET = "styles.css"
 
 const ASIDE_PARTIAL = path.join("partials", "aside.partial")
 
-/** A page with more siblings than this is left out of the aside. */
+/** A page with more siblings than this is left out of the aside and the header nav. */
 const MAX_SIBLINGS = 18
+
+/**
+ * A folder's pages as a menu, or none: a page with more than
+ * MAX_SIBLINGS siblings is left out, and so are its siblings. Their
+ * folder's own entry stays, and its pages are a listing's job, not a
+ * menu's. Per Sam: "exclude pages with 19 siblings or more", and the
+ * header nav follows the same rule as the aside. Without it, a folder
+ * of 4,000 undated notes put a 4,000-link nav on each of them: 352 KB of
+ * a 355 KB page, and a build that grew with the square of the folder.
+ * @template T
+ * @param {T[]} pages - one folder's
+ * @returns {T[]}
+ */
+const asMenu = (pages) => pages.length - 1 > MAX_SIBLINGS ? [] : pages
 
 /** @param {string} targetPath - the page's own target path */
 function backlinksPartialPath(targetPath) {
@@ -103,19 +117,16 @@ function asideTree(pages) {
     if (!byFolder.has(url)) byFolder.set(url, [])
     byFolder.get(url).push(page)
   }
-  // A page with more than MAX_SIBLINGS siblings is left out, and so are
-  // its siblings: the folder's own entry stays, and its pages are a
-  // listing's job, not a menu's. Per Sam: "exclude pages with 19
-  // siblings or more".
+  // A folder with too many pages for a menu shows its own entry only (asMenu).
   const children = (parent) => {
     const pages = byFolder.get(parent.metadata.prettyURL) ?? []
-    return pages.length - 1 > MAX_SIBLINGS ? [] : pages.map(node)
+    return asMenu(pages).map(node)
   }
 
   function node(page) {
     const below = children(page)
     // The aside links the file, not the pretty url - kept as it was
-    // (see the note in the commit); the home entry is the bare path.
+    // (see the note in the commit).
     return { url: "/" + page.path, label: page.metadata.breadcrumb, ...(below.length ? { children: below } : {}) }
   }
 
@@ -124,7 +135,9 @@ function asideTree(pages) {
       && isOn(page.metadata.global_nav_item) && isOn(page.metadata.html_file))
     .map(node)
 
-  return [...(home ? [{ url: home.path, label: home.metadata.breadcrumb }] : []), ...top]
+  // The home entry is the root's url: its bare path, `index.html`, is
+  // relative, and from /blog/post it named /blog/index.html.
+  return [...(home ? [item(home)] : []), ...top]
 }
 
 /**
@@ -224,7 +237,12 @@ function createPartialStubs(api) {
   const navs = [...folders].sort().map(folder => ({
     path: navPartialPath(folder),
     params: {
-      levels: chain(folder).map(level => (lists.get(level) ?? []).map(item)),
+      // The root's pages are the top of the menu, as in the aside; below
+      // it, a folder with too many pages shows none of them (asMenu).
+      levels: chain(folder).map(level => {
+        const list = lists.get(level) ?? []
+        return (level ? asMenu(list) : list).map(item)
+      }),
       sheets: chain(folder).flatMap(level => sheets.get(level) ?? [])
     }
   }))

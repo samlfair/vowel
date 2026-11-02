@@ -77,6 +77,7 @@ function objectFrom(list) {
  * @returns {string|null}
  */
 function naturalLine(element) {
+  if (element.tagName === "FIGURE") return figureLine(element)
   const property = element.getAttribute("itemprop")
   if (property === "date") return element.textContent.trim()
   if (property === "description") return `${element.textContent.trim()}\n\n---`
@@ -91,6 +92,32 @@ function naturalLine(element) {
 }
 
 /**
+ * A captioned image, back as the image and its caption on one line. The
+ * caption's inline marks are flattened to its text, as a description's
+ * are and as ingest does for a captioned image in the content.
+ * @param {Element} figure
+ * @returns {string|null}
+ */
+function figureLine(figure) {
+  const image = figure.querySelector(":scope > [itemprop=image]")
+  const line = image ? naturalLine(image) : null
+  if (!line) return null
+  const caption = figure.querySelector(":scope > figcaption")?.textContent.trim()
+  return caption ? `${line} ${caption}` : line
+}
+
+/**
+ * A captioned image carries its itemprop on the image inside its
+ * <figure>, so the figure is natural metadata when that image is.
+ * @param {Element} child - of <main>
+ */
+function isNatural(child) {
+  if ([...child.classList].some(name => name.startsWith("fm_"))) return false
+  if (child.hasAttribute("itemprop")) return true
+  return child.tagName === "FIGURE" && Boolean(child.querySelector(":scope > [itemprop=image]"))
+}
+
+/**
  * @param {Element} main
  * @returns {{title: string|null, titleDeclared: boolean, properties: object, natural: string, unrecognised: string[]}}
  */
@@ -102,8 +129,7 @@ export default function readFrontmatter(main) {
   const date = children.find(declared("date"))
   const description = children.find(declared("description"))
 
-  const naturalChildren = children
-    .filter(child => child.hasAttribute("itemprop") && ![...child.classList].some(name => name.startsWith("fm_")))
+  const naturalChildren = children.filter(isNatural)
   const natural = naturalChildren
     .map(naturalLine)
     .filter(Boolean)

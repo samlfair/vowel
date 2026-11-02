@@ -227,6 +227,11 @@ test("a natural image that is a <picture> can't be written back, so it is report
   assert.deepEqual(frontmatter.unrecognised, ["picture"])
 })
 
+test("a captioned natural image comes back as the image and its caption on one line", () => {
+  const { document } = parseHTML(`<main><h1>T</h1><figure><img src="/pic.jpg" alt="Alt" itemprop="image"><figcaption> The <em>caption</em>.</figcaption></figure><section id="content"></section></main>`)
+  assert.equal(readFrontmatter(document.querySelector("main")).natural, "![Alt](/pic.jpg) The caption.\n\n")
+})
+
 test("a title from the frontmatter is declared: it stays a key, and no heading is written", () => {
   const { document } = parseHTML(`<main><h1 class="fm_title">Declared</h1><section id="content"></section></main>`)
   const { titleDeclared } = readFrontmatter(document.querySelector("main"))

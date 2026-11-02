@@ -255,6 +255,13 @@ function naturalMetadata(tree) {
     const { dataMetadata: kind, ...properties } = node.properties
     if (kind === "end") return []
     if (kind === "description") return [{ ...node, properties }]
+    // A captioned image is a <figure> (writeRules.js) and is lifted
+    // whole. The itemprop goes on its image, not the figure: an image is
+    // the property, and the caption is not part of it.
+    if (node.tagName === "figure") {
+      const [image, ...caption] = node.children
+      return [{ ...node, properties, children: [{ ...image, properties: { ...image.properties, itemprop: kind } }, ...caption] }]
+    }
     // A date or an image paragraph only wrapped the one element that is
     // the metadata: the <time>, or the <picture> (an <img> until the
     // image has been read).

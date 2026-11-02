@@ -311,6 +311,7 @@
 			ul {
 				list-style: none;
 				display: flex;
+				flex-wrap: wrap;
 				gap: 2ch;
 			}
 
@@ -438,6 +439,11 @@
 			}
 		}
 
+		/* the page's own image, beside its title, as well as the content's */
+		img {
+			border-radius: var(--borderradius-tight);
+		}
+
 		/* content */
 
 		section#content {
@@ -452,10 +458,6 @@
 				&:hover {
 					color: var(--color-link-hover-body);
 				}
-			}
-
-			img {
-				border-radius: var(--borderradius-tight);
 			}
 
 			mark,

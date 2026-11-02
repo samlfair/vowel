@@ -6,7 +6,7 @@ import { frontmatterFromMarkdown } from "mdast-util-frontmatter"
 import { toString as mdastToString } from "mdast-util-to-string"
 import path from "node:path"
 
-import getMetadata, { normalizeHeadingLevels, findTitleNode } from "../plugins/markdown/metadata.js"
+import getMetadata, { normalizeHeadingLevels, findTitleNode, imageFromPage } from "../plugins/markdown/metadata.js"
 
 /** @param {string} source */
 function parse(source) {
@@ -221,4 +221,45 @@ test("natural metadata is marked for the html plugin to lift out: date, image, d
   const { tree } = read("# Title\n\nMay 28, 2026\n\n![Alt](pic.jpg)\n\nThe description.\n\n---\n\nBody.\n")
   const marked = tree.children.filter(child => child.data?.hProperties?.dataMetadata).map(child => child.data.hProperties.dataMetadata)
   assert.deepEqual(marked, ["date", "image", "description", "end"])
+})
+
+test("an HTML comment is never metadata: it is skipped, stays in the page, and its text is left out", () => {
+  const leading = read("<!-- a note to self -->\n\n# Title\n\n<!-- another -->\n\nMay 28, 2026\n\nThe first paragraph.\n")
+  assert.equal(leading.metadata.title, "Title", "a comment above the # doesn't stop it being the title")
+  assert.equal(leading.metadata.date, "2026-05-28T00:00:00.000Z", "nor the date line after it")
+  assert.equal(leading.metadata.description, "The first paragraph.")
+  assert.deepEqual(leading.tree.children.filter(child => child.type === "html").map(child => child.value), ["<!-- a note to self -->", "<!-- another -->"], "both comments stay in the page")
+
+  const inline = read("# Title <!-- draft -->\n\nA sentence <!-- todo: cite --> that goes on.\n")
+  assert.equal(inline.metadata.title, "Title")
+  assert.equal(inline.metadata.description, "A sentence that goes on.")
+
+  const declared = read("# Title\n\nThe description.\n\n<!-- end of the summary -->\n\n---\n\nBody.\n")
+  assert.equal(declared.metadata.declared_description, "The description.", "a comment between the paragraph and its rule doesn't break the pair")
+})
+
+test("an image in the text is stored from the root, as the browser resolves it from the page", () => {
+  const image = (url, targetPath) => getMetadata(parse(`# Post\n\n![A](${url})\n\nBody.\n`), "x.md", targetPath).image
+  assert.equal(image("pic.jpg", "blog/post.html"), "/blog/pic.jpg")
+  assert.equal(image("./pic.jpg", "blog/post.html"), "/blog/pic.jpg")
+  assert.equal(image("../pic.jpg", "blog/post.html"), "/pic.jpg")
+  assert.equal(image("/pic.jpg", "blog/post.html"), "/pic.jpg")
+  assert.equal(image("pic.jpg", "post.html"), "/pic.jpg")
+  assert.equal(image("https://example.com/pic.jpg", "blog/post.html"), "https://example.com/pic.jpg")
+})
+
+test("imageFromPage decodes, drops a query, and keeps a secret segment's ##", () => {
+  assert.equal(imageFromPage("my%20pic.jpg?v=2", path.join("blog", "travel")), "/blog/travel/my pic.jpg")
+  assert.equal(imageFromPage("./a##b/pic.jpg", "blog"), "/blog/a##b/pic.jpg")
+  assert.equal(imageFromPage("//cdn.example.com/pic.jpg", "blog"), "//cdn.example.com/pic.jpg")
+})
+
+test("an image with its caption after it on the line is the page's image, and the scan goes on past it", () => {
+  const { metadata, tree } = read("# Title\n\n![Alt](pic.jpg) The *caption*.\n\nMay 28, 2026\n\nThe description.\n")
+  assert.equal(metadata.inferred_image, "/pic.jpg")
+  assert.equal(metadata.inferred_alt_text, "Alt")
+  assert.equal(metadata.inferred_date, "2026-05-28T00:00:00.000Z", "the date after it is still metadata")
+  assert.equal(metadata.inferred_description, "The description.", "the caption is not the description")
+  const marked = tree.children.find(child => child.type === "paragraph" && child.children[0].type === "image")
+  assert.equal(marked.data?.hProperties?.dataMetadata, "image")
 })

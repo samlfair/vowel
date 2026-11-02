@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { mkdtemp, writeFile, readFile, rm, mkdir, readdir } from "node:fs/promises"
+import { mkdtemp, writeFile, readFile, rm, mkdir, readdir, utimes } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import votive from "votive"
@@ -130,5 +130,45 @@ test("the aside lists a folder's pages up to 19 of them; a folder with 20 or mor
     assert.equal((tree.match(/href=\/small\/page-/g) ?? []).length, 19, "nineteen pages, eighteen siblings each: all listed")
     assert.ok(tree.includes(">Big<") || tree.includes(">Big</a>"), "the big folder's own entry stays")
     assert.equal((tree.match(/href=\/big\/page-/g) ?? []).length, 0, "twenty siblings are not")
+  })
+})
+
+test("the header nav follows the aside's rule: up to 19 pages of a folder, and none of a folder with 20 or more", async () => {
+  const files = { "home.md": "# Home\n", "small.md": "# Small\n", "big.md": "# Big\n" }
+  for (let i = 1; i <= 19; i++) files[`small/page-${String(i).padStart(2, "0")}.md`] = `# Small ${i}\n`
+  for (let i = 1; i <= 20; i++) files[`big/page-${String(i).padStart(2, "0")}.md`] = `# Big ${i}\n`
+  await withSite(files, async ({ header }) => {
+    const small = await header(path.join("small", "page-01.html"))
+    assert.equal((small.match(/href=\/small\/page-/g) ?? []).length, 19, "nineteen pages, eighteen siblings each: all listed")
+    const big = await header(path.join("big", "page-01.html"))
+    assert.equal((big.match(/href=\/big\/page-/g) ?? []).length, 0, "twenty siblings are not")
+    assert.ok(big.includes("href=/big>Big"), "the big folder's own entry stays, in its parent's list")
+  })
+})
+
+test("the aside's home entry is the root's url, not a path relative to the page", async () => {
+  await withSite({ "home.md": "# Home\n", "about.md": "# About\n", "blog/post.md": "# Post\n" }, async ({ aside }) => {
+    const tree = await aside(path.join("blog", "post.html"))
+    assert.match(tree, /<a href=\/>Home<\/a>/)
+    assert.doesNotMatch(tree, /href=index\.html/)
+  })
+})
+
+test("a page switched to a draft leaves the header nav and the aside, and its file goes", async () => {
+  const files = { "home.md": "# Home\n", "about.md": "# About\n", "blog.md": "# Blog\n", "blog/post.md": "# Post\n", "blog/other.md": "# Other\n" }
+  await withSite(files, async ({ sourceFolder, targetFolder, header, aside, rebuild }) => {
+    assert.ok((await aside("about.html")).includes("href=/blog/post.html>Post"))
+    assert.ok((await header(path.join("blog", "other.html"))).includes("href=/blog/post>Post"))
+
+    // An edit within the same mtime tick is not an edit; move the clock on.
+    const file = path.join(sourceFolder, "blog", "post.md")
+    await writeFile(file, "---\nstatus: draft\n---\n# Post\n")
+    const later = new Date(Date.now() + 10_000)
+    await utimes(file, later, later)
+    await rebuild({ changed: [path.join("blog", "post.md")] })
+
+    assert.ok(!(await aside("about.html")).includes("Post"), "gone from the aside")
+    assert.ok(!(await header(path.join("blog", "other.html"))).includes("Post"), "and from the header nav")
+    assert.equal((await readdir(path.join(targetFolder, "blog"))).includes("post.html"), false, "and its file")
   })
 })

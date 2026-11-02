@@ -20977,6 +20977,7 @@ ${fallback_html}`;
 	  }, {})
 	}
 	function naturalLine(element) {
+	  if (element.tagName === "FIGURE") return figureLine(element)
 	  const property = element.getAttribute("itemprop");
 	  if (property === "date") return element.textContent.trim()
 	  if (property === "description") return `${element.textContent.trim()}\n\n---`
@@ -20985,14 +20986,25 @@ ${fallback_html}`;
 	  const source = element.getAttribute("src");
 	  return source ? `![${element.getAttribute("alt") ?? ""}](${source})` : null
 	}
+	function figureLine(figure) {
+	  const image = figure.querySelector(":scope > [itemprop=image]");
+	  const line = image ? naturalLine(image) : null;
+	  if (!line) return null
+	  const caption = figure.querySelector(":scope > figcaption")?.textContent.trim();
+	  return caption ? `${line} ${caption}` : line
+	}
+	function isNatural(child) {
+	  if ([...child.classList].some(name => name.startsWith("fm_"))) return false
+	  if (child.hasAttribute("itemprop")) return true
+	  return child.tagName === "FIGURE" && Boolean(child.querySelector(":scope > [itemprop=image]"))
+	}
 	function readFrontmatter(main) {
 	  const children = [...main.children];
 	  const declared = (key) => (child) => child.classList.contains(`fm_${key}`);
 	  const heading = children.find(child => child.tagName === "H1");
 	  const date = children.find(declared("date"));
 	  const description = children.find(declared("description"));
-	  const naturalChildren = children
-	    .filter(child => child.hasAttribute("itemprop") && ![...child.classList].some(name => name.startsWith("fm_")));
+	  const naturalChildren = children.filter(isNatural);
 	  const natural = naturalChildren
 	    .map(naturalLine)
 	    .filter(Boolean);

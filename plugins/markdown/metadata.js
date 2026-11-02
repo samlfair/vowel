@@ -6,6 +6,49 @@ import { displayPath } from "../../secretPaths.js"
 import pathDate from "../../pathDate.js"
 import { coerce, parseFrontmatter, toISODate } from "./frontmatter.js"
 
+/**
+ * An HTML comment, or several in a row with nothing else between them.
+ * It stays in the page, but metadata never reads it (per Sam): a
+ * comment is not a title, a date or a description, and it doesn't take
+ * a block's place in the scan for one.
+ * @param {any} node
+ */
+function isComment(node) {
+  return node.type === "html" && /^\s*(?:<!--[\s\S]*?-->\s*)+$/.test(node.value)
+}
+
+/**
+ * A node's text for metadata: mdastToString with its HTML comments left
+ * out, at any depth. Where a comment sat between two words, the spaces
+ * either side of it close up to one.
+ * @param {any} node
+ * @returns {string}
+ */
+function metadataText(node) {
+  if (isComment(node)) return ""
+  if (!node.children) return mdastToString(node)
+  const text = node.children.map(metadataText).join("")
+  if (!node.children.some(isComment)) return text
+  return text.replace(/[ \t]{2,}/g, " ")
+}
+
+/**
+ * An image the page's text names, as the browser resolves it from the
+ * page: `pic.jpg` and `./pic.jpg` are the page's folder's, `../pic.jpg`
+ * its parent's, `/pic.jpg` the root's. Stored as a path from the root,
+ * the way the html write resolves the same image (`fromPage` in
+ * writeRules.js), because a listing card and `og:image` read it from
+ * pages in other folders. An external url is left as written. (A
+ * frontmatter `image:` is a setting-style path instead: `resolvePath`.)
+ * @param {string} url - as written
+ * @param {string} folder - the page's target folder, project-relative ("" at the root)
+ */
+export function imageFromPage(url, folder) {
+  if (/^[a-z][a-z\d+.-]*:/i.test(url) || url.startsWith("//")) return url
+  const base = new URL(folder ? `/${folder.split(path.sep).join("/")}/` : "/", "thismessage://")
+  return decodeURIComponent(new URL(url.replaceAll("#", "%23"), base).pathname)
+}
+
 
 /**
 - menu_item: true | false
@@ -50,7 +93,7 @@ export const reservedProperties = [
  * @param {object} tree
  */
 export function findTitleNode(tree) {
-  const [first] = tree.children.filter(child => child.type !== "yaml")
+  const [first] = tree.children.filter(child => child.type !== "yaml" && !isComment(child))
   if (!first) return null
   if (first.type !== "heading" || first.depth !== 1) return null
   return first
@@ -101,24 +144,29 @@ function markAsTime(paragraph, date) {
  *
  * @param {object} block
  * @param {object} metadata
+ * @param {string} folder - the page's target folder, for a relative image
  * @returns {boolean} whether the block was recognizable data
  */
-function recognizeData(block, metadata) {
+function recognizeData(block, metadata, folder) {
   if (block.type !== "paragraph") return false
-  if (block.children.length !== 1) return false
-
-  const [child] = block.children
+  const children = block.children.filter(child => !isComment(child))
+  const [child] = children
 
   const imageFilled = Boolean(metadata.fm_image || metadata.inferred_image)
 
-  if (child.type === "image") {
+  // An image, alone or with its caption after it on the same line: the
+  // html write makes the pair a <figure> and lifts it whole. The caption
+  // is not a property of the page.
+  if (child?.type === "image") {
     if (imageFilled) return false
-    metadata.inferred_image = child.url
+    metadata.inferred_image = imageFromPage(child.url, folder)
     metadata.inferred_alt_text = child.alt
     return "image"
   }
 
-  const text = mdastToString(block)
+  if (children.length !== 1) return false
+
+  const text = metadataText(block)
 
   // A reference or a listing directive (`/blog/post`, `/blog/**`,
   // `./drafts/*`) is an instruction to the html plugin, not prose - it
@@ -227,16 +275,16 @@ function getMetadata(tree, filePath, targetPath, report = () => {}) {
 
   const titleNode = findTitleNode(tree)
   if (titleNode) {
-    metadata.inferred_title = mdastToString(titleNode) || labelFromName(path.parse(filePath).name)
+    metadata.inferred_title = metadataText(titleNode).trim() || labelFromName(path.parse(filePath).name)
   }
 
   // Everything up to the first block that is not recognizable data is
   // metadata; that first block is where the content begins, and it also
   // supplies the description.
-  const blocks = tree.children.filter(child => child.type !== "yaml" && child !== titleNode)
+  const blocks = tree.children.filter(child => child.type !== "yaml" && child !== titleNode && !isComment(child))
 
   for (const [index, block] of blocks.entries()) {
-    const recognized = recognizeData(block, metadata)
+    const recognized = recognizeData(block, metadata, folder)
     if (recognized === "skip") continue
     if (recognized) {
       markAsNatural(block, recognized)
@@ -251,13 +299,13 @@ function getMetadata(tree, filePath, targetPath, report = () => {}) {
     // markdown, not a paragraph and a rule; it takes a blank line.)
     const next = blocks[index + 1]
     if (!metadata.fm_description && block.type === "paragraph" && next?.type === "thematicBreak") {
-      metadata.declared_description = mdastToString(block)
+      metadata.declared_description = metadataText(block).trim()
       markAsNatural(block, "description")
       markAsNatural(next, "end")
       break
     }
 
-    if (!metadata.fm_description) metadata.inferred_description = mdastToString(block)
+    if (!metadata.fm_description) metadata.inferred_description = metadataText(block).trim()
     break
   }
 

@@ -93,3 +93,20 @@ test("the page image's dominant colour is on <main> and on the page's card, for 
     assert.doesNotMatch(declared, /--color-image-dominant/)
   })
 })
+
+test("a captioned image is lifted whole, as a <figure> with the itemprop on its image; and a <figure> is never inside a <p>", async () => {
+  const captioned = {
+    ...files,
+    "captioned.md": "# Captioned\n\n![A picture](pic.jpg) The *caption*, [linked](/natural).\n\nThe body.\n\n![Again](pic.jpg) In the content.\n"
+  }
+  await withSite(captioned, async (page) => {
+    const html = await page("captioned.html")
+    const figure = head(html).match(/<figure>[\s\S]*?<\/figure>/)?.[0]
+    assert.ok(figure, "the figure is in <main>, out of the content")
+    assert.match(figure, /^<figure><picture [^>]*itemprop=image[^>]*>/, "the itemprop is on the picture")
+    assert.match(figure, /<figcaption> The <em>caption<\/em>, <a href=\/natural>linked<\/a>\.<\/figcaption>/, "the caption is walked like any text")
+    assert.doesNotMatch(content(html), /A picture/)
+    assert.match(content(html), /<figure><picture[^>]*>[\s\S]*?<figcaption> In the content\.<\/figcaption><\/figure>/, "a captioned image in the content stays there")
+    assert.doesNotMatch(html, /<p><figure>/)
+  })
+})

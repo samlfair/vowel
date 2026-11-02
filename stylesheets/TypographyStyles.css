@@ -334,15 +334,15 @@
 		&>section {
 			margin-top: 1lh;
 		}
+
+		/* image caption space: the page's own captioned image, beside its title, as well as the content's */
+		figure {
+			gap: 1lh;
+		}
 	}
 
 	/* content */
 	section {
-
-		/* image caption space */
-		figure {
-			gap: 1lh;
-		}
 
 		/* list spacing */
 		ul,

@@ -297,14 +297,38 @@ const highlight = {
 const PENDING_WIDTH = 1500
 const PENDING_HEIGHT = 1000
 
+/** An image in the text, not an inline icon (`:folder/name:`). @param {any} node */
+const isImage = (node) => isElement(node) && node.tagName === "img" && !hasClass(node, "icon")
+
 /**
- * A project image becomes a responsive <picture>; first in its
- * paragraph with siblings after it, those are its caption.
+ * A paragraph that starts with an image and goes on is a captioned
+ * image: the paragraph becomes a <figure>, and what follows the image
+ * its <figcaption>. In place, so the walk goes on into both (the image
+ * rule makes the <picture>, the inline rules read the caption) and a
+ * natural image's mark (`data-metadata`) stays on the element the html
+ * plugin lifts. The <figure> used to go inside the <p>, where it is not
+ * allowed: a browser closed the paragraph before it and left an empty
+ * one behind.
+ * @type {import("../markdown/visitor.js").BlockRule}
+ */
+const captionedImage = {
+  name: "captioned image",
+  test: (node) => isElement(node) && node.tagName === "p" && isImage(node.children?.[0])
+    && node.children.slice(1).some(child => child.type !== "text" || child.value.trim()),
+  transform: (node) => {
+    const [img, ...caption] = node.children
+    node.tagName = "figure"
+    node.children = [img, h("figcaption", caption)]
+  }
+}
+
+/**
+ * A project image becomes a responsive <picture>.
  * @type {import("../markdown/visitor.js").BlockRule}
  */
 const image = {
   name: "image",
-  test: (node) => isElement(node) && node.tagName === "img" && !hasClass(node, "icon"),
+  test: isImage,
   transform: (node, index, parent, context) => {
     const { api, target } = context
     const { src, alt } = node.properties
@@ -329,11 +353,6 @@ const image = {
       if (node.properties.width !== undefined || node.properties.height !== undefined) return SKIP
       node.properties.width = PENDING_WIDTH
       node.properties.height = PENDING_HEIGHT
-      return SKIP
-    }
-    if (index === 0 && parent.children.length > 1) {
-      const caption = parent.children.slice(1)
-      parent.children = [h("figure", [picture, h("figcaption", caption)])]
       return SKIP
     }
     return picture
@@ -545,7 +564,7 @@ function trimText(nodes) {
 const skipped = new Set(["pre", "code", "script", "style"])
 
 const writeWalk = createVisitor({
-  block: [internalLink, wikilink, icon, highlight, image, directive, preview, alert],
+  block: [internalLink, wikilink, icon, highlight, captionedImage, image, directive, preview, alert],
   skip: (node) => isElement(node) && skipped.has(node.tagName)
 })
 
