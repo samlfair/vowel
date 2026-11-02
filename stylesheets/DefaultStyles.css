@@ -614,78 +614,78 @@
 			display: none;
 		}
 	}
-}
 
-/* footer */
+	/* footer */
 
-footer {
+	footer {
 
-	text-align: center;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 2lh;
-
-	nav ul {
-		list-style: none;
-		padding: 0;
+		text-align: center;
 		display: flex;
-		gap: 1ch;
+		flex-direction: column;
+		align-items: center;
+		gap: 2lh;
 
-		img {
-			height: 1em;
-			width: auto;
+		nav ul {
+			list-style: none;
+			padding: 0;
+			display: flex;
+			gap: 1ch;
+
+			img {
+				height: 1em;
+				width: auto;
+			}
+		}
+
+		section {
+			display: block;
+		}
+
+		a {
+
+			&,
+			&:visited {
+
+				color: var(--color-link-body);
+			}
+
+			&:hover {
+				color: var(--color-link-hover-menu);
+			}
+		}
+
+	}
+
+	/* homepage */
+	@media (min-width: 140rch) {
+		body.page_home {
+			grid-template-columns: 1fr 15rch 70rch 15rch 1fr;
 		}
 	}
 
-	section {
-		display: block;
-	}
-
-	a {
-
-		&,
-		&:visited {
-
-			color: var(--color-link-body);
-		}
-
-		&:hover {
-			color: var(--color-link-hover-menu);
-		}
-	}
-
-}
-
-/* homepage */
-@media (min-width: 140rch) {
 	body.page_home {
-		grid-template-columns: 1fr 15rch 70rch 15rch 1fr;
+
+
+		/*
+			The homepage's slogan is the hero
+		*/
+		main>[itemprop="slogan"] {
+			font-size: 4em;
+			font-weight: bold;
+			padding-block: 0.5lh;
+
+
+		}
+
+		/*
+			Hide breadcrumbs
+		*/
+		[aria-label=Breadcrumbs],
+		[aria-label=Contents],
+		&>aside>nav,
+		&>main>h1 {
+			display: none;
+		}
+
 	}
-}
-
-body.page_home {
-
-
-	/*
-		The homepage's slogan is the hero
-	*/
-	main>[itemprop="slogan"] {
-		font-size: 4em;
-		font-weight: bold;
-		padding-block: 0.5lh;
-
-
-	}
-
-	/*
-		Hide breadcrumbs
-	*/
-	[aria-label=Breadcrumbs],
-	[aria-label=Contents],
-	&>aside>nav,
-	&>main>h1 {
-		display: none;
-	}
-
 }
