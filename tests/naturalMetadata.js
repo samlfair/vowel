@@ -79,3 +79,17 @@ test("the feed's entry body is the content alone: no date line or description re
     assert.doesNotMatch(body, /May 28|The description/)
   })
 })
+
+test("the page image's dominant colour is on <main> and on the page's card, for CSS outside the image", async () => {
+  await withSite({ ...files, "list.md": "# List\n\n/*\n" }, async (page) => {
+    const main = (await page("natural.html")).match(/<main[^>]*>/)[0]
+    assert.match(main, /style="?--color-image-dominant: #[0-9a-f]{6}/)
+    assert.doesNotMatch((await page("declared.html")).match(/<main[^>]*>/)[0], /--color-image-dominant/, "no image, no colour")
+
+    const cards = (await page("list.html")).match(/<article[^>]*>/g)
+    const natural = cards.find(card => card.includes("page_natural"))
+    assert.match(natural, /--color-image-dominant: #[0-9a-f]{6}/)
+    const declared = cards.find(card => card.includes("page_declared"))
+    assert.doesNotMatch(declared, /--color-image-dominant/)
+  })
+})

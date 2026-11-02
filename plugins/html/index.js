@@ -20,7 +20,7 @@ import { toString as hastToString } from 'hast-util-to-string'
 import { unified } from "unified"
 import toc from "@jsdevtools/rehype-toc"
 import slug from "rehype-slug"
-import createDynamicImage from "./image.js"
+import createDynamicImage, { dominantStyle } from "./image.js"
 import { listPages } from "./../../utils.js"
 import { pageRecordURI } from "../atproto/record.js"
 import { STATUSES } from "../markdown/frontmatter.js"
@@ -92,9 +92,8 @@ function makeHeader(metadata, url, api, config, source) {
     treeMainHead.push(makeTime(date))
   }
 
-  if (metadata.image || metadata.first_image) {
-    const metaImage = metadata.image || metadata.first_image
-
+  const metaImage = metadata.image || metadata.first_image
+  if (metaImage) {
     treeMainHead.push(
       createDynamicImage(metaImage, api, null, true)
     )
@@ -113,7 +112,12 @@ function makeHeader(metadata, url, api, config, source) {
   // an item of its own: the itemprops inside it (date, description,
   // image) describe that page, not the page it's listed on. A page with
   // no file (`html_file: false`) has no url, so its card links nowhere.
-  const article = h('article', { className: pageClasses(metadata.prettyURL, source), itemscope: true }, treeMainHead)
+  // Its image's dominant colour is the card's, for the card's own CSS.
+  const article = h('article', {
+    className: pageClasses(metadata.prettyURL, source),
+    itemscope: true,
+    style: dominantStyle(metaImage, api)
+  }, treeMainHead)
   return url ? h('a', { href: url }, article) : article
 }
 
@@ -699,7 +703,9 @@ function writeFile(target, { settings, api, config }) {
 
   const treeMain = h('main',
     {
-      itemscope: true
+      itemscope: true,
+      // The page image's dominant colour, for anything in <main> to use.
+      style: dominantStyle(metadata.image, api)
     },
     [
       // The title is main's first child: the one piece of data hoisted out

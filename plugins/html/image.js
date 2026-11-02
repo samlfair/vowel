@@ -6,6 +6,35 @@ import * as unpic from "unpic"
 /** @import * as Votive from "votive" */
 
 /**
+ * The image target a path names, from the root. Lowercased: every vowel
+ * target path is (config.js's router), and the author may well have
+ * typed the file's real name.
+ * @param {string} imagePath
+ * @param {import("votive").PluginAPI} api
+ */
+function findImage(imagePath, api) {
+  const relativePath = (imagePath.startsWith("/") ? path.relative("/", imagePath) : imagePath).toLowerCase()
+  return api.target(relativePath)
+}
+
+/**
+ * The page image's dominant colour as a style for the element that
+ * holds it - a page's <main>, a card's <article> - so CSS outside the
+ * image can use it (text that contrasts with it, say). The <picture>
+ * carries it too, for its own placeholder. Nothing here decides that
+ * anything should use it. Undefined for no image, an external one, or
+ * one not read yet.
+ * @param {string | undefined} imagePath - from the root
+ * @param {import("votive").PluginAPI} api
+ */
+function dominantStyle(imagePath, api) {
+  if (!imagePath || testURL(imagePath)) return
+  const dominant = findImage(imagePath, api)?.metadata.dominant
+  if (!dominant) return
+  return `--color-image-dominant: ${dominant}`
+}
+
+/**
  * @param {string} imagePath
  * @param {import("votive").PluginAPI} api
  * @param {string} alt
@@ -54,10 +83,7 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
 
   if (!isImg) return
 
-  // Lowercased: every vowel target path is (config.js's router), and
-  // the author may well have typed the file's real name.
-  const relativePath = (imagePath.startsWith("/") ? path.relative("/", imagePath) : imagePath).toLowerCase()
-  const image = api.target(relativePath)
+  const image = findImage(imagePath, api)
   if (!image) return
   // Until the image has been read (a deferred buffer read) it has no
   // hash and no derivatives; a plain <img> stands in, and the tracked
@@ -107,4 +133,5 @@ function createDynamicImage(imagePath, api, alt, itemprop) {
   }, sources)
 }
 
+export { dominantStyle }
 export default createDynamicImage
