@@ -2,6 +2,7 @@
 
 import fs from "node:fs/promises"
 import os from "node:os"
+import path from "node:path"
 import { intro, note, text, select, confirm, spinner, outro, box, isCancel, cancel } from "@clack/prompts"
 import { parse } from "@bomb.sh/args"
 import t from "@bomb.sh/tab"
@@ -53,6 +54,22 @@ async function removeDatabase(verbose) {
   } catch (e) {
     if (verbose) console.info(`${styleText("dim", "loading:")} ${styleText("green", "no database found")}`)
   }
+}
+
+/**
+ * Empties the buffer cache: an image's measurements and derivative list,
+ * cached by votive so a warm start doesn't decode it again. Without
+ * this, a reset still reused every image's old read. Only the `.json`
+ * results go. The `cache-key` file stays, because votive empties a
+ * folder that has no key, so removing it would discard the next
+ * launch's fresh cache. URL fetches are not cached here.
+ * @param {boolean} verbose
+ */
+async function removeBufferCache(verbose) {
+  const entries = await fs.readdir(config.cacheDirectory).catch(() => [])
+  const results = entries.filter(name => name.endsWith(".json"))
+  await Promise.all(results.map(name => fs.rm(path.join(config.cacheDirectory, name), { force: true })))
+  if (verbose) console.info(`${styleText("dim", "loading:")} ${styleText("green", results.length ? "buffer cache cleared" : "no buffer cache found")}`)
 }
 
 /** @param {boolean} verbose */
@@ -290,6 +307,7 @@ async function main() {
 
   if (shouldClear(args)) {
     await removeDatabase(args.logging === "verbose")
+    await removeBufferCache(args.logging === "verbose")
     await removeOutput(args.logging === "verbose")
   }
   await fs.mkdir(config.targetFolder, { recursive: true })
