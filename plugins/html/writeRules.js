@@ -293,6 +293,10 @@ const highlight = {
   }
 }
 
+/** The stand-in size of an image not read yet: 3:2, the commonest photo shape. */
+const PENDING_WIDTH = 1500
+const PENDING_HEIGHT = 1000
+
 /**
  * A project image becomes a responsive <picture>; first in its
  * paragraph with siblings after it, those are its caption.
@@ -311,11 +315,20 @@ const image = {
     const relative = isInternal(src) && !src.startsWith("/")
     const picture = createDynamicImage(relative ? fromPage(splitURL(src).pathname, target) : src, api, alt)
     if (!picture) {
-      // Left as an <img>: say so when the browser would get a 404 for it.
+      // Left as an <img>. One whose file is read in the background may
+      // only be not read yet; any other miss is a 404, said so.
       const { pathname } = isInternal(src) ? splitURL(src) : {}
-      if (pathname && !readInBackground(pathname, context.config) && !servedTarget(pathname, context)) {
+      if (!pathname || servedTarget(pathname, context)) return SKIP
+      if (!readInBackground(pathname, context.config)) {
         context.config.log?.("warn", `${context.target.source ?? context.target.path}: image ${src} matches no file`)
+        return SKIP
       }
+      // Not read yet, so its size is unknown. A 3:2 box stands in (the
+      // reset sizes an <img> from its attributes, capped at the column),
+      // so the page doesn't jump when the read rewrites it at its own size.
+      if (node.properties.width !== undefined || node.properties.height !== undefined) return SKIP
+      node.properties.width = PENDING_WIDTH
+      node.properties.height = PENDING_HEIGHT
       return SKIP
     }
     if (index === 0 && parent.children.length > 1) {

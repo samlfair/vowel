@@ -182,3 +182,35 @@ test("a png or jpeg is never published at full size: every link to it names a de
     await rm(systemFolder, { recursive: true, force: true })
   }
 })
+
+test("an image not read yet holds a 3:2 box, and gets its own size when it is read", async () => {
+  const sourceFolder = await mkdtemp(path.join(tmpdir(), "vowel-pending-"))
+  const systemFolder = await mkdtemp(path.join(tmpdir(), "vowel-pending-sys-"))
+  const targetFolder = path.join(systemFolder, "output")
+  const site = await votive(createConfig(sourceFolder, {
+    targetFolder,
+    databasePath: path.join(systemFolder, ".votive.db"),
+    cacheDirectory: path.join(systemFolder, ".cache"),
+    logging: "silent"
+  }))
+  try {
+    await writeFile(path.join(sourceFolder, "home.md"), "# Home\n\n![a picture](/pic.jpg)\n")
+    // Large enough that its deferred read is still running when the
+    // foreground pass has written the page.
+    const noise = Buffer.alloc(2000 * 1200 * 3).map(() => Math.random() * 255)
+    await sharp(noise, { raw: { width: 2000, height: 1200, channels: 3 } }).jpeg().toFile(path.join(sourceFolder, "pic.jpg"))
+
+    const { deferred } = await site.build()
+    const before = await readFile(path.join(targetFolder, "index.html"), "utf-8")
+    assert.match(before, /<img src=\/pic\.jpg alt="a picture"\s?width=1500 height=1000/, "a stand-in box before the read")
+
+    await deferred
+    const after = await readFile(path.join(targetFolder, "index.html"), "utf-8")
+    assert.match(after, /<picture[\s\S]*width=2000 height=1200[\s\S]*<\/picture>/, "its own size once read")
+    assert.doesNotMatch(after, /width=1500/)
+  } finally {
+    await site.close()
+    await rm(sourceFolder, { recursive: true, force: true })
+    await rm(systemFolder, { recursive: true, force: true })
+  }
+})
