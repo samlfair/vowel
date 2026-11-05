@@ -13,7 +13,7 @@ import { gfmTable } from 'micromark-extension-gfm-table'
 import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
 import { h } from 'hastscript'
 import { readFileSync } from "fs"
-import { testURL, testHashtags, createHashtagPage, labelFromName, isPageWithoutFile, pageClasses, hashtagRegexSingle, imageSizes } from "./../../utils.js"
+import { testURL, testHashtags, createHashtagPage, labelFromName, isPageWithoutFile, pageClasses, hashtagRegexSingle, imageSizes, mirrorPath } from "./../../utils.js"
 import extractDate from "./../../extractDate.js"
 import { reservedProperties, hiddenProperties } from "./../markdown/metadata.js"
 import { toString as hastToString } from 'hast-util-to-string'
@@ -536,6 +536,18 @@ function writeFile(target, { settings, api, config }) {
         href
       })
     )
+  }
+
+  // The page's markdown mirror (markdown/mirror.js), linked only while
+  // it exists. A tracked read: the page is rebuilt when its mirror is
+  // declared or removed, and not when the mirror is rewritten.
+  const mirror = api.target(mirrorPath(target.path))
+  if (mirror) {
+    treeHead.children.push(h("link", {
+      rel: "alternate",
+      type: "text/markdown",
+      href: "/" + mirror.path.split(path.sep).join("/")
+    }))
   }
 
   // The page's AT Protocol record, for readers that verify a document

@@ -79,6 +79,7 @@ export const reservedProperties = [
   "rss_item",
   "sitemap_item",
   "html_file",
+  "markdown_mirror",
   "global_nav_item",
   "local_nav_item",
   "theme",

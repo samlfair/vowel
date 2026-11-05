@@ -71,7 +71,7 @@ test("it is a feed entry, with its body and no link", async () => {
     const feed = await page("feed.xml")
     const entry = feed.match(/<entry>(?:(?!<\/entry>)[\s\S])*Ghost[\s\S]*?<\/entry>/)?.[0]
     assert.ok(entry, `an entry: ${feed}`)
-    assert.match(entry, /No page of its own/, "with its body")
+    assert.match(entry, /<content type="html">[^<]*No page of its own/, "with its body, not only its summary")
     assert.doesNotMatch(entry, /<link/, "and no link")
     assert.match(entry, /<id>https?:\/\/example\.com\/work\/ghost\.html<\/id>/, "its id is the url it would have")
   })

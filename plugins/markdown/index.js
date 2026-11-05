@@ -21,6 +21,7 @@ import { isSecretPath, secretRouter, displayPath } from "./../../secretPaths.js"
 import { collectLinks } from "./links.js"
 import { readWalk } from "./readRules.js"
 import { h } from "hastscript"
+import { mirrorStubs, mirrorWriter } from "./mirror.js"
 
 import { styleText } from "node:util"
 
@@ -233,6 +234,11 @@ function settingsContribution(metadata, filePath, log) {
   if (metadata.fm_slogan !== undefined) {
     log?.("warn", `${filePath}: \`slogan:\` in a settings file does nothing - a slogan belongs to a page, e.g. home.md`)
   }
+  // Mirrors are declared by an enumerator, which sees the root's
+  // settings only.
+  if (metadata.markdown_mirror !== undefined && filePath !== "settings.md") {
+    log?.("warn", `${filePath}: \`markdown_mirror:\` works only in the root settings.md or in a page's frontmatter`)
+  }
   const declared = Object.entries(metadata)
     .filter(([key]) => key.startsWith("fm_") || reservedProperties.includes(key))
   return {
@@ -242,19 +248,6 @@ function settingsContribution(metadata, filePath, log) {
   }
 }
 
-/**
- * The only markdown target vowel produces is settings.md itself (every
- * other .md file is routed to .html), so this passes its source text
- * through untouched - the panel edits the real file, not a rendering of
- * it.
- * @type {Votive.ProcessorWrite}
- */
-function writeMarkdown(target) {
-  return {
-    data: target.data,
-    encoding: "utf-8"
-  }
-}
 
 
 
@@ -491,8 +484,7 @@ const readMarkdown = {
   router,
   createStubs,
   expandStubs,
-  readFile,
-  writeFile: writeMarkdown
+  readFile
 }
 
 
@@ -500,7 +492,7 @@ const readMarkdown = {
 /** @type {Votive.VotivePlugin} */
 const vowelMarkdownPlugin = {
   name: "vowel",
-  processors: [readMarkdown]
+  processors: [readMarkdown, mirrorStubs, mirrorWriter]
 }
 
 export default vowelMarkdownPlugin

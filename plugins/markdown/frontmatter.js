@@ -69,6 +69,7 @@ const EXPECTED = {
   aliases: "strings",
   status: "status",
   html_file: "boolean",
+  markdown_mirror: "boolean",
   rss_item: "boolean",
   sitemap_item: "boolean",
   global_nav_item: "boolean",

@@ -5,6 +5,7 @@ import { gfmFootnoteToMarkdown } from "mdast-util-gfm-footnote"
 import { gfmTaskListItemToMarkdown } from "mdast-util-gfm-task-list-item"
 import { toText } from "hast-util-to-text"
 import { emojiFor } from "../markdown/emoji.js"
+import { alertLabel } from "../html/editor/directives.js"
 
 /**
  * A page's body as a record carries it, from the rendered
@@ -17,7 +18,8 @@ import { emojiFor } from "../markdown/emoji.js"
  *   and footnotes vowel itself reads. Links and images are absolute; an
  *   image links to its copy on the site. An icon is its emoji, or its
  *   shortcode as text. A listing is a list of links. A hashtag is a link
- *   whose text keeps its `#`. No title: it is outside the section.
+ *   whose text keeps its `#`. An alert is GFM's (`> [!NOTE]`). No
+ *   title: it is outside the section.
  * - **Rich text** (`richTextBody`), for a `text` field with `facets`
  *   beside it: plain text, and a facet for each link, hashtag and mark
  *   the lexicon has a feature for. The rest is dropped, images included.
@@ -181,7 +183,8 @@ function block(node, base) {
   if (/^h[1-6]$/.test(tag)) return [{ type: "heading", depth: Number(tag[1]), children: trimPhrasing(phrasing(node.children ?? [], base)) }]
   if (tag === "hr") return [{ type: "thematicBreak" }]
   if (tag === "picture") return [paragraph([node], base)]
-  if (tag === "blockquote" || hasClass(node, "markdown-alert")) return [{ type: "blockquote", children: blocks(node.children ?? [], base) }]
+  if (tag === "aside" && hasClass(node, "alert")) return [alert(node, base)]
+  if (tag === "blockquote") return [{ type: "blockquote", children: blocks(node.children ?? [], base) }]
   if (tag === "pre") {
     const code = (node.children ?? []).find(child => is(child, "code")) ?? node
     const language = classes(code).find(name => name.startsWith("language-"))?.slice("language-".length)
@@ -191,6 +194,30 @@ function block(node, base) {
   if (tag === "table") return [table(node, base)]
   if (isFootnoteSection(node)) return footnotes(node, base)
   return blocks(node.children ?? [], base)
+}
+
+/**
+ * An alert, `<aside class="alert note">` with its heading first, back in
+ * GFM's form: `> [!NOTE]`, then the text on the next line. A heading the
+ * author wrote stays on the marker's line (`> [!NOTE] How to render`,
+ * Obsidian's title, which vowel reads too); the default one, the type in
+ * sentence case, is left off. The marker is raw `html` so that it is
+ * not escaped as a link reference.
+ * @param {any} node
+ * @param {string} base
+ */
+function alert(node, base) {
+  const type = classes(node).find(name => name !== "alert") ?? "note"
+  const [first, ...rest] = (node.children ?? []).filter(child => child.type === "element")
+  const hasHeading = /^h[1-6]$/.test(first?.tagName ?? "")
+  const title = hasHeading && toText(first).trim() !== alertLabel(type) ? trimPhrasing(phrasing(first.children ?? [], base)) : []
+  const marker = [{ type: "html", value: `[!${type.toUpperCase()}]` }, ...(title.length ? [{ type: "text", value: " " }, ...title] : [])]
+  const body = blocks(hasHeading ? rest : [first, ...rest].filter(child => child), base)
+  const [lead, ...after] = body
+  const children = lead?.type === "paragraph"
+    ? [{ ...lead, children: [...marker, { type: "text", value: "\n" }, ...lead.children] }, ...after]
+    : [{ type: "paragraph", children: marker }, ...body]
+  return { type: "blockquote", children }
 }
 
 /** @param {any} node @param {string} base */

@@ -172,6 +172,32 @@ export function isPageWithoutFile(target) {
 }
 
 /**
+ * Whether a page has a markdown mirror (plugins/markdown/mirror.js).
+ * The root settings.md's `markdown_mirror` switches every page, and the
+ * page's own key overrides it. A page without a file is mirrored only
+ * when it asks itself: `html_file: false` used to mean "published
+ * nowhere", and switching mirrors on for a site must not publish it.
+ * Another virtual page (`status: deleted`) is never mirrored.
+ * @param {any} page
+ * @param {boolean} siteMirrors - the root settings.md's `markdown_mirror`
+ */
+export function isMirrored(page, siteMirrors) {
+  if (page.extension !== ".html") return false
+  const own = page.metadata?.markdown_mirror
+  if (isPageWithoutFile(page)) return own === true
+  if (page.write === false) return false
+  return typeof own === "boolean" ? own : siteMirrors
+}
+
+/**
+ * Where a page's mirror is: `blog/post.html` → `blog/post.md`.
+ * @param {string} pagePath - a stored target path
+ */
+export function mirrorPath(pagePath) {
+  return pagePath.replace(/\.html$/, ".md")
+}
+
+/**
  * listPages, plus pages without a file: for listings, cards and the
  * feed, which can show a page without linking to it.
  * @param {{targets: (query: object) => any[]}} api
