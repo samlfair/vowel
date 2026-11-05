@@ -82,7 +82,9 @@
     "systemPaths.js",
     "utils.js",
     "plugins",
+    "skills",
     "stylesheets",
+    "templates",
     "!plugins/html/bundle.js",
     "!plugins/html/editorClient.js"
   ]

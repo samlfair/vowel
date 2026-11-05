@@ -1,3 +1,6 @@
+import { copyFile, mkdir, constants } from "node:fs/promises"
+import path from "node:path"
+
 /**
  * Decisions the CLI makes from its arguments, kept out of bin.js so they
  * can be tested without launching a server.
@@ -44,4 +47,45 @@ export function wrongFolderWarning(entries, { folder, home }) {
   if (markdown.length || !visible.length) return undefined
   const others = visible.length === 1 ? "1 other thing" : `${visible.length} other things`
   return `${folder} has no markdown files, and ${others} in it. Vowel makes a website from everything in the folder it runs in. Set up a site here anyway?`
+}
+
+/** What the wizard offers to write for AI agents, from vowel's own package. */
+const AGENT_FILES = {
+  agents: { from: path.join(import.meta.dirname, "templates", "AGENTS.md"), to: "AGENTS.md" },
+  skill: { from: path.join(import.meta.dirname, "skills", "vowel", "SKILL.md"), to: path.join(".claude", "skills", "vowel", "SKILL.md") }
+}
+
+/**
+ * Copies a file only where there is none: a file the author already has
+ * is theirs, edited or not.
+ * @param {string} from
+ * @param {string} to
+ * @returns {Promise<string | undefined>} `to` when it was written
+ */
+async function copyNew(from, to) {
+  await mkdir(path.dirname(to), { recursive: true })
+  try {
+    await copyFile(from, to, constants.COPYFILE_EXCL)
+    return to
+  } catch (error) {
+    if (error.code === "EEXIST") return undefined
+    throw error
+  }
+}
+
+/**
+ * The files the wizard offers AI agents, each written only when asked
+ * for and not already there: `AGENTS.md`, notes any agent working in the
+ * folder reads (templates/AGENTS.md), and the Vowel skill in
+ * `.claude/skills/vowel/`, the copy in this package (skills/vowel). Both
+ * are copies, so they stay at the version that wrote them; the skill
+ * installed as a plugin updates with the repo.
+ * @param {string} folder - the project
+ * @param {{ agents?: boolean, skill?: boolean }} wanted
+ * @returns {Promise<string[]>} the files written, project-relative
+ */
+export async function writeAgentFiles(folder, wanted) {
+  const chosen = Object.entries(AGENT_FILES).filter(([key]) => wanted[key])
+  const written = await Promise.all(chosen.map(([, { from, to }]) => copyNew(from, path.join(folder, to))))
+  return written.filter(file => file).map(file => path.relative(folder, file))
 }

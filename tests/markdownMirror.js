@@ -153,3 +153,48 @@ test("a subfolder's settings.md can't switch mirrors, and says so", async () => 
     assert.ok(warnings.some(message => message.startsWith("blog/settings.md:2:1: `markdown_mirror:` works only")), warnings.join("\n"))
   })
 })
+
+const llmsSite = {
+  "settings.md": "---\nname: Sam's site\ndomain: example.com\nmarkdown_mirror: true\n---\n",
+  "home.md": "---\nslogan: Notes on type\n---\n# Home\n\nWelcome.\n",
+  "about.md": "# About\n\nWho I am.\n",
+  "blog/one.md": "---\ndate: 2026-01-02\n---\n# One\n\nFirst post.\n",
+  "blog/two.md": "---\ndate: 2026-03-02\n---\n# Two\n\nSecond post. #design\n",
+  "blog/2025/old.md": "---\ndate: 2025-03-02\n---\n# Old\n\nOld post.\n",
+  "docs/files.md": "# Files\n\nHow files become pages.\n",
+  "docs/out.md": "---\nmarkdown_mirror: false\n---\n# Out\n",
+  "docs/quiet.md": "---\nstatus: hidden\n---\n# Quiet\n",
+  "docs/secret##salt.md": "# Secret\n"
+}
+
+test("llms.txt lists every mirror: the root's pages, then a section per top-level folder", async () => {
+  await withSite(llmsSite, async ({ page }) => {
+    assert.equal(await page("llms.txt"), [
+      "# Sam's site",
+      "> Notes on type",
+      "## Pages\n\n- [Home](https://example.com/index.md): Notes on type\n- [About](https://example.com/about.md): Who I am.",
+      "## Blog\n\n- [Two](https://example.com/blog/two.md): Second post. #design\n- [One](https://example.com/blog/one.md): First post.\n- [Old](https://example.com/blog/2025/old.md): Old post.",
+      "## Docs\n\n- [Files](https://example.com/docs/files.md): How files become pages."
+    ].join("\n\n") + "\n", "no tag pages, folder indexes, opted-out, hidden or secret pages")
+  })
+})
+
+test("llms.txt needs the root's markdown_mirror and a domain; your own replaces it", async () => {
+  const noDomain = { ...llmsSite, "settings.md": "---\nmarkdown_mirror: true\n---\n" }
+  await withSite(noDomain, async ({ exists }) => assert.equal(await exists("llms.txt"), false))
+  const noMirrors = { ...llmsSite, "settings.md": "---\ndomain: example.com\n---\n" }
+  await withSite(noMirrors, async ({ exists }) => assert.equal(await exists("llms.txt"), false))
+  const own = { ...llmsSite, "llms.txt": "# Mine\n" }
+  await withSite(own, async ({ page }) => assert.equal(await page("llms.txt"), "# Mine\n"))
+})
+
+test("mirrors let AI agents in through robots.txt, unless robots says otherwise", async () => {
+  const agent = (text, name) => text.split("\n\n").find(block => block.startsWith(`User-agent: ${name}\n`))
+  await withSite(llmsSite, async ({ page, edit }) => {
+    assert.equal(agent(await page("robots.txt"), "GPTBot"), "User-agent: GPTBot\nAllow: /")
+    await edit("settings.md", "---\ndomain: example.com\nmarkdown_mirror: true\nrobots:\n  ai: false\n---\n")
+    assert.equal(agent(await page("robots.txt"), "GPTBot"), "User-agent: GPTBot\nDisallow: /", "a declared ai: wins")
+    await edit("settings.md", "---\ndomain: example.com\n---\n")
+    assert.equal(agent(await page("robots.txt"), "GPTBot"), "User-agent: GPTBot\nDisallow: /", "without mirrors, the default")
+  })
+})

@@ -21,7 +21,7 @@ function wait(ms) {
 }
 
 import init from "./index.js"
-import { shouldClear, normalizeDomain, wrongFolderWarning } from "./cli.js"
+import { shouldClear, normalizeDomain, wrongFolderWarning, writeAgentFiles } from "./cli.js"
 
 /**
  * A prompt's answer - or, when the author pressed Ctrl-C or Escape, a
@@ -200,6 +200,16 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
         placeholder: "All the news that's fit to blog"
       })) : undefined
 
+      box(`AI agents, such as Claude Code or Codex, can write and edit your site. Vowel can leave them notes on how it works: an 'AGENTS.md' file, which any agent reads, and the Vowel skill for Claude Code.`)
+
+      const agentsFile = answer(await confirm({
+        message: "Write AGENTS.md"
+      }))
+
+      const skill = answer(await confirm({
+        message: "Add the Vowel skill to .claude/skills"
+      }))
+
       const spin = spinner()
 
       spin.start('Setting up')
@@ -220,6 +230,8 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
         const homeFrontmatter = slogan ? `---\nslogan: ${slogan}\n---\n` : ""
         await fs.writeFile("home.md", `${homeFrontmatter}# Home\n\nWelcome home!`, "utf-8")
       }
+
+      await writeAgentFiles(process.cwd(), { agents: agentsFile, skill })
 
       spin.clear()
 

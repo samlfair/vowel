@@ -1,0 +1,9 @@
+{
+  "name": "vowel",
+  "description": "Make and edit websites with Vowel, which turns a folder of markdown files into a static website.",
+  "author": { "name": "Sam Littlefair" },
+  "homepage": "https://vowel.cc",
+  "repository": "https://github.com/samlfair/vowel",
+  "license": "MIT",
+  "keywords": ["website", "markdown", "static-site", "blog", "obsidian"]
+}

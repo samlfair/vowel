@@ -10,13 +10,20 @@ import { groups, defaults } from "./agents.js"
  * Order in the file: `*` last, because a crawler takes the most specific
  * matching group and a reader scanning the file expects the catch-all
  * at the bottom.
+ *
+ * **A site with markdown mirrors lets the ai group in** unless its
+ * `robots` says otherwise (per Sam): mirrors and `llms.txt` are for AI
+ * agents, and the default would have told every one of them to stay
+ * out. A declared `ai:` wins either way.
  * @param {Record<string, unknown>} [config] - the `robots` setting
  * @param {string} [domain] - emits the Sitemap line when set
+ * @param {{ mirrored?: boolean }} [site] - the root's `markdown_mirror`
  */
-function generateRobots(config = {}, domain) {
+function generateRobots(config = {}, domain, { mirrored = false } = {}) {
   // Only booleans are opinions; anything else leaves the default in place.
   const declared = Object.entries(config).filter(([, value]) => typeof value === "boolean")
-  const settings = { ...defaults, ...Object.fromEntries(declared) }
+  const base = mirrored ? { ...defaults, ai: true } : defaults
+  const settings = { ...base, ...Object.fromEntries(declared) }
   const groupNames = Object.keys(groups)
   const lower = (name) => String(name).toLowerCase()
 

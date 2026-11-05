@@ -22,7 +22,7 @@ import { isSecretPath, secretRouter, displayPath } from "./../../secretPaths.js"
 import { collectLinks } from "./links.js"
 import { readWalk } from "./readRules.js"
 import { h } from "hastscript"
-import { mirrorStubs, mirrorWriter } from "./mirror.js"
+import { mirrorStubs, mirrorWriter, llmsStubs } from "./mirror.js"
 
 import { styleText } from "node:util"
 
@@ -38,6 +38,12 @@ function readFile(source, { api, config }) {
   // means the project's root settings file, and pathInfo.dir is a folder
   // within the site rather than somewhere on this machine.
   const { path: filePath, target: targetPath, text: string } = source
+
+  // `AGENTS.md` is notes for AI agents working in the folder, not a
+  // page. Read as nothing, so it has no target (votive a110e1e). Matched
+  // by its exact name, which only the read sees: routing has lowercased
+  // it, and `agents.md` is an ordinary page.
+  if (path.basename(filePath) === "AGENTS.md") return undefined
 
   const mdast = fromMarkdown(string, {
     // Micromark extensions
@@ -503,7 +509,7 @@ const readMarkdown = {
 /** @type {Votive.VotivePlugin} */
 const vowelMarkdownPlugin = {
   name: "vowel",
-  processors: [readMarkdown, mirrorStubs, mirrorWriter]
+  processors: [readMarkdown, mirrorStubs, mirrorWriter, llmsStubs]
 }
 
 export default vowelMarkdownPlugin

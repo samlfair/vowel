@@ -1,7 +1,7 @@
 import path from "node:path"
 import { contentSection } from "../xml/entryContent.js"
 import { markdownBody } from "../atproto/body.js"
-import { isMirrored } from "../../utils.js"
+import { isMirrored, isListedPage, mirrorPath, labelFromName } from "../../utils.js"
 
 /** @import * as Votive from "votive" */
 
@@ -118,4 +118,108 @@ const mirrorWriter = {
   writeFile: writeMirror
 }
 
-export { mirrorStubs, mirrorWriter }
+/** How long an entry's description in `llms.txt` may be, in characters. */
+const LLMS_DESCRIPTION_LENGTH = 200
+
+/**
+ * A description on one line, cut at a word boundary.
+ * @param {unknown} text
+ */
+function oneLine(text) {
+  if (typeof text !== "string") return undefined
+  const flat = text.replace(/\s+/g, " ").trim()
+  if (flat.length <= LLMS_DESCRIPTION_LENGTH) return flat || undefined
+  const cut = flat.slice(0, LLMS_DESCRIPTION_LENGTH)
+  return cut.slice(0, cut.lastIndexOf(" ") > 0 ? cut.lastIndexOf(" ") : cut.length) + "…"
+}
+
+/**
+ * Dated pages newest first, then the rest by title.
+ * @param {any} a
+ * @param {any} b
+ */
+function newestFirst(a, b) {
+  const left = a.metadata.date ?? ""
+  const right = b.metadata.date ?? ""
+  if (left !== right) return left < right ? 1 : -1
+  return String(a.metadata.title ?? a.path).localeCompare(String(b.metadata.title ?? b.path))
+}
+
+/**
+ * `llms.txt`, the table of contents of a site's mirrors, in the format
+ * llmstxt.org proposes: the site's name, its slogan as a blockquote, and
+ * a list of links per section. It exists with the root's
+ * `markdown_mirror` and a `domain`, since every link is absolute; an
+ * author's own `llms.txt` shadows it.
+ *
+ * - **Sections**: the root's pages under "Pages", the homepage first;
+ *   then one per top-level folder, by its label, the order the header
+ *   nav lists them in, with every page below it.
+ * - **Entries** link the page's mirror, with its description: dated
+ *   pages newest first, then the rest by title.
+ * - **Left out**: whatever a listing leaves out (hidden, secret, draft,
+ *   deleted, a page without a file), a page that opts out of its mirror,
+ *   the tag pages, and folder indexes, whose section is the listing.
+ *
+ * Made in the enumerator, which lists the site anyway on every pass, and
+ * carried in the stub's params, so the file is expanded again only when
+ * its text changes. Not a write of its own: every `.txt` target is the
+ * robots processor's to read and write, and a second `.txt` writer would
+ * run on `robots.txt` too.
+ * @type {Votive.ProcessorStubs}
+ */
+function createLLMsStubs({ api, settings }) {
+  const domain = settings.lastNonNull("fm_domain")
+  if (settings.lastNonNull("markdown_mirror") !== true || !domain) return []
+  const origin = String(domain).startsWith("http") ? String(domain) : "https://" + domain
+
+  const listed = api.targets({ folder: "", recursive: true })
+    .filter(page => isListedPage(page) && isMirrored(page, true))
+  const folders = new Set(listed.map(page => page.dir).filter(dir => dir))
+  const isIndex = (page) => folders.has(page.path.replace(/\.html$/, ""))
+  const isTags = (page) => page.path === "tags.html" || page.path.split(path.sep)[0] === "tags"
+  const pages = listed.filter(page => !isIndex(page) && !isTags(page))
+
+  const home = api.target("index.html")
+  const entry = (page) => {
+    const url = new URL("/" + mirrorPath(page.path).split(path.sep).join("/"), origin).href
+    const title = page.metadata.title || page.metadata.prettyURL
+    const description = oneLine(page.metadata.description)
+    return `- [${title}](${url})${description ? `: ${description}` : ""}`
+  }
+
+  const atRoot = pages.filter(page => page.dir === "")
+  const rootSection = [
+    ...atRoot.filter(page => page.path === "index.html"),
+    ...atRoot.filter(page => page.path !== "index.html").sort(newestFirst)
+  ]
+  const topFolders = [...new Set(pages.map(page => page.dir.split(path.sep)[0]).filter(dir => dir))]
+  const label = (folder) => api.target(`${folder}.html`)?.metadata?.breadcrumb || labelFromName(folder)
+  const sections = [
+    ...(rootSection.length ? [{ heading: "Pages", pages: rootSection }] : []),
+    ...topFolders
+      .map(folder => ({ heading: label(folder), pages: pages.filter(page => page.dir.split(path.sep)[0] === folder).sort(newestFirst) }))
+      .sort((a, b) => String(a.heading).localeCompare(String(b.heading)))
+  ]
+
+  const name = settings.lastNonNull("fm_name") || home?.metadata?.title || "Website"
+  const summary = oneLine(home?.metadata?.fm_slogan ?? home?.metadata?.description)
+  const text = [
+    `# ${name}`,
+    ...(summary ? [`> ${summary}`] : []),
+    ...sections.map(({ heading, pages }) => `## ${heading}\n\n${pages.map(entry).join("\n")}`)
+  ].join("\n\n") + "\n"
+
+  return [{ path: "llms.txt", params: { text } }]
+}
+
+/**
+ * Declares `llms.txt`; the robots processor reads and writes it.
+ * @type {Votive.VotiveProcessor}
+ */
+const llmsStubs = {
+  createStubs: createLLMsStubs,
+  expandStubs: ({ params }) => ({ text: params.text })
+}
+
+export { mirrorStubs, mirrorWriter, llmsStubs }

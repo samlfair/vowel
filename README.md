@@ -32,6 +32,16 @@ vowel --command deploy           # build and deploy to Cloudflare Pages
 See [the docs](https://vowel.cc) for deploying, AT Protocol publishing,
 themes, and every setting.
 
+## Agents
+
+Vowel's plugin for Claude Code teaches an agent how Vowel works, so it can make and edit your site:
+
+```
+/plugin install vowel --marketplace samlfair/vowel
+```
+
+`vowel check` lists every problem at its place in your files, so an agent can check its own edits.
+
 ## How it's built
 
 Vowel is a set of plugins for [Votive](https://github.com/samlfair/votive),

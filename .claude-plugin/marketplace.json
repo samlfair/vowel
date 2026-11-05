@@ -1,0 +1,12 @@
+{
+  "name": "vowel",
+  "description": "Vowel's plugin for Claude Code: making and editing Vowel websites.",
+  "owner": { "name": "Sam Littlefair" },
+  "plugins": [
+    {
+      "name": "vowel",
+      "source": "./",
+      "description": "Make and edit websites with Vowel, which turns a folder of markdown files into a static website."
+    }
+  ]
+}

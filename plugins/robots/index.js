@@ -10,8 +10,9 @@ import generateRobots from "./robots.js"
  *
  * Configured from the root settings.md's `robots` setting (see
  * agents.js for the groups), and it names the sitemap when `domain` is
- * set. Both ride in the stub's params, so a change to either re-expands
- * the file and nothing else does. The default list still has no
+ * set, and lets AI agents in when the root's `markdown_mirror` is on and
+ * `robots` doesn't say (robots.js). All three ride in the stub's params,
+ * so a change to any re-expands the file and nothing else does. The default list still has no
  * version stamp: see tasks/1-proposed/wipe-cache-on-upgrade.md.
  *
  * @type {Votive.VotiveProcessor}
@@ -23,10 +24,11 @@ const processor = {
     path: "robots.txt",
     params: {
       robots: settings.lastNonNull("fm_robots") ?? null,
-      domain: settings.lastNonNull("fm_domain") ?? null
+      domain: settings.lastNonNull("fm_domain") ?? null,
+      mirrored: settings.lastNonNull("markdown_mirror") === true
     }
   }],
-  expandStubs: ({ params }) => ({ text: generateRobots(params.robots ?? {}, params.domain ?? undefined) }),
+  expandStubs: ({ params }) => ({ text: generateRobots(params.robots ?? {}, params.domain ?? undefined, { mirrored: params.mirrored === true }) }),
   // A .txt source carries no metadata worth inferring; its text is the
   // target's content and the write pass hands it straight back.
   readFile: (source) => ({ data: source.text, metadata: {} }),

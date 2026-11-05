@@ -43,6 +43,15 @@ test("generateRobots: a non-boolean value is ignored, and a domain adds the Site
   assert.ok(text.endsWith("Sitemap: https://example.com/sitemap.xml"))
 })
 
+test("generateRobots: markdown mirrors let the ai group in, unless robots says otherwise", () => {
+  const mirrored = blocks(generateRobots({}, undefined, { mirrored: true }))
+  assert.equal(mirrored.GPTBot, "Allow: /")
+  assert.equal(mirrored["ChatGPT-User"], "Allow: /")
+  assert.equal(mirrored["Googlebot-Image"], "Disallow: /", "only the ai group")
+  assert.equal(blocks(generateRobots({ ai: false }, undefined, { mirrored: true })).GPTBot, "Disallow: /", "a declared ai: wins")
+  assert.equal(blocks(generateRobots({ ai: null }, undefined, { mirrored: true })).GPTBot, "Allow: /", "a null ai: is not a declaration")
+})
+
 test("robots.txt follows the root settings.md, and re-expands when the setting changes", async () => {
   const sourceFolder = await mkdtemp(path.join(tmpdir(), "vowel-robots-"))
   const systemFolder = await mkdtemp(path.join(tmpdir(), "vowel-robots-sys-"))
