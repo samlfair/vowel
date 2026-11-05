@@ -27,7 +27,7 @@ function read(source, filePath = "post.md", targetPath = "post.html") {
 test("rule 1: YAML that does not parse is rendered as content, with one error naming the file", () => {
   const { metadata, errors, types } = read("---\nmood: [tired, wired\n---\n\n# Title\n\nBody.")
   assert.equal(errors.length, 1)
-  assert.match(errors[0], /^post\.md: frontmatter could not be parsed/)
+  assert.match(errors[0], /^post\.md:\d+:\d+: frontmatter could not be parsed/, "at the line the parser stopped")
   // No key was inferred from it; the block is whatever markdown it is
   // (here a thematic break, then a setext heading - text underlined by
   // `---`), and the `#` that followed is no longer in first position.
@@ -54,7 +54,8 @@ test("rule 2: a wrong value is coerced when it can be, with an error naming the 
   assert.equal(metadata.fm_image, "/pic.png")
   assert.equal(metadata.date, "2026-04-03T00:00:00.000Z")
   assert.equal(errors.length, 5, errors.join("\n"))
-  assert.ok(errors.every(error => error.startsWith("post.md: `")), errors.join("\n"))
+  // Each at its key's line: the block starts on line 2, after `---`.
+  assert.deepEqual(errors.map(error => error.split(": `")[0]), ["post.md:2:1", "post.md:3:1", "post.md:4:1", "post.md:5:1", "post.md:6:1"], errors.join("\n"))
 })
 
 test("rule 2: a value that cannot be coerced is dropped and the key still counts as declared", () => {
@@ -140,8 +141,8 @@ test("a site with a broken file and bad values builds whole, logs each, and rend
     assert.equal(dated.includes("<time"), false)
     const errors = logged.filter(([level]) => level === "error").map(([, m]) => m)
     assert.equal(errors.length, 3, errors.join("\n"))
-    assert.ok(errors.some(m => m.startsWith("broken.md: frontmatter could not be parsed")))
-    assert.ok(errors.some(m => m.startsWith("dated.md: `date:`")))
-    assert.ok(errors.some(m => m.startsWith("dated.md: `title:`")))
+    assert.ok(errors.some(m => /^broken\.md:\d+:\d+: frontmatter could not be parsed/.test(m)))
+    assert.ok(errors.some(m => /^dated\.md:\d+:1: `date:`/.test(m)))
+    assert.ok(errors.some(m => /^dated\.md:\d+:1: `title:`/.test(m)))
   })
 })

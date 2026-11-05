@@ -150,6 +150,6 @@ test("a subfolder's settings.md can't switch mirrors, and says so", async () => 
   const files = { "home.md": "# Home\n", "blog/settings.md": "---\nmarkdown_mirror: true\n---\n", "blog/post.md": "# Post\n" }
   await withSite(files, async ({ exists, warnings }) => {
     assert.equal(await exists("blog/post.md"), false)
-    assert.ok(warnings.some(message => message.startsWith("blog/settings.md: `markdown_mirror:` works only")), warnings.join("\n"))
+    assert.ok(warnings.some(message => message.startsWith("blog/settings.md:2:1: `markdown_mirror:` works only")), warnings.join("\n"))
   })
 })

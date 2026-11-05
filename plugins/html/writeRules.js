@@ -4,10 +4,19 @@ import { common, createLowlight } from "lowlight"
 import { toText } from "hast-util-to-text"
 import GithubSlugger from "github-slugger"
 import { createVisitor, SKIP } from "../markdown/visitor.js"
-import { showPages, isPageWithoutFile, imageSizes } from "../../utils.js"
+import { showPages, isPageWithoutFile, imageSizes, sourceLocation } from "../../utils.js"
 import { globClasses, alertLabel } from "./editor/directives.js"
 import createDynamicImage, { derivativeURL } from "./image.js"
 import { displayPath } from "../../secretPaths.js"
+
+/**
+ * The page's source, at the node a warning is about (utils.js). Nodes
+ * parsed from the page carry their line and column; a node the build
+ * made does not, and the warning names the file alone.
+ * @param {any} node
+ * @param {any} target
+ */
+const at = (node, target) => sourceLocation(target.source ?? target.path, node?.position?.start)
 
 /**
  * The write walk: one pass over a page's hast for everything that
@@ -136,7 +145,7 @@ const internalLink = {
       : null
     const found = (sourcePath && api.targetBySource(sourcePath)) || servedTarget(pathname, context)
     if (!found) {
-      if (!readInBackground(pathname, config)) config.log?.("warn", `${target.source ?? target.path}: link to ${href} matches no page`)
+      if (!readInBackground(pathname, config)) config.log?.("warn", `${at(node, target)}: link to ${href} matches no page`)
       return
     }
     // A link to a png or jpeg opens its largest derivative: the
@@ -234,7 +243,7 @@ const wikilink = {
     const found = isFile ? resolveFile(name, context) : resolveNote(name, context)
     if (!found) {
       const { target, config } = context
-      config.log?.("warn", `${target.source ?? target.path}: [[${name}]] matches no page`)
+      config.log?.("warn", `${at(node, target)}: [[${name}]] matches no page`)
       delete node.properties.href
       return SKIP
     }
@@ -344,7 +353,7 @@ const image = {
       const { pathname } = isInternal(src) ? splitURL(src) : {}
       if (!pathname || servedTarget(pathname, context)) return SKIP
       if (!readInBackground(pathname, context.config)) {
-        context.config.log?.("warn", `${context.target.source ?? context.target.path}: image ${src} matches no file`)
+        context.config.log?.("warn", `${at(node, context.target)}: image ${src} matches no file`)
         return SKIP
       }
       // Not read yet, so its size is unknown. A 3:2 box stands in (the
@@ -384,7 +393,7 @@ const directive = {
     const relative = !value.startsWith("/")
 
     if (!relative && value.includes("##")) {
-      config.log?.("error", `${target.source ?? target.path}: a listing by published path cannot name a secret folder (${value}); write it relative to this file, as \`./…\``)
+      config.log?.("error", `${at(node, target)}: a listing by published path cannot name a secret folder (${value}); write it relative to this file, as \`./…\``)
       return []
     }
 
@@ -398,7 +407,7 @@ const directive = {
       ? routeRelative(pathPart, target, config)
       : pathPart
     if (routed === undefined) {
-      config.log?.("warn", `${target.path}: ${value} cannot be resolved from a page with no source file`)
+      config.log?.("warn", `${at(node, target)}: ${value} cannot be resolved from a page with no source file`)
       return SKIP
     }
     const url = new URL(routed, "thismessage://")

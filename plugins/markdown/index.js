@@ -13,7 +13,8 @@ import { gfmTable } from 'micromark-extension-gfm-table'
 import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
 import { normalizeHeadingLevels } from './metadata.js'
 import { readFileSync } from "fs"
-import { createHashtagPage, labelFromName, showPages } from "./../../utils.js"
+import { createHashtagPage, labelFromName, showPages, sourceLocation } from "./../../utils.js"
+import { frontmatterPoints } from "./frontmatter.js"
 import { toHast, defaultHandlers } from 'mdast-util-to-hast'
 import { toString as hastToString } from 'hast-util-to-string'
 import getMetadata, { imageFromPage, reservedProperties } from "./metadata.js"
@@ -149,14 +150,20 @@ function readFile(source, { api, config }) {
     // highlight contains anything else: `**March 4, 2026**` threw
     // "Cannot compile unknown node `strong`", and a link, emphasis or
     // inline code in the same position threw on their own types.
+    // Each element keeps its node's position, as the built-in handlers'
+    // do, so a warning at write names the line (an unresolved wikilink).
     unknownHandler: (state, node) => {
-      if (node.type === "highlight") return h("mark", state.all(node))
-      if (node.type === "time") return h("time", { datetime: node.datetime }, state.all(node))
+      const positioned = (element) => {
+        state.patch(node, element)
+        return element
+      }
+      if (node.type === "highlight") return positioned(h("mark", state.all(node)))
+      if (node.type === "time") return positioned(h("time", { datetime: node.datetime }, state.all(node)))
       // Parsed at read, resolved at write (writeRules.js): the element
       // carries what the write needs, and what the editor needs to put
       // the directive back.
-      if (node.type === "wikilink") return h("a.wikilink", { "data-note": node.name, "data-section": node.section }, state.all(node))
-      if (node.type === "icon") return h("img.icon", { "data-icon": node.name, alt: node.name.split("/").at(-1) })
+      if (node.type === "wikilink") return positioned(h("a.wikilink", { "data-note": node.name, "data-section": node.section }, state.all(node)))
+      if (node.type === "icon") return positioned(h("img.icon", { "data-icon": node.name, alt: node.name.split("/").at(-1) }))
     }
   })
 
@@ -190,7 +197,7 @@ function readFile(source, { api, config }) {
     data: string,
     write: metadata.html_file ?? true,
     metadata: withDeclaredTypes({ ...targetMetadata, hastAbstract: hast }),
-    settings: pathInfo.base === "settings.md" ? settingsContribution(metadata, filePath, config?.log) : undefined
+    settings: pathInfo.base === "settings.md" ? settingsContribution(metadata, filePath, config?.log, mdast.children.find(child => child.type === "yaml")) : undefined
   }
 }
 
@@ -226,18 +233,22 @@ function withDeclaredTypes(metadata) {
  * @param {Record<string, any>} metadata
  * @param {string} filePath
  * @param {(level: string, message: string) => void} [log]
+ * @param {object} [yamlNode] - its frontmatter, for the warnings' lines
  */
-function settingsContribution(metadata, filePath, log) {
+function settingsContribution(metadata, filePath, log, yamlNode) {
+  // Each warning names the key's line. Found only when there is one to
+  // give, since it parses the block again.
+  const at = (key) => sourceLocation(filePath, yamlNode ? frontmatterPoints(yamlNode)[key] : undefined)
   if (metadata.fm_title !== undefined && metadata.fm_name === undefined) {
-    log?.("warn", `${filePath}: \`title:\` in a settings file does nothing - the site's name is \`name:\``)
+    log?.("warn", `${at("title")}: \`title:\` in a settings file does nothing - the site's name is \`name:\``)
   }
   if (metadata.fm_slogan !== undefined) {
-    log?.("warn", `${filePath}: \`slogan:\` in a settings file does nothing - a slogan belongs to a page, e.g. home.md`)
+    log?.("warn", `${at("slogan")}: \`slogan:\` in a settings file does nothing - a slogan belongs to a page, e.g. home.md`)
   }
   // Mirrors are declared by an enumerator, which sees the root's
   // settings only.
   if (metadata.markdown_mirror !== undefined && filePath !== "settings.md") {
-    log?.("warn", `${filePath}: \`markdown_mirror:\` works only in the root settings.md or in a page's frontmatter`)
+    log?.("warn", `${at("markdown_mirror")}: \`markdown_mirror:\` works only in the root settings.md or in a page's frontmatter`)
   }
   const declared = Object.entries(metadata)
     .filter(([key]) => key.startsWith("fm_") || reservedProperties.includes(key))

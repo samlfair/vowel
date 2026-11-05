@@ -388,7 +388,7 @@ function writeFile(target, { settings, api, config }) {
     .filter(entry => !external.includes(entry))
     .map(entry => ({ entry, sheet: entry.replace(/^\/+/, "").split("/").join(path.sep) }))
   const missing = named.filter(({ sheet }) => !api.target(sheet))
-  missing.forEach(({ entry }) => config.log?.("warn", `${target.path}: styles names ${entry}, which isn't in the project`))
+  missing.forEach(({ entry }) => config.log?.("warn", `${target.source ?? target.path}: styles names ${entry}, which isn't in the project`))
   const namedSheets = named.filter(({ sheet }) => !missing.some(gone => gone.sheet === sheet)).map(({ sheet }) => sheet)
 
   // A stub stylesheet has a source path like any other source, so the
@@ -788,8 +788,9 @@ function writeFile(target, { settings, api, config }) {
     ]
   )
 
-  try {
-    
+  // Not caught here: a throw is votive's to report (attempt.js), as one
+  // error line naming the page, and the page stays stale. Caught and
+  // logged here, it was marked fresh, and the old page stayed up.
   const data = unified()
     .use(rehypePresetMinify)
     .use(rehypeStringify)
@@ -797,10 +798,6 @@ function writeFile(target, { settings, api, config }) {
 
   return {
     data
-  }
-
-  } catch(e) {
-    console.log({ tree, target, e })
   }
 }
 

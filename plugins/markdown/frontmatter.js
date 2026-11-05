@@ -1,7 +1,8 @@
-import yaml from "yaml"
+import yaml, { LineCounter } from "yaml"
 import path from "node:path"
 import { fromMarkdown } from "mdast-util-from-markdown"
 import extractDate from "../../extractDate.js"
+import { sourceLocation } from "../../utils.js"
 
 /**
  * How vowel handles a frontmatter block. Stated once, here, per Sam
@@ -220,8 +221,10 @@ function coerceOne(shape, value, folder) {
  * @param {string} filePath - project-relative, for the error line
  * @param {string} folder - the folder paths resolve against
  * @param {(message: string) => void} report
+ * @param {Record<string, Point>} [points] - each key's place in the file,
+ *   so the error line names it
  */
-function coerce(frontmatter, filePath, folder, report) {
+function coerce(frontmatter, filePath, folder, report, points = {}) {
   const result = {}
   for (const key in frontmatter) {
     const shape = EXPECTED[key]
@@ -230,39 +233,87 @@ function coerce(frontmatter, filePath, folder, report) {
       continue
     }
     const { value, problem } = coerceOne(shape, frontmatter[key], folder)
-    if (problem) report(`${filePath}: \`${key}:\` ${problem}${value === undefined ? "; ignoring it" : ""}`)
+    if (problem) report(`${sourceLocation(filePath, points[key])}: \`${key}:\` ${problem}${value === undefined ? "; ignoring it" : ""}`)
     if (value !== undefined) result[key] = value
   }
   return result
 }
 
+/** @typedef {{ line: number, column: number }} Point */
+
 /**
- * Parses a frontmatter node. On a parse error the node is replaced in
- * the tree by the markdown it would have been - rule 1 above - and
- * nothing is returned.
+ * A point in the YAML, as a point in the file: the block's first line
+ * is the one after its opening `---`.
+ * @param {object} node - the `yaml` node
+ * @param {{ line: number, col: number }} [linePos] - yaml's, 1-based
+ * @returns {Point | undefined}
+ */
+function filePoint(node, linePos) {
+  const start = node.position?.start
+  if (!start || !linePos) return undefined
+  return { line: start.line + linePos.line, column: linePos.col }
+}
+
+/**
+ * Where each top-level key is written, in the file.
+ * @param {object} node - the `yaml` node
+ * @param {import("yaml").Document} document
+ * @param {LineCounter} lines
+ * @returns {Record<string, Point>}
+ */
+function keyPoints(node, document, lines) {
+  const items = yaml.isMap(document.contents) ? document.contents.items : []
+  const located = items
+    .filter(item => yaml.isScalar(item.key) && item.key.range)
+    .map(item => [String(item.key.value), filePoint(node, lines.linePos(item.key.range[0]))])
+  return Object.fromEntries(located)
+}
+
+/**
+ * Where each top-level key of a frontmatter block is written, for a
+ * warning about a key that is read somewhere else (a settings.md's
+ * `title:`). Parses the block again, so it is for the rare warning,
+ * not for every read.
+ * @param {object} node - the `yaml` node
+ * @returns {Record<string, Point>}
+ */
+function frontmatterPoints(node) {
+  const lines = new LineCounter()
+  const document = yaml.parseDocument(node.value, { lineCounter: lines, logLevel: "error" })
+  return keyPoints(node, document, lines)
+}
+
+/**
+ * Parses a frontmatter node, with each key's place in the file. On a
+ * parse error the node is replaced in the tree by the markdown it would
+ * have been - rule 1 above - and nothing is returned.
  * @param {object} tree - the mdast root
  * @param {object} node - its `yaml` child
  * @param {string} filePath
  * @param {(message: string) => void} report
- * @returns {Record<string, unknown> | undefined}
+ * @returns {{ values: Record<string, unknown>, points: Record<string, Point> } | undefined}
  */
 function parseFrontmatter(tree, node, filePath, report) {
-  try {
-    // logLevel "error": yaml otherwise prints its own warnings through
-    // process.emitWarning, naming no file - `date: {{ date }}` printed
-    // "Keys with collection values will be stringified". A value vowel
-    // reads is checked by coerce(), which reports it with the path.
-    const parsed = yaml.parse(node.value, { logLevel: "error" })
-    if (parsed === null || parsed === undefined) return {}
-    if (!isPlainObject(parsed)) {
-      report(`${filePath}: frontmatter is ${Array.isArray(parsed) ? "a list" : "a single value"}, not a mapping; rendering it as content`)
-      return asContent(tree, node)
-    }
-    return parsed
-  } catch (error) {
-    report(`${filePath}: frontmatter could not be parsed (${String(error.message).split("\n")[0]}); rendering it as content`)
+  // logLevel "error": yaml otherwise prints its own warnings through
+  // process.emitWarning, naming no file - `date: {{ date }}` printed
+  // "Keys with collection values will be stringified". A value vowel
+  // reads is checked by coerce(), which reports it with the path.
+  const lines = new LineCounter()
+  const document = yaml.parseDocument(node.value, { lineCounter: lines, logLevel: "error" })
+  const [error] = document.errors
+  if (error) {
+    // Its own "at line 1, column 17" counts from the block, not the file.
+    const detail = String(error.message).split("\n")[0].replace(/ at line \d+, column \d+:?$/, "")
+    report(`${sourceLocation(filePath, filePoint(node, error.linePos?.[0]))}: frontmatter could not be parsed (${detail}); rendering it as content`)
     return asContent(tree, node)
   }
+  const parsed = document.toJS()
+  if (parsed === null || parsed === undefined) return { values: {}, points: {} }
+  if (!isPlainObject(parsed)) {
+    report(`${sourceLocation(filePath, node.position?.start)}: frontmatter is ${Array.isArray(parsed) ? "a list" : "a single value"}, not a mapping; rendering it as content`)
+    return asContent(tree, node)
+  }
+  return { values: parsed, points: keyPoints(node, document, lines) }
 }
 
 /**
@@ -277,4 +328,4 @@ function asContent(tree, node) {
   return undefined
 }
 
-export { EXPECTED, STATUSES, coerce, parseFrontmatter, resolvePath, toISODate }
+export { EXPECTED, STATUSES, coerce, parseFrontmatter, frontmatterPoints, resolvePath, toISODate }

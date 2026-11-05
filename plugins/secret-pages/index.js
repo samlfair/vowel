@@ -6,14 +6,16 @@ import { isSecretPath } from "../../secretPaths.js"
 /**
  * Where your secret pages are. A page under a `##` segment is published
  * at a hashed url that nothing on the site links to, so the author needs
- * another way to find it: the dev server prints each one, file and url,
- * when it first sees it - every one at startup, then each new one (or a
- * renamed one, whose url changed) as it appears.
+ * another way to find it: every build prints each one, file and url,
+ * when it first sees it - every one at the first pass, then each new one
+ * (or a renamed one, whose url changed) as it appears.
  *
- * **Only the dev server.** `init()` turns this on with
- * `config.announceSecretPages`; `deploy`, `publish` and a plain build
- * never do. Those run in CI too, where logs are kept and can be public,
- * and a logged url is exactly what the hash exists to keep private.
+ * **Every build, CI included** (per Sam, Nov 5 2026). It used to be the
+ * dev server's alone, to keep the urls out of logs that might be public.
+ * That was theatre: a secret page's url is an unkeyed hash of its source
+ * path, so whoever has the source has the url, and hiding it from a log
+ * suggested a protection that isn't there. Only `logging: "silent"`
+ * turns it off.
  *
  * It is a stub enumerator that declares no stubs: the one hook that runs
  * on every pass and can list pages. It lists only the hidden ones - a
@@ -41,7 +43,7 @@ function pageURL(domain, prettyURL) {
 
 /** @type {Votive.ProcessorStubs} */
 function createStubs({ api, settings, config }) {
-  if (!config.announceSecretPages || config.logging === "silent") return []
+  if (config.logging === "silent") return []
 
   const seen = announced.get(config) ?? new Set()
   announced.set(config, seen)

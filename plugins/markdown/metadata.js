@@ -239,10 +239,11 @@ function markAsNatural(block, kind) {
  * @param {(message: string) => void} report
  */
 function readFrontmatter(tree, node, metadata, filePath, folder, report) {
-  const parsed = parseFrontmatter(tree, node, filePath, report)
-  if (!parsed) return
+  const read = parseFrontmatter(tree, node, filePath, report)
+  if (!read) return
 
-  const frontmatter = coerce(parsed, filePath, folder, report)
+  const parsed = read.values
+  const frontmatter = coerce(parsed, filePath, folder, report, read.points)
 
   for (const key in frontmatter) {
     const name = reservedProperties.includes(key) ? key : "fm_" + key

@@ -28,22 +28,29 @@ const DEFAULT_SIZE_LIMIT = 25 * 1024 * 1024
 /** @param {number} bytes */
 const megabytes = (bytes) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 
+/** @param {Votive.VotiveConfig} config */
+const sizeLimit = (config) => Number(config.assetSizeLimit) || DEFAULT_SIZE_LIMIT
+
 /**
  * @type {Votive.ProcessorRead}
  */
 function readAsset(source, { config }) {
-  const limit = Number(config.assetSizeLimit) || DEFAULT_SIZE_LIMIT
   const { size } = statSync(path.join(config.sourceFolder, source.path))
-  if (size <= limit) return { metadata: { size } }
-
-  config.log?.("error", `${source.path} is ${megabytes(size)}; files over ${megabytes(limit)} are not published (Cloudflare Pages refuses them). Host it elsewhere and link to it.`)
+  if (size <= sizeLimit(config)) return { metadata: { size } }
   return { metadata: { size, oversized: true }, write: false }
 }
 
-/** @type {Votive.ProcessorWrite} */
-function writeAsset(target) {
-  if (target.metadata?.oversized) return undefined
-  return { data: target.buffer() }
+/**
+ * An oversized file is reported here, not at its read: a buffer read
+ * is cached, and a cached read never calls the hook again, so a check
+ * on a warm cache (`vowel check`) would never have heard of it. Every
+ * fresh build writes every target.
+ * @type {Votive.ProcessorWrite}
+ */
+function writeAsset(target, { config }) {
+  if (!target.metadata?.oversized) return { data: target.buffer() }
+  config.log?.("error", `${target.source ?? target.path} is ${megabytes(target.metadata.size)}; files over ${megabytes(sizeLimit(config))} are not published (Cloudflare Pages refuses them). Host it elsewhere and link to it.`)
+  return undefined
 }
 
 /** @type {Votive.VotiveProcessor} */

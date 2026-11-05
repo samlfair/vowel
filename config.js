@@ -18,6 +18,7 @@ import vowelPublishPlugin from "./plugins/publish/index.js"
 import vowelURLsPlugin from "./plugins/urls/index.js"
 import vowelSecretPagesPlugin from "./plugins/secret-pages/index.js"
 import vowelExportPlugin from "./plugins/export/index.js"
+import vowelCheckPlugin from "./plugins/check/index.js"
 
 /** @import {VotiveConfig} from "votive" */
 
@@ -54,6 +55,7 @@ const defaultPlugins = [
   vowelAssetsPlugin,
   vowelDeployCloudflarePlugin,
   vowelExportPlugin,
+  vowelCheckPlugin,
   vowelURLsPlugin,
   vowelAtprotoPlugin,
   vowelPublishPlugin,

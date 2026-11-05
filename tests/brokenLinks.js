@@ -58,13 +58,13 @@ test("links that go nowhere are warned about; links that resolve are not", async
   }, async ({ page, warnings }) => {
     const mine = warnings.filter(message => message.startsWith(path.join("blog", "links.md")))
     assert.deepEqual(mine.sort(), [
-      `${path.join("blog", "links.md")}: [[Nowhere]] matches no page`,
-      `${path.join("blog", "links.md")}: image /lost.svg matches no file`,
-      `${path.join("blog", "links.md")}: link to ../nope/deeper matches no page`,
-      `${path.join("blog", "links.md")}: link to ./gone.md matches no page`,
+      `${path.join("blog", "links.md")}:9:11: [[Nowhere]] matches no page`,
+      `${path.join("blog", "links.md")}:11:19: image /lost.svg matches no file`,
+      `${path.join("blog", "links.md")}:7:30: link to ../nope/deeper matches no page`,
+      `${path.join("blog", "links.md")}:7:15: link to ./gone.md matches no page`,
       // From /blog/links a browser asks for /blog/about.
-      `${path.join("blog", "links.md")}: link to about matches no page`,
-      `${path.join("blog", "links.md")}: link to /missing matches no page`
+      `${path.join("blog", "links.md")}:3:94: link to about matches no page`,
+      `${path.join("blog", "links.md")}:7:1: link to /missing matches no page`
     ].sort())
 
     const html = content(await page("blog/links.html"))
@@ -116,8 +116,8 @@ test("a page that appears later clears the warning: the link was a tracked miss"
   await withSite({
     "home.md": "# Home\n\n[soon](/soon) [[Later]]\n"
   }, async ({ site, sourceFolder, page, warnings }) => {
-    assert.ok(warnings.some(message => message === "home.md: link to /soon matches no page"))
-    assert.ok(warnings.some(message => message === "home.md: [[Later]] matches no page"))
+    assert.ok(warnings.some(message => message === "home.md:3:1: link to /soon matches no page"))
+    assert.ok(warnings.some(message => message === "home.md:3:15: [[Later]] matches no page"))
 
     warnings.length = 0
     await writeFile(path.join(sourceFolder, "soon.md"), "# Soon\n")

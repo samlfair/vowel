@@ -56,8 +56,8 @@ const urlOf = (source) => `https://example.com/${secretRouter(source).toLowerCas
 
 const secretLines = (lines) => lines.filter(line => line.startsWith("secret:"))
 
-test("the dev server prints each secret page, file and url, once", async () => {
-  await withSite(FILES, { announceSecretPages: true }, async ({ lines, build }) => {
+test("a build prints each secret page, file and url, once", async () => {
+  await withSite(FILES, {}, async ({ lines, build }) => {
     // As a set: a folder's index is made in a later round of the same build than its pages.
     assert.deepEqual(secretLines(lines).sort(), [
       `secret: draft##pepper.md → ${urlOf("draft##pepper.md")}`,
@@ -72,18 +72,15 @@ test("the dev server prints each secret page, file and url, once", async () => {
 })
 
 test("a new secret page is printed when it appears", async () => {
-  await withSite(FILES, { announceSecretPages: true }, async ({ lines, build, write }) => {
+  await withSite(FILES, {}, async ({ lines, build, write }) => {
     await write("members##salt/new.md", "# New\n")
     await build()
     assert.equal(secretLines(lines).at(-1), `secret: ${path.join("members##salt", "new.md")} → ${urlOf("members##salt/new.md")}`)
   })
 })
 
-test("nothing is printed unless the dev server asks - never from a build that deploys or publishes - or when silent", async () => {
-  await withSite(FILES, {}, async ({ lines }) => {
-    assert.deepEqual(secretLines(lines), [])
-  })
-  await withSite(FILES, { announceSecretPages: true, logging: "silent" }, async ({ lines }) => {
+test("every build prints them, the ones that deploy and publish too; only silent logging doesn't", async () => {
+  await withSite(FILES, { logging: "silent" }, async ({ lines }) => {
     assert.deepEqual(secretLines(lines), [])
   })
 })

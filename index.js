@@ -12,15 +12,10 @@ import { createConfig } from "./config.js"
  *   differ from the one requested; `close()` releases the watchers and the
  *   listener, which a host serving more than one project over a session
  *   needs before opening the next one.
- *
- * The dev server prints each secret page's url as it first sees it
- * (plugins/secret-pages), which is how an author finds them. Only here:
- * a build that deploys or publishes may be logged somewhere public.
- * Pass `announceSecretPages: false` to turn it off.
  */
 async function init(options = {}) {
   const { sourceFolder, ...overrides } = options
-  const config = createConfig(sourceFolder, { announceSecretPages: true, ...overrides })
+  const config = createConfig(sourceFolder, overrides)
   return startServer(config)
 }
 

@@ -100,6 +100,23 @@ export function toTitleCase(string) {
 }
 
 /**
+ * Where a problem is, the way editors and terminals read it:
+ * `blog/post.md:6:15`, which VS Code's terminal opens at that line and
+ * column. The file alone when there is no position: a problem with the
+ * whole file, or a node the build made rather than read. The path is
+ * the source's as written, salt and all: a secret page is not secret
+ * from whoever can read the project, so hiding it here would only
+ * pretend otherwise (per Sam).
+ * @param {string} file - a source path
+ * @param {{ line?: number, column?: number }} [point] - a node's `position.start`
+ */
+export function sourceLocation(file, point) {
+  if (!point?.line) return file
+  if (!point.column) return `${file}:${point.line}`
+  return `${file}:${point.line}:${point.column}`
+}
+
+/**
  * A tag page's markdown: a title and the glob directive that lists every
  * page carrying the tag.
  *

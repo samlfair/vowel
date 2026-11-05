@@ -104,7 +104,7 @@ test("only styles.css links by itself; any other sheet links where a styles: nam
     assert.ok(photos.some(href => href.includes("https://fonts.googleapis.com/css2")), "a URL is linked as written")
     assert.ok(photos.indexOf("/blog/blog.css") < photos.indexOf("/vendor/gallery.css"), "the folder's before the page's")
     assert.ok(!photos.includes("/nowhere.css"))
-    assert.ok(warnings.some(line => line.includes("blog/photos.html") && line.includes("/nowhere.css")), warnings.join("\n"))
+    assert.ok(warnings.some(line => line.startsWith("blog/photos.md: ") && line.includes("/nowhere.css")), warnings.join("\n"))
     assert.ok(await readFile(path.join(targetFolder, "print.css"), "utf-8"), "every .css is still published")
   } finally {
     if (site) await site.close()

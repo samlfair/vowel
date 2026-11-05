@@ -281,10 +281,22 @@ async function main() {
     return
   }
 
-  // `vowel export <folder>`: the export command (plugins/export), spelled
-  // as a word rather than --command/--payload.
-  if (args._?.[0] === "export") {
+  // `vowel export <folder>` and `vowel check`: two commands spelled as
+  // words rather than --command/--payload. Any other word is a mistake,
+  // said so: it used to be ignored and start the preview, which never
+  // exits - under CI, a job that hung until it timed out.
+  const word = args._?.[0]
+  if (word === "export") {
     await runCLICommand("export", JSON.stringify({ path: args._[1] }))
+    return
+  }
+  if (word === "check") {
+    await runCLICommand("check")
+    return
+  }
+  if (word !== undefined) {
+    console.error(`vowel: unknown command "${word}". The words are \`vowel export <folder>\` and \`vowel check\`; any other command is \`vowel --command <name>\`.`)
+    process.exitCode = 1
     return
   }
 
