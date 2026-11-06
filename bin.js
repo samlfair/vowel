@@ -21,7 +21,7 @@ function wait(ms) {
 }
 
 import init from "./index.js"
-import { shouldClear, normalizeDomain, wrongFolderWarning, writeAgentFiles } from "./cli.js"
+import { shouldClear, wrongFolderWarning, writeSite, hasInitAnswers, initProblem, defaultsNotes, nameFromFolder } from "./cli.js"
 
 /**
  * A prompt's answer - or, when the author pressed Ctrl-C or Escape, a
@@ -93,7 +93,13 @@ async function exists(filePath) {
   }
 }
 
-async function wizard() {
+/**
+ * The setup wizard's questions; it writes through writeSite() (cli.js),
+ * as `vowel init` with flags does, so the two make the same files.
+ * @param {{ launch?: boolean }} [options] - false for `vowel init`,
+ *   which sets up and exits rather than starting the preview
+ */
+async function wizard({ launch = true } = {}) {
 
   {
     box(`Welcome!\n\nVowel is a static blog generator. It bundles markdown into HTML.`)
@@ -119,16 +125,13 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
     }))
 
     if (proceed) {
-      const frontmatter = [`---`]
-
       box(`Change these configurations by editing 'settings.md'.`)
 
+      // The folder's name, shown and editable before it is written.
       const websiteName = answer(await text({
         message: "Website name",
-        placeholder: "My Cool Website"
+        initialValue: nameFromFolder(process.cwd(), os.homedir())
       }))
-
-      frontmatter.push(`name: ${websiteName}`)
 
       box(`Vowel comes loaded with themes. You can override these themes by writing styles in a 'styles.css' file at the root of your project.`)
 
@@ -158,10 +161,6 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
         ]
       }))
 
-      if (theme) {
-        frontmatter.push(`theme: ${theme}`)
-      }
-
       box(`To publish a sitemap and RSS feed, provide the domain that you plan to use.`)
 
       const domain = answer(await text({
@@ -169,23 +168,12 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
         placeholder: "thebomb.com"
       }))
 
-      // As pasted from a browser: https://Example.com/ is example.com.
-      const siteDomain = normalizeDomain(domain)
-
-      if (siteDomain) {
-        frontmatter.push(`domain: ${siteDomain}`)
-      }
-
       box(`To credit an author on your RSS feed, provide an author.`)
 
       const author = answer(await text({
         message: "Author",
         placeholder: "George Constanza"
       }))
-
-      if (author) {
-        frontmatter.push(`author: ${author}`)
-      }
 
       box(`Markdown files are pages. Filenames are breadcrumbs. Folders are website sections. 'home.md' is your homepage.`)
 
@@ -214,26 +202,27 @@ The few configurations that Vowel uses live in a 'settings.md' file at the root 
 
       spin.start('Setting up')
 
-      frontmatter.push(`---`)
-
-      const settings = frontmatter.join(`\n`)
-
-      const settingsExists = await exists("settings.md")
-
-      if (!settingsExists) {
-        await fs.writeFile("settings.md", settings, "utf-8")
+      const answers = {
+        name: websiteName,
+        theme,
+        domain,
+        author,
+        home: homepage,
+        slogan,
+        agents: agentsFile,
+        skill
       }
-
-      const homeExists = await exists("home.md")
-
-      if (homepage && !homeExists) {
-        const homeFrontmatter = slogan ? `---\nslogan: ${slogan}\n---\n` : ""
-        await fs.writeFile("home.md", `${homeFrontmatter}# Home\n\nWelcome home!`, "utf-8")
-      }
-
-      await writeAgentFiles(process.cwd(), { agents: agentsFile, skill })
+      const { written } = await writeSite(process.cwd(), answers)
 
       spin.clear()
+
+      const notes = defaultsNotes(answers, written)
+      if (notes.length) note(notes.join("\n"))
+
+      if (!launch) {
+        outro("Set up. Run `vowel` to preview the site, and `vowel check` to check it.")
+        return
+      }
 
       answer(await select({
         message: "Ready to go. Vowel will now launch your website.",
@@ -285,6 +274,64 @@ async function runCLICommand(name, payloadJSON) {
   }
 }
 
+/**
+ * `vowel init`: sets up a site in this folder and exits, rather than
+ * starting the preview. With flags, which answer the wizard's questions
+ * one each, it asks nothing, so an agent can make a site in one command;
+ * with none, in a terminal, it runs the wizard. Nothing that exists is
+ * replaced. A home folder, or a folder of other things, is refused
+ * without a terminal to ask in, unless `--force`.
+ * @param {Record<string, unknown>} args
+ */
+async function runInit(args) {
+  const problem = initProblem(args)
+  if (problem) {
+    console.error(problem)
+    process.exitCode = 1
+    return
+  }
+
+  const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY)
+  const asking = interactive && !hasInitAnswers(args)
+  const folder = process.cwd()
+
+  if (!args.force && !(await exists("settings.md"))) {
+    const entries = await fs.readdir(".")
+    const warning = wrongFolderWarning(entries, { folder, home: folder === os.homedir() })
+    if (warning && !asking) {
+      console.error(`vowel init: ${warning.replace(/ Set up a site here anyway\?$/, "")} Pass --force to set up a site here anyway.`)
+      process.exitCode = 1
+      return
+    }
+    if (warning && !answer(await confirm({ message: warning, initialValue: false }))) {
+      cancel("Run vowel init inside a new, empty folder, or in your markdown's folder.")
+      return
+    }
+  }
+
+  if (asking) {
+    await wizard({ launch: false })
+    return
+  }
+
+  const on = (value) => value === true || value === "true"
+  const answers = {
+    name: args.name,
+    theme: args.theme,
+    domain: args.domain,
+    author: args.author,
+    slogan: args.slogan,
+    home: !(args.home === false || args.home === "false"),
+    agents: on(args.agents),
+    skill: on(args.skill)
+  }
+  const { written, kept } = await writeSite(folder, answers)
+  if (written.length) console.info(`Wrote ${written.join(", ")}.`)
+  if (kept.length) console.info(`Kept ${kept.join(", ")}, which already existed.`)
+  defaultsNotes(answers, written).forEach(line => console.info(line))
+  console.info("Run `vowel` to preview the site, and `vowel check` to check it.")
+}
+
 async function main() {
   const args = parse(process.argv.slice(2))
 
@@ -293,8 +340,8 @@ async function main() {
     return
   }
 
-  // `vowel export <folder>` and `vowel check`: two commands spelled as
-  // words rather than --command/--payload. Any other word is a mistake,
+  // `vowel export <folder>`, `vowel check` and `vowel init`: commands
+  // spelled as words rather than --command/--payload. Any other word is a mistake,
   // said so: it used to be ignored and start the preview, which never
   // exits - under CI, a job that hung until it timed out.
   const word = args._?.[0]
@@ -306,8 +353,12 @@ async function main() {
     await runCLICommand("check")
     return
   }
+  if (word === "init") {
+    await runInit(args)
+    return
+  }
   if (word !== undefined) {
-    console.error(`vowel: unknown command "${word}". The words are \`vowel export <folder>\` and \`vowel check\`; any other command is \`vowel --command <name>\`.`)
+    console.error(`vowel: unknown command "${word}". The words are \`vowel init\`, \`vowel export <folder>\` and \`vowel check\`; any other command is \`vowel --command <name>\`.`)
     process.exitCode = 1
     return
   }

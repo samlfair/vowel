@@ -382,7 +382,9 @@ function writeFile(target, { settings, api, config }) {
   // stylesheet - is linked as written. A path to no file is skipped,
   // with a warning: the <link> would 404. api.target() tracks it, so
   // the file appearing later relinks the page.
+  // An empty `styles:` in a folder's settings.md is a null in the list.
   const listed = [...new Set([...(settings.flat("fm_styles") ?? []), ...(metadata.fm_styles ?? [])])]
+    .filter(entry => typeof entry === "string")
   const external = listed.filter(entry => /^[a-z][a-z0-9+.-]*:|^\/\//i.test(entry))
   const named = listed
     .filter(entry => !external.includes(entry))

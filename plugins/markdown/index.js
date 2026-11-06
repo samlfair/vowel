@@ -14,7 +14,7 @@ import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
 import { normalizeHeadingLevels } from './metadata.js'
 import { readFileSync } from "fs"
 import { createHashtagPage, labelFromName, showPages, sourceLocation } from "./../../utils.js"
-import { frontmatterPoints } from "./frontmatter.js"
+import { frontmatterPoints, writtenValue } from "./frontmatter.js"
 import { toHast, defaultHandlers } from 'mdast-util-to-hast'
 import { toString as hastToString } from 'hast-util-to-string'
 import getMetadata, { imageFromPage, reservedProperties } from "./metadata.js"
@@ -245,16 +245,27 @@ function settingsContribution(metadata, filePath, log, yamlNode) {
   // Each warning names the key's line. Found only when there is one to
   // give, since it parses the block again.
   const at = (key) => sourceLocation(filePath, yamlNode ? frontmatterPoints(yamlNode)[key] : undefined)
-  if (metadata.fm_title !== undefined && metadata.fm_name === undefined) {
+  // `== null` is "missing or empty": an empty key sets nothing, so it
+  // has nothing to warn about.
+  if (metadata.fm_title != null && metadata.fm_name == null) {
     log?.("warn", `${at("title")}: \`title:\` in a settings file does nothing - the site's name is \`name:\``)
   }
-  if (metadata.fm_slogan !== undefined) {
+  if (metadata.fm_slogan != null) {
     log?.("warn", `${at("slogan")}: \`slogan:\` in a settings file does nothing - a slogan belongs to a page, e.g. home.md`)
   }
   // Mirrors are declared by an enumerator, which sees the root's
   // settings only.
-  if (metadata.markdown_mirror !== undefined && filePath !== "settings.md") {
+  if (metadata.markdown_mirror != null && filePath !== "settings.md") {
     log?.("warn", `${at("markdown_mirror")}: \`markdown_mirror:\` works only in the root settings.md or in a page's frontmatter`)
+  }
+  // An empty `domain:` is a placeholder (`vowel init` writes one): a key
+  // the author has yet to fill. No key at all, or `domain: false`, is a
+  // site without a domain, and says nothing. In a subfolder an empty key
+  // is "none here", which is deliberate.
+  const domain = metadata.fm_domain
+  const empty = "fm_domain" in metadata && (domain === null || String(domain).trim() === "")
+  if (filePath === "settings.md" && empty && !(yamlNode && writtenValue(yamlNode, "domain") === false)) {
+    log?.("warn", `${at("domain")}: \`domain:\` is empty, so the site has no feed, sitemap or llms.txt. Set it to the site's domain, like example.com, or remove it if the site has none`)
   }
   const declared = Object.entries(metadata)
     .filter(([key]) => key.startsWith("fm_") || reservedProperties.includes(key))

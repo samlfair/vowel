@@ -24,6 +24,16 @@ import { sourceLocation } from "../../utils.js"
  *    the file, the key and what was found. Keys not in the table are the
  *    author's own and are stored as written. (`coerce`)
  *
+ *    **An empty key is not set**, and is no error: `domain:` (YAML's
+ *    null, also `~` or `null`) is stored as null, which every reader
+ *    treats as it treats a missing key. Kept, not dropped, because the
+ *    two differ: an empty key in a subfolder's settings.md means "none
+ *    here" and hides its parent's value (`lastNonNull` stops at it), and
+ *    an empty `domain:` is a placeholder the root settings.md warns
+ *    about (per Sam, Nov 6). `false` for a text key is empty too
+ *    (`domain: false` was the domain "false"), except that `domain:
+ *    false` says the site has none, and isn't warned about.
+ *
  * 3. **A path is a URL path from the root.** `logo: x.svg` and
  *    `logo: /x.svg` both mean `/x.svg`; `./x.svg` is resolved against
  *    the file's own folder. Lowercased, because every url vowel routes
@@ -131,6 +141,10 @@ function resolvePath(value, folder) {
 function coerceOne(shape, value, folder) {
   if (shape === "string") {
     if (typeof value === "string") return { value }
+    // `false` is an empty key (per Sam, Nov 6). `true` names no text: it
+    // made `domain: true` the domain "true".
+    if (value === false) return { value: null }
+    if (value === true) return { value: undefined, problem: "expected text, got true" }
     if (isScalar(value) || value instanceof Date) return { value: String(value), problem: `expected text, got ${typeof value}` }
     if (Array.isArray(value) && value.every(isScalar)) return { value: value.map(String).join(", "), problem: "expected text, got a list" }
     return { value: undefined, problem: `expected text, got ${Array.isArray(value) ? "a list" : "an object"}` }
@@ -216,7 +230,8 @@ function coerceOne(shape, value, folder) {
 
 /**
  * The block's values, each known key checked against EXPECTED. Returns
- * a new object; keys coerced away are absent from it.
+ * a new object; keys coerced away are absent from it, and an empty key
+ * is null.
  * @param {Record<string, unknown>} frontmatter
  * @param {string} filePath - project-relative, for the error line
  * @param {string} folder - the folder paths resolve against
@@ -228,7 +243,7 @@ function coerce(frontmatter, filePath, folder, report, points = {}) {
   const result = {}
   for (const key in frontmatter) {
     const shape = EXPECTED[key]
-    if (!shape) {
+    if (!shape || frontmatter[key] === null) {
       result[key] = frontmatter[key]
       continue
     }
@@ -284,6 +299,18 @@ function frontmatterPoints(node) {
 }
 
 /**
+ * One top-level key's value as the YAML says it, before coerce(): for a
+ * warning that has to tell `false` from an empty key, which are both
+ * null once coerced. Parses the block again, like frontmatterPoints.
+ * @param {object} node - the `yaml` node
+ * @param {string} key
+ */
+function writtenValue(node, key) {
+  const document = yaml.parseDocument(node.value, { logLevel: "error" })
+  return document.errors.length ? undefined : document.toJS()?.[key]
+}
+
+/**
  * Parses a frontmatter node, with each key's place in the file. On a
  * parse error the node is replaced in the tree by the markdown it would
  * have been - rule 1 above - and nothing is returned.
@@ -328,4 +355,4 @@ function asContent(tree, node) {
   return undefined
 }
 
-export { EXPECTED, STATUSES, coerce, parseFrontmatter, frontmatterPoints, resolvePath, toISODate }
+export { EXPECTED, STATUSES, coerce, parseFrontmatter, frontmatterPoints, writtenValue, resolvePath, toISODate }
