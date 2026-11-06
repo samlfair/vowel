@@ -81,6 +81,7 @@
     "secretPaths.js",
     "systemPaths.js",
     "utils.js",
+    "version.js",
     "plugins",
     "skills",
     "stylesheets",

@@ -26,6 +26,7 @@ import { pageRecordURI } from "../atproto/record.js"
 import { STATUSES } from "../markdown/frontmatter.js"
 import { themeStylesheets, isVowelStylesheet } from "../styles/theme.js"
 import { displayPath } from "../../secretPaths.js"
+import { VOWEL_VERSION } from "../../version.js"
 import { socialLinksNav } from "./socialLinks.js"
 import { writeWalk } from "./writeRules.js"
 import { ASIDE_PARTIAL, navPartialPath, backlinksPartialPath, createPartialStubs, expandPartial, withCurrent, partialsProcessor } from "./partials.js"
@@ -500,6 +501,11 @@ function writeFile(target, { settings, api, config }) {
     h("meta", {
       name: "viewport",
       content: "width=device-width, initial-scale=1.0"
+    }),
+    // What made the page, as WordPress and Hugo say it: name and version.
+    h("meta", {
+      name: "generator",
+      content: `Vowel ${VOWEL_VERSION}`
     }),
     h("meta", {
       "http-equiv": "X-UA-Compatible",
