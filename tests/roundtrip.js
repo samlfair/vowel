@@ -71,7 +71,7 @@ test("ordered lists", () => {
 
 test("code blocks drop the highlighter's span tree", () => {
   const { markdown } = roundtrip(
-    '<pre><code class="hljs language-js"><span class="hljs-keyword">const</span> x = 1</code></pre>'
+    '<pre class="language-js"><code class="language-js"><span class="token keyword">const</span> x = 1</code></pre>'
   )
   assert.equal(markdown, "```js\nconst x = 1\n```")
 })

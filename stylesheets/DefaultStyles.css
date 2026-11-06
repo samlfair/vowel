@@ -17,7 +17,7 @@
 	--_name is internal to a sheet: computed here, not for setting.
 */
 
-@layer reset, typography, default, dynamic-typography;
+@layer reset, typography, syntax-highlighting, default, dynamic-typography;
 
 @layer default {
 	:root {
@@ -433,6 +433,7 @@
 		/* position: relative; */
 
 		table {
+
 			th,
 			td {
 				vertical-align: top;
@@ -479,9 +480,8 @@
 
 
 			pre,
-			code,
-			code.hljs {
-				background: var(--color-background-pre) !important;
+			code {
+				background: var(--color-background-pre);
 			}
 
 			blockquote {
@@ -540,6 +540,7 @@
 			/* alerts */
 
 			aside.alert {
+
 				/* GitHub's CAUTION and TIP share DANGER's and SUCCESS's colours */
 				&.danger,
 				&.caution {

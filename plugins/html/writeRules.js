@@ -1,12 +1,12 @@
 import path from "node:path"
 import { h } from "hastscript"
-import { common, createLowlight } from "lowlight"
 import { toText } from "hast-util-to-text"
 import GithubSlugger from "github-slugger"
 import { createVisitor, SKIP } from "../markdown/visitor.js"
 import { showPages, isPageWithoutFile, imageSizes, sourceLocation } from "../../utils.js"
 import { globClasses, alertLabel } from "./editor/directives.js"
 import createDynamicImage, { derivativeURL } from "./image.js"
+import { highlightCode } from "./highlighting.js"
 import { displayPath } from "../../secretPaths.js"
 
 /**
@@ -31,7 +31,6 @@ const at = (node, target) => sourceLocation(target.source ?? target.path, node?.
  * write can link the highlight stylesheet only on pages that need it.
  */
 
-const lowlight = createLowlight(common)
 
 /** @param {any} node */
 const isElement = (node) => node?.type === "element"
@@ -276,9 +275,10 @@ const icon = {
 }
 
 /**
- * A fenced block with a language: what rehype-highlight did, without
- * its walk. hljs plus per-token spans on the <code>; the language class
- * is left for the stylesheet. An unregistered language is left alone.
+ * A fenced block with a language, highlighted by Prism
+ * (highlighting.js): per-token spans in the <code>, and the language
+ * class on the <pre> as well as the <code>, where Prism's themes look
+ * for it. A language Prism doesn't know is left alone.
  * @type {import("../markdown/visitor.js").BlockRule}
  */
 const highlight = {
@@ -288,14 +288,10 @@ const highlight = {
     const code = node.children[0]
     const language = (code.properties?.className ?? []).map(String).find(name => name.startsWith("language-"))?.slice("language-".length)
     if (!language) return SKIP
-    let result
-    try {
-      result = lowlight.highlight(language, toText(code, { whitespace: "pre" }))
-    } catch (error) {
-      if (/Unknown language/.test(error.message)) return SKIP
-      throw error
-    }
-    code.properties.className = ["hljs", ...code.properties.className.filter(name => name !== "hljs")]
+    const result = highlightCode(toText(code, { whitespace: "pre" }), language)
+    if (!result) return SKIP
+    const preClasses = (node.properties?.className ?? []).map(String).filter(name => !name.startsWith("language-"))
+    node.properties = { ...node.properties, className: [...preClasses, `language-${language}`] }
     if (result.children.length) code.children = result.children
     context.highlighted = true
     return SKIP

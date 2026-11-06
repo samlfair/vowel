@@ -28,10 +28,27 @@ function topLevelBlocks(css) {
   return blocks
 }
 
-for (const name of ["ResetStyles.css", "TypographyStyles.css", "DefaultStyles.css"]) {
+const sheets = ["ResetStyles.css", "TypographyStyles.css", "DefaultStyles.css", "SyntaxHighlightingStyles.css"]
+const read = (name) => readFileSync(new URL(`../stylesheets/${name}`, import.meta.url), "utf-8")
+
+for (const name of sheets) {
   test(`${name}: every rule is in a layer, so a project's stylesheet wins`, () => {
-    const css = readFileSync(new URL(`../stylesheets/${name}`, import.meta.url), "utf-8")
-    const unlayered = topLevelBlocks(css).filter(prelude => !prelude.startsWith("@layer"))
+    const unlayered = topLevelBlocks(read(name)).filter(prelude => !prelude.startsWith("@layer"))
     assert.deepEqual(unlayered, [])
   })
 }
+
+// A layer named for the first time after the others goes to the end, so
+// every sheet that declares an order has to place syntax-highlighting in
+// it: before default, so the default theme overrides the highlighting
+// (per Sam).
+test("every declared layer order has syntax-highlighting just before default", () => {
+  const full = ["reset", "typography", "syntax-highlighting", "default", "dynamic-typography"]
+  for (const name of sheets) {
+    const declarations = [...read(name).matchAll(/@layer ([\w\s,-]+);/g)].map(match => match[1].split(",").map(layer => layer.trim()))
+    for (const order of declarations) {
+      assert.deepEqual(order, full.slice(0, order.length), `${name}: @layer ${order.join(", ")}`)
+    }
+  }
+  assert.ok(read("SyntaxHighlightingStyles.css").includes("@layer syntax-highlighting {"))
+})
