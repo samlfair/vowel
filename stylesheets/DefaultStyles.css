@@ -66,10 +66,29 @@
 		--color-text-hover-panel: light-dark(var(--color-primary-02), var(--color-primary-08));
 		--color-border-hover-panel: light-dark(var(--color-accent-08), var(--color-accent-05));
 
-		/* pre colors */
-		--color-background-pre: light-dark(var(--color-tertiary-09), var(--color-tertiary-02));
-		--color-border-pre: light-dark(var(--color-tertiary-08), var(--color-tertiary-01));
-		--color-text-pre: light-dark(var(--color-tertiary-02), var(--color-tertiary-02));
+		/*
+			pre colors, and the syntax-highlighting sheet's from the
+			palette: the text at the far end from the background, every
+			token one shade in, so each stays above 4.5:1 on the
+			background for any ordinary palette (tests/syntaxColors.js).
+			Comments too, told apart by italics: a shade lighter fell to
+			4.2:1 on a palette from bright colours (#ffcc00, #66ff00).
+		*/
+		--color-background-pre: light-dark(var(--color-tertiary-10), var(--color-tertiary-02));
+		--color-border-pre: light-dark(var(--color-tertiary-08), var(--color-tertiary-02));
+		--color-text-pre: light-dark(var(--color-tertiary-04), var(--color-tertiary-08));
+		--color-comment-pre: light-dark(var(--color-accent-04), var(--color-accent-09));
+		--color-keyword-pre: light-dark(var(--color-primary-04), var(--color-primary-07));
+		--color-function-pre: light-dark(var(--color-secondary-04), var(--color-secondary-07));
+		--color-constant-pre: light-dark(var(--color-info-04), var(--color-info-07));
+		--color-string-pre: light-dark(var(--color-tertiary-04), var(--color-tertiary-08));
+		--color-builtin-pre: light-dark(var(--color-warning-04), var(--color-warning-07));
+		--color-tag-pre: light-dark(var(--color-success-05), var(--color-success-07));
+		--color-list-pre: light-dark(var(--color-warning-05), var(--color-warning-07));
+		--color-inserted-pre: light-dark(var(--color-success-05), var(--color-success-07));
+		--color-background-inserted-pre: light-dark(var(--color-success-07), var(--color-success-05));
+		--color-deleted-pre: light-dark(var(--color-danger-05), var(--color-danger-07));
+		--color-background-deleted-pre: light-dark(var(--color-danger-07), var(--color-danger-05));
 
 		/*
 			alert colors: --color-{element}-alert-{type} for the types the
@@ -482,6 +501,11 @@
 			pre,
 			code {
 				background: var(--color-background-pre);
+			}
+
+			/* a comment is the text's colour, a shade lighter: italics tell it apart */
+			.token.comment {
+				font-style: italic;
 			}
 
 			blockquote {

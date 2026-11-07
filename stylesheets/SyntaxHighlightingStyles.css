@@ -1,14 +1,17 @@
 /*
- * Syntax highlighting for code blocks, highlighted by Prism (refractor):
- * GitHub's light and dark colours, as highlight.js's GitHub themes had
- * them, on Prism's token classes. Light by default, dark under
- * prefers-color-scheme.
+ * Syntax highlighting for code blocks, highlighted by Prism (refractor).
  *
- * In its own layer, before the default theme's (per Sam), so a theme
- * overrides it: DefaultStyles.css's `pre, code` background replaces the
- * dark background here. A project's own stylesheet is unlayered, so it
- * overrides everything, a Prism theme included. The order is declared
- * in every theme sheet, because a layer named for the first time later
+ * Every colour is a variable, `--color-{role}-pre`, declared here with
+ * GitHub's light and dark colours, light by default and dark under
+ * prefers-color-scheme (not light-dark(), which needs a color-scheme
+ * this sheet has no business setting). The default theme redeclares
+ * them from the site's palette, and a project's styles.css can set any
+ * one of them: `:root { --color-keyword-pre: crimson }`.
+ *
+ * In its own layer, before the default theme's (per Sam), so the theme
+ * overrides it; a project's own stylesheet is unlayered and overrides
+ * everything, a whole Prism theme included. The order is declared in
+ * every theme sheet, because a layer named for the first time later
  * would go to the end.
  *
  * Rules of the same specificity are in an order that matters: a token
@@ -19,8 +22,45 @@
 @layer reset, typography, syntax-highlighting, default, dynamic-typography;
 
 @layer syntax-highlighting {
+  :root {
+    --color-text-pre: #24292e;
+    --color-background-pre: #ffffff;
+    --color-comment-pre: #6a737d;
+    --color-keyword-pre: #d73a49;
+    --color-function-pre: #6f42c1;
+    --color-constant-pre: #005cc5;
+    --color-string-pre: #032f62;
+    --color-builtin-pre: #e36209;
+    --color-tag-pre: #22863a;
+    --color-list-pre: #735c0f;
+    --color-inserted-pre: #22863a;
+    --color-background-inserted-pre: #f0fff4;
+    --color-deleted-pre: #b31d28;
+    --color-background-deleted-pre: #ffeef0;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-text-pre: #c9d1d9;
+      --color-background-pre: #0d1117;
+      --color-comment-pre: #8b949e;
+      --color-keyword-pre: #ff7b72;
+      --color-function-pre: #d2a8ff;
+      --color-constant-pre: #79c0ff;
+      --color-string-pre: #a5d6ff;
+      --color-builtin-pre: #ffa657;
+      --color-tag-pre: #7ee787;
+      --color-list-pre: #f2cc60;
+      --color-inserted-pre: #aff5b4;
+      --color-background-inserted-pre: #033a16;
+      --color-deleted-pre: #ffdcd7;
+      --color-background-deleted-pre: #67060c;
+    }
+  }
+
   pre[class*="language-"] {
-    color: #24292e;
+    color: var(--color-text-pre);
+    background: var(--color-background-pre);
   }
 
   pre[class*="language-"]>code {
@@ -29,21 +69,18 @@
     padding: 1em;
   }
 
-  /* prettylights-syntax-keyword */
   .token.keyword,
   .token.atrule,
   .token.rule,
   .token.important {
-    color: #d73a49;
+    color: var(--color-keyword-pre);
   }
 
-  /* prettylights-syntax-entity */
   .token.function,
   .token.class-name {
-    color: #6f42c1;
+    color: var(--color-function-pre);
   }
 
-  /* prettylights-syntax-constant */
   .token.number,
   .token.boolean,
   .token.constant,
@@ -55,50 +92,45 @@
   .token.doctype,
   .token.prolog,
   .token.key {
-    color: #005cc5;
+    color: var(--color-constant-pre);
   }
 
-  /* prettylights-syntax-string */
   .token.string,
   .token.char,
   .token.attr-value,
   .token.regex,
   .token.url {
-    color: #032f62;
+    color: var(--color-string-pre);
   }
 
-  /* prettylights-syntax-variable */
   .token.builtin,
   .token.symbol {
-    color: #e36209;
+    color: var(--color-builtin-pre);
   }
 
-  /* prettylights-syntax-comment: also markdown's code, whose language
-     is highlighted inside it */
+  /* also markdown's code, whose language is highlighted inside it */
   .token.comment,
   .token.cdata,
   .token.code-snippet,
   .token.code.keyword {
-    color: #6a737d;
+    color: var(--color-comment-pre);
   }
 
-  /* prettylights-syntax-entity-tag */
   .token.tag,
   .token.selector,
   .token.blockquote {
-    color: #22863a;
+    color: var(--color-tag-pre);
   }
 
-  /* prettylights-syntax-markup-heading */
+  /* a markdown heading */
   .token.title {
-    color: #005cc5;
+    color: var(--color-constant-pre);
     font-weight: bold;
   }
 
-  /* prettylights-syntax-markup-list */
   .token.list,
   .token.checkbox {
-    color: #735c0f;
+    color: var(--color-list-pre);
   }
 
   .token.table-header {
@@ -118,97 +150,13 @@
     text-decoration: line-through;
   }
 
-  /* prettylights-syntax-markup-inserted */
   .token.inserted {
-    color: #22863a;
-    background-color: #f0fff4;
+    color: var(--color-inserted-pre);
+    background-color: var(--color-background-inserted-pre);
   }
 
-  /* prettylights-syntax-markup-deleted */
   .token.deleted {
-    color: #b31d28;
-    background-color: #ffeef0;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    pre[class*="language-"] {
-      color: #c9d1d9;
-      background: #0d1117;
-    }
-
-    .token.keyword,
-    .token.atrule,
-    .token.rule,
-    .token.important {
-      color: #ff7b72;
-    }
-
-    .token.function,
-    .token.class-name {
-      color: #d2a8ff;
-    }
-
-    .token.number,
-    .token.boolean,
-    .token.constant,
-    .token.operator,
-    .token.variable,
-    .token.property,
-    .token.attr-name,
-    .token.entity,
-    .token.doctype,
-    .token.prolog,
-    .token.key {
-      color: #79c0ff;
-    }
-
-    .token.string,
-    .token.char,
-    .token.attr-value,
-    .token.regex,
-    .token.url {
-      color: #a5d6ff;
-    }
-
-    .token.builtin,
-    .token.symbol {
-      color: #ffa657;
-    }
-
-    .token.comment,
-    .token.cdata,
-    .token.code-snippet,
-    .token.code.keyword {
-      color: #8b949e;
-    }
-
-    .token.tag,
-    .token.selector,
-    .token.blockquote {
-      color: #7ee787;
-    }
-
-    .token.title {
-      color: #1f6feb;
-    }
-
-    .token.list,
-    .token.checkbox {
-      color: #f2cc60;
-    }
-
-    .token.table-header {
-      color: inherit;
-    }
-
-    .token.inserted {
-      color: #aff5b4;
-      background-color: #033a16;
-    }
-
-    .token.deleted {
-      color: #ffdcd7;
-      background-color: #67060c;
-    }
+    color: var(--color-deleted-pre);
+    background-color: var(--color-background-deleted-pre);
   }
 }
