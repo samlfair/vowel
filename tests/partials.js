@@ -76,7 +76,7 @@ test("a page shows its folder chain's nav with itself marked current; a section 
     "shop/hats/red.md": "# Red\n"
   }, async ({ header }) => {
     // Root page: the root list, itself current.
-    assert.match(await header("about.html"), /<nav><ul><li><a href=\/about aria-current=page>About<\/a><li><a href=\/shop>Shop<\/a><\/ul><\/nav>/)
+    assert.match(await header("about.html"), /<nav aria-label=Local><ul><li><a href=\/about aria-current=page>About<\/a><li><a href=\/shop>Shop<\/a><\/ul><\/nav>/)
     // A page in shop/: the root list, then shop's list, itself current.
     assert.match(await header(path.join("shop", "rings.html")), /<ul><li><a href=\/about>About<\/a><li><a href=\/shop>Shop<\/a><\/ul><ul><li><a href=\/shop\/hats>Hats<\/a><li><a href=\/shop\/rings aria-current=page>Rings<\/a><\/ul>/)
     // The section index shop.html (dir "") takes shop/'s chain, ending in its own list.

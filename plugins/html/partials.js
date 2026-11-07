@@ -255,9 +255,16 @@ function expandPartial({ params }) {
   return { text: JSON.stringify(params) }
 }
 
-/** The header nav: one <ul> per level that has entries, root first. */
+/**
+ * The header nav: one <ul> per level that has entries, root first.
+ * Labelled "Local" and the aside "Global", after the settings that
+ * leave a page out of each (`local_nav_item`, `global_nav_item`), so a
+ * screen reader can tell the page's navs apart. The labels are CSS
+ * hooks too, like `nav[aria-label=Breadcrumbs]`: renaming one breaks
+ * an author's stylesheet.
+ */
 function renderNav({ levels }) {
-  return h("nav", levels
+  return h("nav", { "aria-label": "Local" }, levels
     .filter(level => level.length)
     .map(level => h("ul", level.map(({ url, label }) => h("li", h("a", { href: url }, label)))))
   )
@@ -268,7 +275,7 @@ function renderAside({ items }) {
   const li = ({ url, label, children }) => children
     ? h("li", [h("a", { href: url }, label), h("ul", children.map(li))])
     : h("li", h("a", { href: url }, label))
-  return h("nav", h("ul", items.map(li)))
+  return h("nav", { "aria-label": "Global" }, h("ul", items.map(li)))
 }
 
 /** "Linked from", outside section#content: it is generated, and the editor must not see it. */

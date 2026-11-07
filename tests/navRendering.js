@@ -66,14 +66,14 @@ test("the table of contents renders from two entries, at any depth", async () =>
 test("the header nav and the aside render from two entries", async () => {
   await withSite({ "home.md": "# Home\n", "about.md": "# About\n" }, async (page) => {
     const home = await page("index.html")
-    assert.doesNotMatch(header(home), /<nav>/, "the header nav would list About alone")
-    assert.match(home, /<aside><nav>/, "the aside lists Home and About")
+    assert.doesNotMatch(header(home), /<nav aria-label=Local>/, "the header nav would list About alone")
+    assert.match(home, /<aside><nav aria-label=Global>/, "the aside lists Home and About")
   })
   await withSite({ "home.md": "# Home\n" }, async (page) => {
     assert.doesNotMatch(await page("index.html"), /<aside>/, "an aside of the homepage alone is no aside")
   })
   await withSite({ "home.md": "# Home\n", "about.md": "# About\n", "contact.md": "# Contact\n" }, async (page) => {
-    assert.match(header(await page("index.html")), /<nav><ul><li><a href=\/about>About<\/a><li><a href=\/contact>Contact<\/a><\/ul><\/nav>/)
+    assert.match(header(await page("index.html")), /<nav aria-label=Local><ul><li><a href=\/about>About<\/a><li><a href=\/contact>Contact<\/a><\/ul><\/nav>/)
   })
 })
 
