@@ -36,10 +36,13 @@ import { ASIDE_PARTIAL, navPartialPath, backlinksPartialPath, createPartialStubs
 
 const VOWEL_DIR = path.normalize(path.join(import.meta.dirname, "../../"))
 
-// Compiled from ./editor/main.js via rollup.config.js (`npm run
-// build:editor` from vowel's root) - the Svedit editor and reload client
-// for previewed pages, read once here and inlined into every previewed
-// page. See tasks/desktop-app-architecture.md, Part 3.
+// Compiled from ./editor via rollup.config.js (`npm run build:editor`
+// from vowel's root), read once here and inlined into previewed pages:
+// the live-reload client alone (live-reload.js, 6 KB) on every one, or
+// under `vowel --editor` the Svedit editor, which carries the same
+// client (main.js, 730 KB). See tasks/desktop-app-architecture.md,
+// Part 3.
+const liveReloadScript = readFileSync(path.join(import.meta.dirname, "bundle/live-reload.js"), "utf-8")
 const editorClientScript = readFileSync(path.join(import.meta.dirname, "bundle/index.js"), "utf-8")
 
 /**
@@ -865,10 +868,9 @@ function previewSource(target, settings, config) {
     path: target?.source ?? null,
     markdown: target?.metadata?.markdown ?? null,
     settings: { path: "settings.md", markdown: rootSettings?.at(-1) ?? null },
-    // The in-page editor is not part of 1.0: it mounts only when the
-    // dev server was started with `vowel --editor` (config.editor).
-    // The client bundle is injected regardless, because it is also
-    // the live-reload client.
+    // The in-page editor is not part of 1.0: its bundle, and this, are
+    // in the page only when the dev server was started with
+    // `vowel --editor` (config.editor).
     editor: config?.editor === true
   }
 }
@@ -876,6 +878,10 @@ function previewSource(target, settings, config) {
 function handlePreviewRequest(body, { target, settings, config } = {}) {
   const html = body.toString("utf-8")
   const fileSplit = html.split("</body>")
+  if (config?.editor !== true) {
+    fileSplit.splice(1, 0, `<script type="module">${liveReloadScript}</script>`)
+    return fileSplit.join("")
+  }
   // "<" escaped so a "</script>" inside the markdown cannot end the tag.
   const source = JSON.stringify(previewSource(target, settings, config)).replaceAll("<", "\\u003c")
   fileSplit.splice(1, 0, `<script type="application/json" id="vowel-source">${source}</script><script type="module">${editorClientScript}</script>`)

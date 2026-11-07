@@ -3,14 +3,24 @@ import resolve from "@rollup/plugin-node-resolve"
 import css from "rollup-plugin-import-css"
 import cleanup from "rollup-plugin-cleanup"
 
-// Compiles the Svedit editor into a single inlineable bundle,
-// committed at ../bundle/index.js -
-// vowel/plugins/html/index.js reads that file's contents once at plugin
-// load time and injects it into every previewed page's
-// handlePreviewRequest, the same way it already inlines votive's
-// openSocket() reload client. Rebuild with `npm run build:editor` from
-// vowel's root after editing anything in this folder.
-export default {
+// Two inlineable bundles, both committed in ../bundle/:
+// live-reload.js, the live-reload client alone, which every previewed
+// page gets, and index.js, the Svedit editor with the same client in
+// it, which replaces it under `vowel --editor`.
+// vowel/plugins/html/index.js reads them and injects one into each
+// previewed page in handlePreviewRequest. Rebuild with
+// `npm run build:editor` from vowel's root after editing anything in
+// this folder.
+const liveReload = {
+  input: "live-reload.js",
+  output: {
+    file: "../bundle/live-reload.js",
+    format: "iife"
+  },
+  plugins: [cleanup()]
+}
+
+const editor = {
   input: "main.js",
   output: {
     file: "../bundle/index.js",
@@ -33,3 +43,5 @@ export default {
     cleanup()
   ]
 }
+
+export default [liveReload, editor]

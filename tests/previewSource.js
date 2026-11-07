@@ -7,7 +7,14 @@ import { startServer } from "votive"
 import { createConfig } from "../config.js"
 import { hashSegmentInput } from "../secretPaths.js"
 
-async function withPreview(files, run, overrides = {}) {
+/**
+ * The preview's own additions to a page. Without `vowel --editor` it is
+ * the live-reload client alone; with it, the editor's bundle (which has
+ * the same client) and the page's source, which only the editor reads.
+ * The source tests start the server with the flag.
+ */
+
+async function withPreview(files, run, overrides = { editor: true }) {
   const sourceFolder = await mkdtemp(path.join(tmpdir(), "vowel-preview-"))
   const systemFolder = await mkdtemp(path.join(tmpdir(), "vowel-preview-sys-"))
   let server
@@ -24,12 +31,12 @@ async function withPreview(files, run, overrides = {}) {
       ...overrides
     }))
     const base = `http://127.0.0.1:${server.port}`
+    const html = async (page) => (await fetch(base + page)).text()
     const source = async (page) => {
-      const html = await (await fetch(base + page)).text()
-      const match = html.match(/<script type="application\/json" id="vowel-source">(.*?)<\/script>/)
+      const match = (await html(page)).match(/<script type="application\/json" id="vowel-source">(.*?)<\/script>/)
       return match ? JSON.parse(match[1]) : null
     }
-    await run({ base, source, targetFolder })
+    await run({ base, html, source, targetFolder })
   } finally {
     if (server) await server.close()
     await rm(sourceFolder, { recursive: true, force: true })
@@ -79,11 +86,16 @@ test("a project with no settings.md previews an empty one, so the panel can crea
   })
 })
 
-test("the editor is gated: a preview says editor: false unless the server was started with the flag", async () => {
-  await withPreview({ "home.md": "# Home\n" }, async ({ source }) => {
-    assert.equal((await source("/")).editor, false)
-  })
-  await withPreview({ "home.md": "# Home\n" }, async ({ source }) => {
+test("without --editor a preview gets the live-reload client alone: no editor, no source", async () => {
+  await withPreview({ "home.md": "# Home\n" }, async ({ html, source }) => {
+    const page = await html("/")
+    assert.equal(await source("/"), null, "no #vowel-source")
+    assert.equal(page.includes("svedit"), false, "no editor bundle")
+    assert.match(page, /<script type="module">[\s\S]*new WebSocket[\s\S]*<\/script>(<\/body>)?$/, "the live-reload client, last")
+    assert.ok(page.length < 20_000, `${page.length} characters`)
+  }, {})
+  await withPreview({ "home.md": "# Home\n" }, async ({ html, source }) => {
     assert.equal((await source("/")).editor, true)
-  }, { editor: true })
+    assert.ok((await html("/")).includes("svedit"), "the editor bundle")
+  })
 })
