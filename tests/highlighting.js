@@ -58,6 +58,15 @@ test("markdown: GFM's fences, tables, task lists, footnotes and autolinks", () =
   assert.ok(nested.includes("token punctuation: ````"), "the four-backtick fence closes with four")
   assert.ok(nested.includes("token code-language: js"), "and the fence inside it is markdown")
 
+  const titled = tokens('```js "app.js"\nconst a = 1\n```\n')
+  assert.ok(titled.includes("token code-language: js"), "the language is the first word, not the title")
+  assert.ok(titled.includes("token string: \"app.js\""), "the title is its own token")
+  assert.ok(titled.includes("token keyword: const"), "and the block is still highlighted in its language")
+  assert.ok(tokens('```js title="app.js"\nconst a = 1\n```\n').includes("token keyword: const"))
+  const untitled = tokens('```"Markdown notes"\n# plain\n```\n')
+  assert.ok(!untitled.some(token => token.startsWith("token code-language")), "a quoted first word is no language")
+  assert.ok(!untitled.some(token => token.startsWith("token title")), "so the block isn't highlighted as Markdown")
+
   assert.ok(tokens("| a | b |\n|-|:-:|\n| 1 | 2 |\n").some(token => token.startsWith("token table:")), "a delimiter cell of one dash")
   assert.ok(tokens("- [x] done\n1. [ ] todo\n").filter(token => token.startsWith("token checkbox keyword")).length === 2)
   assert.ok(tokens("- [x] done\n").includes("token list punctuation: -"), "the task item's marker is still a list marker")

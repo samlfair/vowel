@@ -41,10 +41,13 @@ export function extendMarkdown(refractor) {
   markdown["front-matter-block"].lookbehind = false
 
   // Three or more backticks or tildes, closed by the same character at
-  // least as many times. The parts stay in the order Prism's
-  // after-tokenize hook expects (fence, language, newline, block,
-  // newline, fence): it reads the language from them, and highlights
-  // the block in it.
+  // least as many times. Prism's after-tokenize hook reads the language
+  // from the parts and highlights the block in it, and it finds them by
+  // position: the language second, the block fourth. So the language is
+  // the first word only, never a quoted title (codeFence.js), and the
+  // rest of the line, a title and its newline, is one token in third
+  // place, where the newline would be: fence, language, meta, block,
+  // newline, fence.
   markdown.code[1] = {
     pattern: /^(([`~])\2{2,})[^\r\n]*(?:\r\n?|\n)(?:[\s\S]*?(?:\r\n?|\n))??\1\2*[ \t]*$/m,
     greedy: true,
@@ -54,10 +57,14 @@ export function extendMarkdown(refractor) {
         lookbehind: true
       },
       "code-language": {
-        pattern: /^(`{3,}|~{3,})[^\s`~][^\r\n]*/,
+        pattern: /^(`{3,}|~{3,})[^\s`~"'][^\s]*/,
         lookbehind: true
       },
-      punctuation: /`{3,}|~{3,}/
+      punctuation: /`{3,}|~{3,}/,
+      "code-meta": {
+        pattern: /^[ \t]*[^\s][^\r\n]*(?:\r\n?|\n)$/,
+        inside: { string: /"[^"]*"|'[^']*'/ }
+      }
     }
   }
 

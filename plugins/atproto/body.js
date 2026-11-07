@@ -6,6 +6,7 @@ import { gfmTaskListItemToMarkdown } from "mdast-util-gfm-task-list-item"
 import { toText } from "hast-util-to-text"
 import { emojiFor } from "../markdown/emoji.js"
 import { alertLabel } from "../html/editor/directives.js"
+import { fenceWithTitle } from "../markdown/codeFence.js"
 
 /**
  * A page's body as a record carries it, from the rendered
@@ -185,15 +186,30 @@ function block(node, base) {
   if (tag === "picture") return [paragraph([node], base)]
   if (tag === "aside" && hasClass(node, "alert")) return [alert(node, base)]
   if (tag === "blockquote") return [{ type: "blockquote", children: blocks(node.children ?? [], base) }]
-  if (tag === "pre") {
-    const code = (node.children ?? []).find(child => is(child, "code")) ?? node
-    const language = classes(code).find(name => name.startsWith("language-"))?.slice("language-".length)
-    return [{ type: "code", lang: language ?? null, value: toText(code).replace(/\n$/, "") }]
+  if (tag === "pre") return [codeBlock(node)]
+  if (tag === "figure") {
+    const [caption, pre, ...rest] = (node.children ?? []).filter(child => child.type === "element")
+    if (is(caption, "figcaption") && is(pre, "pre") && !rest.length) {
+      const code = codeBlock(pre)
+      return [{ ...code, ...fenceWithTitle(code.lang, toText(caption).trim()) }]
+    }
   }
   if (tag === "ul" || tag === "ol") return [list(node, base)]
   if (tag === "table") return [table(node, base)]
   if (isFootnoteSection(node)) return footnotes(node, base)
   return blocks(node.children ?? [], base)
+}
+
+/**
+ * A `<pre>` as a fenced block, in the language its `<code>` is marked
+ * with. A titled block is a `<figure>` with the title as its caption
+ * (markdown/index.js), and the title goes back into the fence.
+ * @param {any} node
+ */
+function codeBlock(node) {
+  const code = (node.children ?? []).find(child => is(child, "code")) ?? node
+  const language = classes(code).find(name => name.startsWith("language-"))?.slice("language-".length)
+  return { type: "code", lang: language ?? null, meta: null, value: toText(code).replace(/\n$/, "") }
 }
 
 /**

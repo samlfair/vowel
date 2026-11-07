@@ -20,6 +20,7 @@ import { toString as hastToString } from 'hast-util-to-string'
 import getMetadata, { imageFromPage, reservedProperties } from "./metadata.js"
 import { isSecretPath, secretRouter, displayPath } from "./../../secretPaths.js"
 import { collectLinks } from "./links.js"
+import { parseFence } from "./codeFence.js"
 import { readWalk } from "./readRules.js"
 import { h } from "hastscript"
 import { mirrorStubs, mirrorWriter, llmsStubs } from "./mirror.js"
@@ -146,8 +147,18 @@ function readFile(source, { api, config }) {
     // is too wide, so the table itself can be a real table at full width
     // (a table that scrolls has to be display: block, which sizes its
     // columns to their content), and a caption has somewhere to go.
+    // A code block with a title (codeFence.js) is in one too, the title
+    // as its caption. One without stays a bare <pre>.
     handlers: {
-      table: (state, node) => h("figure", [defaultHandlers.table(state, node)])
+      table: (state, node) => h("figure", [defaultHandlers.table(state, node)]),
+      code: (state, node) => {
+        const fence = parseFence(node.lang, node.meta)
+        const pre = defaultHandlers.code(state, { ...node, lang: fence.language, meta: fence.meta })
+        if (!fence.title) return pre
+        const figure = h("figure", [h("figcaption", fence.title), pre])
+        state.patch(node, figure)
+        return figure
+      }
     },
     // `state.all(node)` converts the children to hast; handing over
     // `node.children` gives the HTML compiler raw *mdast* instead. Plain
