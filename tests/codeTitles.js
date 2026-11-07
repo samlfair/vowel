@@ -66,9 +66,9 @@ test("a built page: a titled block is a figure captioned by its title, and the m
     await site.close()
 
     const html = await readFile(path.join(targetFolder, "code.html"), "utf-8")
-    assert.match(html, /<figure><figcaption>Hello World\.md<\/figcaption><pre class=language-md><code class=language-md>/)
-    assert.match(html, /<figure><figcaption>app\.js<\/figcaption><pre class=language-js><code class=language-js><span class="token keyword">const/)
-    assert.match(html, /<figure><figcaption>notes\.txt<\/figcaption><pre><code>plain/, "no language, and no language-\"notes.txt\"")
+    assert.match(html, /<figure class=code><figcaption>Hello World\.md<\/figcaption><pre class=language-md><code class=language-md>/)
+    assert.match(html, /<figure class=code><figcaption>app\.js<\/figcaption><pre class=language-js><code class=language-js><span class="token keyword">const/)
+    assert.match(html, /<figure class=code><figcaption>notes\.txt<\/figcaption><pre><code>plain/, "no language, and no language-\"notes.txt\"")
     assert.match(html, /<\/figure>\s*<pre class=language-js><code class=language-js><span class="token function">untitled/, "an untitled block is a bare <pre>")
 
     const mirror = await readFile(path.join(targetFolder, "code.md"), "utf-8")

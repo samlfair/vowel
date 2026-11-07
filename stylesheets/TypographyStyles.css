@@ -63,11 +63,19 @@
 		--fontsize-root: clamp(1rem, 0.875rem + 0.333vw, 1.125rem);
 
 		/*
-			the difference in size of h1 relative to the root
-			font size; increase or decrease this number for larger or
-			smaller headings
+			how much larger h1 is than the root font size, as a multiple
+			of it: 1.5 makes h1 2.5 times the size of body text; increase
+			or decrease this number for larger or smaller headings
+
+			the heading sizes are computed here, on :root, once: set
+			this and the variables below on :root (in a stylesheet linked
+			from one page or folder, for those pages), since setting them
+			on another element changes nothing
 		*/
-		--fontsize-delta: calc(1.5 * var(--fontsize-root));
+		--fontsize-scale: 1.5;
+
+		/* the same difference as a length, which the sizes are computed from */
+		--fontsize-delta: calc(var(--fontsize-scale) * var(--fontsize-root));
 
 		/*
 			the rate of decay from h1 to h6 font size, where h6 is
@@ -232,8 +240,9 @@
 		font-style: italic;
 	}
 
-	nav a:where([aria-current='page'], [aria-current='true']),
-	nav a:where([aria-current='page'], [aria-current='true']):hover {
+	/* the page itself; a folder above it (aria-current=true) is still a link to go to */
+	nav a[aria-current='page'],
+	nav a[aria-current='page']:hover {
 		cursor: default;
 	}
 

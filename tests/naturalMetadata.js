@@ -101,12 +101,12 @@ test("a captioned image is lifted whole, as a <figure> with the itemprop on its 
   }
   await withSite(captioned, async (page) => {
     const html = await page("captioned.html")
-    const figure = head(html).match(/<figure>[\s\S]*?<\/figure>/)?.[0]
+    const figure = head(html).match(/<figure class=image>[\s\S]*?<\/figure>/)?.[0]
     assert.ok(figure, "the figure is in <main>, out of the content")
-    assert.match(figure, /^<figure><picture [^>]*itemprop=image[^>]*>/, "the itemprop is on the picture")
+    assert.match(figure, /^<figure class=image><picture [^>]*itemprop=image[^>]*>/, "the itemprop is on the picture")
     assert.match(figure, /<figcaption> The <em>caption<\/em>, <a href=\/natural>linked<\/a>\.<\/figcaption>/, "the caption is walked like any text")
     assert.doesNotMatch(content(html), /A picture/)
-    assert.match(content(html), /<figure><picture[^>]*>[\s\S]*?<figcaption> In the content\.<\/figcaption><\/figure>/, "a captioned image in the content stays there")
+    assert.match(content(html), /<figure class=image><picture[^>]*>[\s\S]*?<figcaption> In the content\.<\/figcaption><\/figure>/, "a captioned image in the content stays there")
     assert.doesNotMatch(html, /<p><figure>/)
   })
 })

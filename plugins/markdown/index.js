@@ -150,12 +150,12 @@ function readFile(source, { api, config }) {
     // A code block with a title (codeFence.js) is in one too, the title
     // as its caption. One without stays a bare <pre>.
     handlers: {
-      table: (state, node) => h("figure", [defaultHandlers.table(state, node)]),
+      table: (state, node) => h("figure.table", [defaultHandlers.table(state, node)]),
       code: (state, node) => {
         const fence = parseFence(node.lang, node.meta)
         const pre = defaultHandlers.code(state, { ...node, lang: fence.language, meta: fence.meta })
         if (!fence.title) return pre
-        const figure = h("figure", [h("figcaption", fence.title), pre])
+        const figure = h("figure.code", [h("figcaption", fence.title), pre])
         state.patch(node, figure)
         return figure
       }

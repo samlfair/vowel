@@ -20,7 +20,7 @@
  * @property {string} variable - the custom property in TypographyStyles.css
  * @property {string} label
  * @property {string} [hint]
- * @property {"x" | "ch" | ""} unit - "x" is a multiple of --fontsize-root
+ * @property {"ch" | ""} unit
  * @property {number} min
  * @property {number} max
  * @property {number} step
@@ -29,7 +29,7 @@
 
 /** @type {TypographySetting[]} */
 export const rampSettings = [
-  { key: "heading-size", variable: "--fontsize-delta", label: "Heading size", hint: "How much larger h1 is than body text", unit: "x", min: 0.25, max: 4, step: 0.05, default: 2 },
+  { key: "heading-size", variable: "--fontsize-scale", label: "Heading size", hint: "How much larger h1 is than body text, as a multiple of it", unit: "", min: 0.25, max: 4, step: 0.05, default: 1.5 },
   { key: "heading-size-decay", variable: "--fontsize-decay", label: "Size decay", hint: "Higher makes subheadings smaller", unit: "", min: 0.5, max: 6, step: 0.1, default: 3 },
   { key: "h1-letter-spacing", variable: "--letterspacing-h1", label: "h1 letter spacing", unit: "ch", min: -0.1, max: 0.1, step: 0.005, default: -0.01 },
   { key: "h6-letter-spacing", variable: "--letterspacing-h6", label: "h6 letter spacing", unit: "ch", min: -0.1, max: 0.1, step: 0.005, default: 0 },
@@ -49,15 +49,15 @@ function themeSettings(theme) {
 }
 
 /**
- * A ramp setting's value as CSS, clamped to its range. "x" is a multiple
- * of the root size, so headings follow the root's clamp() up and down.
+ * A ramp setting's value as CSS, clamped to its range. `heading-size` is
+ * a plain number, `--fontsize-scale`, which the sheet multiplies by the
+ * root size, so headings follow the root's clamp() up and down.
  * @param {TypographySetting} setting
  * @param {number} value
  */
 function rampValue(setting, value) {
   const clamped = Math.min(setting.max, Math.max(setting.min, value))
   const number = String(Number(clamped.toFixed(4)))
-  if (setting.unit === "x") return `calc(${number} * var(--fontsize-root))`
   return `${number}${setting.unit}`
 }
 

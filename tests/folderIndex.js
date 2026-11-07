@@ -72,7 +72,7 @@ test("a folder with a page gets an index at <folder>.html listing it; an empty f
     // homepage's would hold Blog alone, and a one-entry nav isn't rendered.
     const post = await html(path.join("blog", "post.html"))
     assert.match(post, /<nav aria-label=Breadcrumbs><a href=\/>Home<\/a><a href=\/blog>Blog<\/a>/)
-    assert.match(post, /<header>.*href=\/blog>Blog<.*<\/header>/s)
+    assert.match(post, /<header>.*href=\/blog aria-current=true>Blog<.*<\/header>/s, "the post's folder, marked as above it")
     assert.doesNotMatch(await html("index.html"), /<header>.*<nav>.*<\/header>/s)
   })
 })

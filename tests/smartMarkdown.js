@@ -53,7 +53,7 @@ test("wikilinks: resolved by name across folders, with section and label; unreso
     // The element carries what it was made from (data-note, data-section)
     // so the write can resolve it again and the editor can put [[...]] back.
     assert.match(html, /<a class=wikilink data-note="Hello World"href=\/notes\/hello-world>Hello World<\/a>/)
-    assert.match(html, /<a class=wikilink data-note="Hello World"data-section="Second Part"href=\/notes\/hello-world#second-part>Hello World<\/a>/)
+    assert.match(html, /<a class=wikilink data-note="Hello World"data-section="Second Part"href=\/notes\/hello-world#heading_second-part>Hello World<\/a>/)
     assert.match(html, /<a class=wikilink data-note="hello world"href=\/notes\/hello-world>the words<\/a>/)
     assert.match(html, /<a class=wikilink data-note=Nowhere>Nowhere<\/a>/)
 
@@ -133,6 +133,6 @@ test("the table of contents carries no generated class names", async () => {
     const contents = html.match(/<nav aria-label=Contents>([\s\S]*?)<\/nav>/)?.[1]
     assert.ok(contents, "a contents nav")
     assert.ok(!/class=/.test(contents), `no classes in the contents: ${contents}`)
-    assert.match(contents, /<ol><li><a href=#one>One<\/a><ol><li><a href=#deeper>Deeper<\/a><\/ol><li><a href=#two>Two<\/a><\/ol>/)
+    assert.match(contents, /<ol><li><a href=#heading_one>One<\/a><ol><li><a href=#heading_deeper>Deeper<\/a><\/ol><li><a href=#heading_two>Two<\/a><\/ol>/)
   })
 })

@@ -17,6 +17,13 @@ test("typography: every setting maps to a variable the sheet actually declares",
   }
 })
 
+test("typography: every setting's default is the sheet's own value, so the panel's slider starts where the site is", () => {
+  for (const setting of rampSettings) {
+    const declared = sheet.match(new RegExp(`${setting.variable}:\\s*([^;]+);`))?.[1].trim()
+    assert.equal(declared, `${setting.default}${setting.unit}`, `${setting.key}: the sheet says ${declared}`)
+  }
+})
+
 test("typography: nothing configured produces no stylesheet, so the sheet's defaults stand", () => {
   assert.equal(typographyCSS(undefined), null)
   assert.equal(typographyCSS("default"), null)
@@ -28,7 +35,7 @@ test("typography: only the keys the author set are emitted, in the typography la
   const { css } = typographyCSS({ name: "default", "heading-size": 2.5, "h1-weight": 700 })
   assert.match(css, /^\/\* Generated/)
   assert.ok(css.includes("@layer typography {"))
-  assert.ok(css.includes("--fontsize-delta: calc(2.5 * var(--fontsize-root));"))
+  assert.ok(css.includes("--fontsize-scale: 2.5;"), "a plain number; the sheet multiplies it by the root size")
   assert.ok(css.includes("--fontweight-h1: 700;"))
   assert.ok(!css.includes("--fontweight-h6"), "an unset key is the sheet's business")
   assert.ok(!css.includes("dynamic-typography"))

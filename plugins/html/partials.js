@@ -1,6 +1,6 @@
 import path from "node:path"
 import { h } from "hastscript"
-import { isListedPage } from "../../utils.js"
+import { isListedPage, pageClasses } from "../../utils.js"
 import { isVowelStylesheet } from "../styles/theme.js"
 
 /** The one stylesheet name linked without being asked for. */
@@ -96,8 +96,26 @@ function chain(folder) {
   return ["", ...segments.map((_, i) => segments.slice(0, i + 1).join(path.sep))]
 }
 
-/** A nav entry: where it goes and what it says. */
-const item = (page) => ({ url: page.metadata.prettyURL, label: page.metadata.breadcrumb })
+/**
+ * The class a nav's `<li>` carries (per Sam, Nov 7): the page class of
+ * the page it links to, the same as that page's `<body>` and cards
+ * (`page_blog_hello-world`).
+ * @param {any} page
+ */
+const pageClass = (page) => pageClasses(page.metadata.prettyURL, page.source).at(-1)
+
+/**
+ * The class a nav's `<ul>` carries: the folder its pages are in, as
+ * their own classes name it (`folder_blog`), or null for the root's.
+ * @param {any[]} pages - one folder's
+ */
+const folderClass = (pages) => {
+  const classes = pages.length ? pageClasses(pages[0].metadata.prettyURL, pages[0].source) : []
+  return classes.length > 1 ? classes.at(-2) : null
+}
+
+/** A nav entry: where it goes, what it says, and its page's class. */
+const item = (page) => ({ url: page.metadata.prettyURL, label: page.metadata.breadcrumb, page: pageClass(page) })
 
 /**
  * The aside tree: top-level pages with no date, each with the pages of
@@ -118,16 +136,14 @@ function asideTree(pages) {
     byFolder.get(url).push(page)
   }
   // A folder with too many pages for a menu shows its own entry only (asMenu).
-  const children = (parent) => {
-    const pages = byFolder.get(parent.metadata.prettyURL) ?? []
-    return asMenu(pages).map(node)
-  }
+  const children = (parent) => asMenu(byFolder.get(parent.metadata.prettyURL) ?? [])
 
   function node(page) {
     const below = children(page)
     // The aside links the file, not the pretty url - kept as it was
     // (see the note in the commit).
-    return { url: "/" + page.path, label: page.metadata.breadcrumb, ...(below.length ? { children: below } : {}) }
+    const entry = { url: "/" + page.path, label: page.metadata.breadcrumb, page: pageClass(page) }
+    return below.length ? { ...entry, children: below.map(node), folder: folderClass(below) } : entry
   }
 
   const top = undated
@@ -241,7 +257,8 @@ function createPartialStubs(api) {
       // it, a folder with too many pages shows none of them (asMenu).
       levels: chain(folder).map(level => {
         const list = lists.get(level) ?? []
-        return (level ? asMenu(list) : list).map(item)
+        const shown = level ? asMenu(list) : list
+        return { folder: folderClass(shown), items: shown.map(item) }
       }),
       sheets: chain(folder).flatMap(level => sheets.get(level) ?? [])
     }
@@ -265,16 +282,19 @@ function expandPartial({ params }) {
  */
 function renderNav({ levels }) {
   return h("nav", { "aria-label": "Local" }, levels
-    .filter(level => level.length)
-    .map(level => h("ul", level.map(({ url, label }) => h("li", h("a", { href: url }, label)))))
+    .filter(level => level.items.length)
+    .map(level => h("ul", classed(level.folder), level.items.map(({ url, label, page }) => h("li", classed(page), h("a", { href: url }, label)))))
   )
 }
 
+/** One class, or none. @param {string | null | undefined} name */
+const classed = (name) => name ? { className: [name] } : {}
+
 /** The aside tree. */
 function renderAside({ items }) {
-  const li = ({ url, label, children }) => children
-    ? h("li", [h("a", { href: url }, label), h("ul", children.map(li))])
-    : h("li", h("a", { href: url }, label))
+  const li = ({ url, label, page, children, folder }) => children
+    ? h("li", classed(page), [h("a", { href: url }, label), h("ul", classed(folder), children.map(li))])
+    : h("li", classed(page), h("a", { href: url }, label))
   return h("nav", { "aria-label": "Global" }, h("ul", items.map(li)))
 }
 
@@ -301,16 +321,39 @@ function readPartial(source) {
 }
 
 /**
- * The page's copy of a nav, with the current page marked. A copy: the
- * tracked read hands back a fresh parse, but a rule that relies on that
- * would be fragile, and the walk mutates.
+ * A nav link's href as the page url it names: the aside links files
+ * (`/blog.html`, and `/index.html` for the home page), the header nav
+ * pretty urls.
+ * @param {string} href
+ */
+const linkedURL = (href) => href === "/index.html" ? "/" : href.replace(/\.html$/, "")
+
+/**
+ * The urls of the folders above a page, not the root: `/blog` and
+ * `/blog/2020` for `/blog/2020/post`. Each is its folder's index page.
+ * @param {string} url
+ */
+function ancestorURLs(url) {
+  const segments = url.split("/").filter(Boolean)
+  return segments.slice(0, -1).map((segment, index) => "/" + segments.slice(0, index + 1).join("/"))
+}
+
+/**
+ * The page's copy of a nav, with the current page marked
+ * `aria-current=page` and the folders above it `aria-current=true`
+ * (per Sam, Nov 7), the home page aside, since every page is below it.
+ * A copy: the tracked read hands back a fresh parse, but a rule that
+ * relies on that would be fragile, and the walk mutates.
  * @param {any} hast
  * @param {string} url - the page's prettyURL
  */
 function withCurrent(hast, url) {
   const copy = structuredClone(hast)
+  const ancestors = new Set(ancestorURLs(url))
   const walk = (node) => {
-    if (node.type === "element" && node.tagName === "a" && node.properties?.href === url) node.properties.ariaCurrent = "page"
+    const href = node.type === "element" && node.tagName === "a" && typeof node.properties?.href === "string" ? linkedURL(node.properties.href) : null
+    if (href === url) node.properties.ariaCurrent = "page"
+    else if (href !== null && ancestors.has(href)) node.properties.ariaCurrent = "true"
     node.children?.forEach(walk)
   }
   walk(copy)

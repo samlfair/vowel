@@ -76,13 +76,13 @@ test("a page shows its folder chain's nav with itself marked current; a section 
     "shop/hats/red.md": "# Red\n"
   }, async ({ header }) => {
     // Root page: the root list, itself current.
-    assert.match(await header("about.html"), /<nav aria-label=Local><ul><li><a href=\/about aria-current=page>About<\/a><li><a href=\/shop>Shop<\/a><\/ul><\/nav>/)
+    assert.match(await header("about.html"), /<nav aria-label=Local><ul><li class=page_about><a href=\/about aria-current=page>About<\/a><li class=page_shop><a href=\/shop>Shop<\/a><\/ul><\/nav>/)
     // A page in shop/: the root list, then shop's list, itself current.
-    assert.match(await header(path.join("shop", "rings.html")), /<ul><li><a href=\/about>About<\/a><li><a href=\/shop>Shop<\/a><\/ul><ul><li><a href=\/shop\/hats>Hats<\/a><li><a href=\/shop\/rings aria-current=page>Rings<\/a><\/ul>/)
+    assert.match(await header(path.join("shop", "rings.html")), /<ul><li class=page_about><a href=\/about>About<\/a><li class=page_shop><a href=\/shop aria-current=true>Shop<\/a><\/ul><ul class=folder_shop><li class=page_shop_hats><a href=\/shop\/hats>Hats<\/a><li class=page_shop_rings><a href=\/shop\/rings aria-current=page>Rings<\/a><\/ul>/)
     // The section index shop.html (dir "") takes shop/'s chain, ending in its own list.
-    assert.match(await header("shop.html"), /<li><a href=\/shop aria-current=page>Shop<\/a><\/ul><ul><li><a href=\/shop\/hats>Hats<\/a>/)
+    assert.match(await header("shop.html"), /<li class=page_shop><a href=\/shop aria-current=page>Shop<\/a><\/ul><ul class=folder_shop><li class=page_shop_hats><a href=\/shop\/hats>Hats<\/a>/)
     // Three levels deep: root, shop, shop/hats.
-    assert.match(await header(path.join("shop", "hats", "red.html")), /<\/ul><ul><li><a href=\/shop\/hats>Hats<\/a>.*<\/ul><ul><li><a href=\/shop\/hats\/red aria-current=page>Red<\/a><\/ul>/)
+    assert.match(await header(path.join("shop", "hats", "red.html")), /<\/ul><ul class=folder_shop><li class=page_shop_hats><a href=\/shop\/hats aria-current=true>Hats<\/a>.*<\/ul><ul class=folder_shop_hats><li class=page_shop_hats_red><a href=\/shop\/hats\/red aria-current=page>Red<\/a><\/ul>/)
   })
 })
 
@@ -142,7 +142,7 @@ test("the header nav follows the aside's rule: up to 19 pages of a folder, and n
     assert.equal((small.match(/href=\/small\/page-/g) ?? []).length, 19, "nineteen pages, eighteen siblings each: all listed")
     const big = await header(path.join("big", "page-01.html"))
     assert.equal((big.match(/href=\/big\/page-/g) ?? []).length, 0, "twenty siblings are not")
-    assert.ok(big.includes("href=/big>Big"), "the big folder's own entry stays, in its parent's list")
+    assert.ok(big.includes("href=/big aria-current=true>Big"), "the big folder's own entry stays, in its parent's list, marked as above the page")
   })
 })
 

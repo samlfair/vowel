@@ -1,6 +1,7 @@
 import { h } from "hastscript"
 import { imageSizes } from "../../utils.js"
 import { imageURL } from "./image.js"
+import { isExternalURL, externalProperties } from "./externalLinks.js"
 
 /**
  * Social links, from the `social_links` setting:
@@ -52,6 +53,7 @@ function socialLinks(settings) {
 function socialLinksNav(settings, api) {
   const links = socialLinks(settings)
   if (!links.length) return null
+  const domain = settings?.lastNonNull?.("fm_domain")
 
   return h("nav.social-links", { "aria-label": "Social links" },
     h("ul", links.map(({ label, url, icon }) => {
@@ -61,7 +63,8 @@ function socialLinksNav(settings, api) {
       // published (image.js).
       const iconURL = icon ? imageURL(String(icon), api, imageSizes[0]) : null
       const image = iconURL && h("img", { src: iconURL, alt: text, style: `--url-icon: url("${iconURL}")` })
-      return h("li", h("a", { href: url, rel: "me" }, image || text))
+      const properties = { href: url, rel: "me" }
+      return h("li", h("a", isExternalURL(url, domain) ? externalProperties(properties) : properties, image || text))
     }))
   )
 }

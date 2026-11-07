@@ -68,7 +68,7 @@ test("links that go nowhere are warned about; links that resolve are not", async
     ].sort())
 
     const html = content(await page("blog/links.html"))
-    for (const [text, href] of [["a", "/about"], ["b", "/about"], ["c", "/blog/post"], ["d", "/about"], ["e", "/blog/post"], ["f", "/blog/post#section"], ["h", "/pic.svg"]]) {
+    for (const [text, href] of [["a", "/about"], ["b", "/about"], ["c", "/blog/post"], ["d", "/about"], ["e", "/blog/post"], ["f", "/blog/post#heading_section"], ["h", "/pic.svg"]]) {
       assert.match(html, new RegExp(`<a href=${href}>${text}</a>`), `${text} → ${href}`)
     }
     assert.match(html, /<a href=\.\.\/nope\/deeper>z<\/a>/, "a broken link is left as written")

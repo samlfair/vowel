@@ -73,7 +73,7 @@ test("the header nav and the aside render from two entries", async () => {
     assert.doesNotMatch(await page("index.html"), /<aside>/, "an aside of the homepage alone is no aside")
   })
   await withSite({ "home.md": "# Home\n", "about.md": "# About\n", "contact.md": "# Contact\n" }, async (page) => {
-    assert.match(header(await page("index.html")), /<nav aria-label=Local><ul><li><a href=\/about>About<\/a><li><a href=\/contact>Contact<\/a><\/ul><\/nav>/)
+    assert.match(header(await page("index.html")), /<nav aria-label=Local><ul><li class=page_about><a href=\/about>About<\/a><li class=page_contact><a href=\/contact>Contact<\/a><\/ul><\/nav>/)
   })
 })
 
@@ -100,5 +100,41 @@ test("local_nav_item: false leaves a page out of the header nav; global_nav_item
     const aside = home.match(/<aside>[\s\S]*?<\/aside>/)[0]
     assert.doesNotMatch(aside, /Legal/, "global_nav_item: false")
     assert.match(aside, /Colophon/, "only the header nav drops colophon")
+  })
+})
+
+test("both navs mark the current page aria-current=page and the folders above it aria-current=true, never the home page", async () => {
+  await withSite({
+    "home.md": "# Home\n",
+    "about.md": "# About\n",
+    "blog.md": "# Blog\n",
+    "blog/guide.md": "# Guide\n",
+    "blog/tips.md": "# Tips\n"
+  }, async (page) => {
+    const guide = await page("blog/guide.html")
+    const aside = guide.match(/<aside>[\s\S]*?<\/aside>/)[0]
+    assert.match(aside, /<a href=\/blog\/guide\.html aria-current=page>Guide<\/a>/, "the aside, which links files")
+    assert.match(aside, /<a href=\/blog\.html aria-current=true>Blog<\/a>/)
+    assert.match(aside, /<a href=\/blog\/tips\.html>Tips<\/a>/, "a sibling is not current")
+    assert.match(aside, /<a href=\/>Home<\/a>/, "every page is below the home page, so it isn't marked")
+    assert.match(header(guide), /<a href=\/blog aria-current=true>Blog<\/a>/, "the header nav, which links pretty urls")
+    assert.match(header(guide), /<a href=\/blog\/guide aria-current=page>Guide<\/a>/)
+    assert.match(await page("index.html"), /<a href=\/ aria-current=page>Home<\/a>/, "the home page is current on itself")
+  })
+})
+
+test("a nav's <li> carries its page's page class and a <ul> its folder's class, in both navs; the top list has none", async () => {
+  await withSite({
+    "home.md": "# Home\n",
+    "about.md": "# About\n",
+    "blog.md": "# Blog\n",
+    "blog/guide.md": "# Guide\n",
+    "blog/tips.md": "# Tips\n"
+  }, async (page) => {
+    const guide = await page("blog/guide.html")
+    const aside = guide.match(/<aside>[\s\S]*?<\/aside>/)[0]
+    assert.match(aside, /<nav aria-label=Global><ul><li class=page_home>/, "the top list has no class")
+    assert.match(aside, /<li class=page_blog><a href=\/blog\.html aria-current=true>Blog<\/a><ul class=folder_blog><li class=page_blog_guide>/)
+    assert.match(header(guide), /<ul class=folder_blog><li class=page_blog_guide><a href=\/blog\/guide aria-current=page>Guide<\/a>/)
   })
 })

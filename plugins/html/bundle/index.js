@@ -19690,7 +19690,7 @@ ${fallback_html}`;
 	delegate(['click']);
 
 	const rampSettings = [
-	  { key: "heading-size", variable: "--fontsize-delta", label: "Heading size", hint: "How much larger h1 is than body text", unit: "x", min: 0.25, max: 4, step: 0.05, default: 2 },
+	  { key: "heading-size", variable: "--fontsize-scale", label: "Heading size", hint: "How much larger h1 is than body text, as a multiple of it", unit: "", min: 0.25, max: 4, step: 0.05, default: 1.5 },
 	  { key: "heading-size-decay", variable: "--fontsize-decay", label: "Size decay", hint: "Higher makes subheadings smaller", unit: "", min: 0.5, max: 6, step: 0.1, default: 3 },
 	  { key: "h1-letter-spacing", variable: "--letterspacing-h1", label: "h1 letter spacing", unit: "ch", min: -0.1, max: 0.1, step: 0.005, default: -0.01 },
 	  { key: "h6-letter-spacing", variable: "--letterspacing-h6", label: "h6 letter spacing", unit: "ch", min: -0.1, max: 0.1, step: 0.005, default: 0 },
@@ -19705,7 +19705,6 @@ ${fallback_html}`;
 	function rampValue(setting, value) {
 	  const clamped = Math.min(setting.max, Math.max(setting.min, value));
 	  const number = String(Number(clamped.toFixed(4)));
-	  if (setting.unit === "x") return `calc(${number} * var(--fontsize-root))`
 	  return `${number}${setting.unit}`
 	}
 	function typographyVariables(theme) {
@@ -20079,6 +20078,9 @@ ${fallback_html}`;
 	  if ((element.tagName === "UL" || element.tagName === "TABLE") && classes.some(name => name.startsWith("_"))) {
 	    const params = globParams(classes);
 	    return params && globDirective(params)
+	  }
+	  if (element.tagName === "A" && element.children.length === 1 && classList(element.firstElementChild).includes("reference")) {
+	    return element.getAttribute("href")
 	  }
 	  if (element.tagName === "ARTICLE" && classes.includes("reference")) {
 	    const link = element.querySelector("a[href]");

@@ -60,7 +60,7 @@ test("a page without a file has none, and is a card that links nowhere", async (
     assert.match(listing, /<li><article class="folder_work page_work_ghost"itemscope><h1>Ghost<\/h1>/, "in the listing, unlinked")
     assert.match(listing, /<a href=\/work\/real><article/, "the real page is linked as before")
     assert.doesNotMatch(home, /href=\/work\/ghost/, "nothing links to it")
-    assert.match(home, /<\/ul>\s*<article class="folder_work page_work_ghost"itemscope>/, "the single card is an unlinked article")
+    assert.match(home, /<\/ul>\s*<article class="folder_work page_work_ghost reference"itemscope>/, "the single card is an unlinked article, marked as a reference")
     assert.match(home, /<td>Ghost(<\/td>)?<tr>/, "a table row with its title as text")
     assert.doesNotMatch(home, /Gone/, "a deleted page is not a page without a file")
   })

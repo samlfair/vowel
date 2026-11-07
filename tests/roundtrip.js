@@ -125,6 +125,13 @@ test("a reference card collapses back to its path", () => {
   assert.equal(markdown, "/blog/post")
 })
 
+test("a reference card as the build writes it, the link around the article, collapses back to its path", () => {
+  const { markdown } = roundtrip(
+    '<a href="/blog/post"><article class="folder_blog page_blog_post reference" itemscope><h1>Post</h1></article></a>'
+  )
+  assert.equal(markdown, "/blog/post")
+})
+
 test("a link preview collapses back to its url", () => {
   const { markdown } = roundtrip(
     '<article class="link-preview"><a href="https://example.com"><h2>Example</h2></a></article>'

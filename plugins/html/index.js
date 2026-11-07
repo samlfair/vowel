@@ -28,6 +28,8 @@ import { themeStylesheets, isVowelStylesheet } from "../styles/theme.js"
 import { displayPath } from "../../secretPaths.js"
 import { VOWEL_VERSION } from "../../version.js"
 import { socialLinksNav } from "./socialLinks.js"
+import { isExternalURL, externalProperties } from "./externalLinks.js"
+import { HEADING_ID_PREFIX } from "./headingIds.js"
 import { writeWalk } from "./writeRules.js"
 import { ASIDE_PARTIAL, navPartialPath, backlinksPartialPath, createPartialStubs, expandPartial, withCurrent, partialsProcessor } from "./partials.js"
 
@@ -689,8 +691,10 @@ function writeFile(target, { settings, api, config }) {
   ])
 
 
+  // Every heading's id is prefixed (headingIds.js), so none can be the
+  // page's own: a heading called "Content" was section#content's.
   const slugger = unified()
-    .use(slug)
+    .use(slug, { prefix: HEADING_ID_PREFIX })
     .use(toc, {
       // No class per level, item and link: the nesting is the <ol>
       // structure, and `nav[aria-label=Contents]` is the hook. An empty
@@ -759,7 +763,7 @@ function writeFile(target, { settings, api, config }) {
   // The aside tree is one partial, the same on every page. Without a
   // nav worth rendering there is no aside at all.
   const asidePartial = api.target(ASIDE_PARTIAL)
-  const asideNav = navWithChoices(asidePartial ? asidePartial.metadata.hast : null)
+  const asideNav = navWithChoices(asidePartial ? withCurrent(asidePartial.metadata.hast, metadata.prettyURL) : null)
   const treeAside = asideNav ? h("aside", asideNav) : null
 
   const treeFooter = h('footer', [
@@ -767,9 +771,9 @@ function writeFile(target, { settings, api, config }) {
     h('section#copyright', `© ${new Date().getFullYear()}`),
     h('section#shoutout', [
       "Made with ",
-      h('a', {
-        href: "https://vowel.cc"
-      }, "Vowel"),
+      h('a', isExternalURL("https://vowel.cc", settings.lastNonNull("fm_domain"))
+        ? externalProperties({ href: "https://vowel.cc" })
+        : { href: "https://vowel.cc" }, "Vowel"),
     ])
   ])
 
@@ -838,7 +842,7 @@ function makeTable(classes, properties, targets, api) {
 
   // In a <figure>, like a markdown table (markdown/index.js). The
   // directive's parameters stay on the <table>, where the editor reads them.
-  return h("figure", h("table", { class: classes }, [
+  return h("figure.table", h("table", { class: classes }, [
     h("thead", h("tr", properties.map(name => h("th", name)))),
     h("tbody", targets.map(target => h("tr", properties.map(name => cell(target, name)))))
   ]))

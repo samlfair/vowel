@@ -28,11 +28,11 @@ test("a markdown table and a table listing are each a table in a figure", async 
     await (await site.build()).deferred
     const html = await readFile(path.join(systemFolder, "output", "index.html"), "utf-8")
     const content = html.match(/<section id=content>[\s\S]*?<\/section>/)[0]
-    const figures = content.match(/<figure>\s*<table[\s\S]*?<\/table>\s*<\/figure>/g) ?? []
+    const figures = content.match(/<figure class=table>\s*<table[\s\S]*?<\/table>\s*<\/figure>/g) ?? []
     assert.equal(figures.length, 2, content)
     assert.match(figures[0], /<th>a/, "the markdown table")
     assert.match(figures[1], /<table class="_ _work view-table">/, "the listing, its directive's classes on the table")
-    assert.doesNotMatch(content.replace(/<figure>\s*<table[\s\S]*?<\/table>\s*<\/figure>/g, ""), /<table/, "no table outside a figure")
+    assert.doesNotMatch(content.replace(/<figure class=table>\s*<table[\s\S]*?<\/table>\s*<\/figure>/g, ""), /<table/, "no table outside a figure")
   } finally {
     if (site) await site.close()
     await rm(sourceFolder, { recursive: true, force: true })

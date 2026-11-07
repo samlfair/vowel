@@ -62,6 +62,13 @@ function expansionDirective(element) {
     return params && globDirective(params)
   }
 
+  // A reference card is `<a href><article class=reference>` as the
+  // build writes it (writeRules.js), or the older article around its
+  // link.
+  if (element.tagName === "A" && element.children.length === 1 && classList(element.firstElementChild).includes("reference")) {
+    return element.getAttribute("href")
+  }
+
   if (element.tagName === "ARTICLE" && classes.includes("reference")) {
     const link = element.querySelector("a[href]")
     return link && link.getAttribute("href")

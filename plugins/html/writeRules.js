@@ -8,6 +8,8 @@ import { globClasses, alertLabel } from "./editor/directives.js"
 import createDynamicImage, { derivativeURL } from "./image.js"
 import { highlightCode } from "./highlighting.js"
 import { displayPath } from "../../secretPaths.js"
+import { isExternalURL, externalProperties } from "./externalLinks.js"
+import { HEADING_ID_PREFIX, headingAnchor, withHeadingAnchor } from "./headingIds.js"
 
 /**
  * The page's source, at the node a warning is about (utils.js). Nodes
@@ -148,8 +150,39 @@ const internalLink = {
       return
     }
     // A link to a png or jpeg opens its largest derivative: the
-    // original is not published (image.js).
-    node.properties.href = (derivativeURL(found, imageSizes.at(-1)) ?? urlOf(found)) + suffix
+    // original is not published (image.js). A page's anchor is a
+    // heading's (headingIds.js); a file's, like a pdf's `#page=2`, isn't.
+    const anchored = found.extension === ".html" ? withHeadingAnchor(suffix) : suffix
+    node.properties.href = (derivativeURL(found, imageSizes.at(-1)) ?? urlOf(found)) + anchored
+  }
+}
+
+/**
+ * `[x](#kerning)`, an anchor on this page: a heading's, so `#heading_kerning`
+ * (headingIds.js). In place, so the walk goes on into its text.
+ * @type {import("../markdown/visitor.js").BlockRule}
+ */
+const anchorLink = {
+  name: "anchorLink",
+  test: (node) => isElement(node) && node.tagName === "a" && typeof node.properties?.href === "string" && node.properties.href.startsWith("#"),
+  transform: (node) => {
+    node.properties.href = "#" + headingAnchor(node.properties.href.slice(1))
+  }
+}
+
+/**
+ * A link to another site opens in a new tab (externalLinks.js). Any
+ * absolute link matches; one to the site's own domain is left as it
+ * is, which a test can't tell, since only the transform has the
+ * settings. In place, so the walk goes on into its text.
+ * @type {import("../markdown/visitor.js").BlockRule}
+ */
+const externalLink = {
+  name: "externalLink",
+  test: (node) => isElement(node) && node.tagName === "a" && /^(https?:)?\/\//i.test(node.properties?.href ?? ""),
+  transform: (node, index, parent, { settings }) => {
+    if (!isExternalURL(node.properties.href, settings?.lastNonNull?.("fm_domain"))) return
+    node.properties = externalProperties(node.properties)
   }
 }
 
@@ -247,7 +280,7 @@ const wikilink = {
       return SKIP
     }
     const url = found.metadata?.prettyURL ?? `/${found.path}`
-    const anchor = section ? `#${new GithubSlugger().slug(section)}` : ""
+    const anchor = section ? `#${HEADING_ID_PREFIX}${new GithubSlugger().slug(section)}` : ""
     node.properties.href = url + anchor
     return SKIP
   }
@@ -323,6 +356,7 @@ const captionedImage = {
   transform: (node) => {
     const [img, ...caption] = node.children
     node.tagName = "figure"
+    node.properties = { ...node.properties, className: [...(node.properties?.className ?? []), "image"] }
     node.children = [img, h("figcaption", caption)]
   }
 }
@@ -419,7 +453,7 @@ const directive = {
       // Lowercased: every vowel target path is (config.js's router).
       const found = api.target(path.relative("/", path.format(info)).toLowerCase())
       if (!found) return SKIP
-      return makeHeader(found.metadata, cardLink(found), api, config, found.source)
+      return asReference(makeHeader(found.metadata, cardLink(found), api, config, found.source))
     }
 
     const folder = path.relative("/", dir)
@@ -454,6 +488,19 @@ const directive = {
  * @param {any} found
  */
 const cardLink = (found) => isPageWithoutFile(found) ? null : found.metadata.prettyURL
+
+/**
+ * A reference card's <article> marked `reference`, which a listing's
+ * cards aren't: `<a><article class=reference>`, or the article alone for
+ * a page with no file. The editor's ingest reads it to put `/blog/post`
+ * back.
+ * @param {any} card - makeHeader's result
+ */
+function asReference(card) {
+  const article = card.tagName === "article" ? card : card.children[0]
+  article.properties.className = [...(article.properties.className ?? []), "reference"]
+  return card
+}
 
 /**
  * A relative directive path as the absolute published path it names.
@@ -569,7 +616,7 @@ function trimText(nodes) {
 const skipped = new Set(["pre", "code", "script", "style"])
 
 const writeWalk = createVisitor({
-  block: [internalLink, wikilink, icon, highlight, captionedImage, image, directive, preview, alert],
+  block: [internalLink, anchorLink, externalLink, wikilink, icon, highlight, captionedImage, image, directive, preview, alert],
   skip: (node) => isElement(node) && skipped.has(node.tagName)
 })
 
